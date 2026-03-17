@@ -43,7 +43,8 @@ import {
   Trash2,
   CalendarDays,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Loader2
 } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatDate } from '@/lib/utils'

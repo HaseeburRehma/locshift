@@ -67,9 +67,9 @@ function matchTechnician(lead: Lead, technicians: Technician[]): MatchResult | n
   return {
     technician_id: best.technician.id,
     technician_name: best.technician.name,
-    match_score: best.score,
-    reasoning: `${best.technician.name} ausgewählt basierend auf Verfügbarkeit, Servicegebiet und Fähigkeiten (Score: ${best.score}).`
-  }
+    score: best.score,
+    reason: `${best.technician.name} ausgewählt basierend auf Verfügbarkeit, Servicegebiet und Fähigkeiten (Score: ${best.score}).`
+  } as any
 }
 
 export async function POST(request: NextRequest) {
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         lead_id,
         technician_id: result.technician_id,
         status: 'awaiting_approval',
-        notes: result.reasoning,
+        notes: result.reason,
         estimated_duration: 120 // required field
       })
       .select()

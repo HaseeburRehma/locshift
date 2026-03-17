@@ -34,7 +34,7 @@ export default async function NotificationsPage() {
         <p className="text-muted-foreground font-medium">Configure how and when your team and customers receive alerts.</p>
       </div>
 
-      <NotificationSettings initialData={settings?.notification_preferences || {}} />
+      <NotificationSettings initialSettings={settings?.notification_preferences || {}} />
     </div>
   )
 }

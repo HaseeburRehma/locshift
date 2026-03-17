@@ -121,7 +121,7 @@ export default async function TechnicianDetailPage({ params }: { params: Promise
                 <p className="text-xs text-muted-foreground font-medium">Monthly efficiency and customer satisfaction trends.</p>
              </CardHeader>
              <CardContent className="p-8 pt-0">
-                <TechnicianPerformance technicianId={technician.id} />
+                <TechnicianPerformance technicianId={technician.id} jobs={technician.jobs || []} />
              </CardContent>
           </Card>
         </div>

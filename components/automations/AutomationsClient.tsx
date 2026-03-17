@@ -266,7 +266,7 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
         </Table>
       </Card>
 
-      <RuleBuilder open={builderOpen} onClose={() => setBuilderOpen(false)} rule={editingRule} />
+      <RuleBuilder open={builderOpen} onClose={() => setBuilderOpen(false)} initialRule={editingRule || undefined} />
     </div>
   )
 }

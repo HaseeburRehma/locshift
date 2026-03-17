@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     // Notify
     await createNotification({
       forRoles: ['admin'],
-      type: 'system',
+      type: 'info' as any,
       title: `New technician added: ${tech.name}`,
       body: `Technician ${tech.name} has been added to the system.`,
       actionUrl: `/dashboard/technicians/${tech.id}`

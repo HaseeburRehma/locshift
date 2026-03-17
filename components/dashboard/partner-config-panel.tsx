@@ -1,9 +1,10 @@
 'use client'
 
-import useSWR from 'swr'
+import useSWR, { mutate } from 'swr'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Users, Store, Globe, Handshake, Mail, MapPin } from 'lucide-react'
+import { Users, Store, Globe, Handshake, Mail, MapPin, Plus } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { useTranslation } from '@/lib/i18n'
 
@@ -59,7 +60,7 @@ export function PartnerConfigPanel() {
                       onClick={async () => {
                         if (confirm(locale === 'en' ? 'Delete this partner user?' : 'Partner-Benutzer löschen?')) {
                           const res = await fetch(`/api/users/${partner.id}`, { method: 'DELETE' })
-                          if (res.ok) fetch('/api/users').then(r => r.json()).then(d => mutate(d))
+                          if (res.ok) fetch('/api/users').then(r => r.json()).then(d => mutate('/api/users', d))
                           else alert('Delete failed')
                         }
                       }}

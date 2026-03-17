@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { CreditCard, ChevronRight, Activity, Receipt, Package } from 'lucide-react'
+import { CreditCard, ChevronRight, Activity, Receipt, Package, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'

@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Plus } from 'lucide-react'
 import { Job } from '@/lib/types'
 import { JobStatusBadge } from './JobStatusBadge'
 import { JobTimer } from './JobTimer'

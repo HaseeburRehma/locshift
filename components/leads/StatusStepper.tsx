@@ -7,13 +7,13 @@ import { updateLeadStatus } from '@/app/actions/leads'
 import type { Lead } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-type PipelineStatus = 'new' | 'qualified' | 'scheduled' | 'assigned' | 'completed'
+type PipelineStatus = 'new' | 'qualified' | 'scheduled' | 'matched' | 'completed'
 
 const STAGES: { status: PipelineStatus; label: string }[] = [
   { status: 'new', label: 'New' },
   { status: 'qualified', label: 'Qualified' },
   { status: 'scheduled', label: 'Scheduled' },
-  { status: 'assigned', label: 'Assigned' },
+  { status: 'matched', label: 'Matched' },
   { status: 'completed', label: 'Completed' },
 ]
 
@@ -21,9 +21,10 @@ const STATUS_ORDER: Record<PipelineStatus, number> = {
   new: 0,
   qualified: 1,
   scheduled: 2,
-  assigned: 3,
+  matched: 3,
   completed: 4,
 }
+
 
 interface StatusStepperProps {
   leadId: string

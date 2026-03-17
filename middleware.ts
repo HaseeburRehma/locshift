@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { withTimeout } from "./lib/supabase/with-timeout"
 
-// Define permission matrix for proxy (simplified for route protection)
+// Define permission matrix for middleware (simplified for route protection)
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/dashboard/leads': ['admin', 'manager', 'disponent', 'viewer'],
   '/dashboard/jobs': ['admin', 'manager', 'disponent', 'technician', 'viewer'],
@@ -15,10 +16,8 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/partner': ['partner_admin', 'partner_agent'],
 }
 
-export async function proxy(request: NextRequest) {
+export default async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  const logLabel = `proxy:${pathname}`
-  console.time(logLabel)
 
   let response = NextResponse.next({
     request: {
@@ -48,8 +47,6 @@ export async function proxy(request: NextRequest) {
       }
     )
 
-    const { withTimeout } = await import("./lib/supabase/with-timeout")
-
     const { data: { user } } = await withTimeout(
       supabase.auth.getUser() as any,
       3000,
@@ -57,15 +54,15 @@ export async function proxy(request: NextRequest) {
     ) as any
 
     // Public routes
-    const isPublicRoute = ['/auth', '/api/inquiry', '/api/leads', '/api/agents', '/review', '/'].some(p => pathname.startsWith(p))
+    const publicPrefixes = ['/auth', '/api/inquiry', '/api/leads', '/api/agents', '/review']
+    const isPublicRoute = publicPrefixes.some(p => pathname.startsWith(p)) || pathname === '/'
+    
     if (isPublicRoute && pathname !== '/auth/login' && pathname !== '/auth/sign-up') {
-      console.timeEnd(logLabel)
       return response
     }
 
     // Auth requirement
     if (!user && !isPublicRoute) {
-      console.timeEnd(logLabel)
       return NextResponse.redirect(new URL('/auth/login', request.url))
     }
 
@@ -87,11 +84,9 @@ export async function proxy(request: NextRequest) {
       // 1. Role-based redirects for the root /dashboard
       if (pathname === '/dashboard') {
         if (role === 'technician') {
-          console.timeEnd(logLabel)
           return NextResponse.redirect(new URL('/dashboard/jobs', request.url))
         }
         if (['partner_admin', 'partner_agent'].includes(role)) {
-          console.timeEnd(logLabel)
           return NextResponse.redirect(new URL('/partner/dashboard', request.url))
         }
       }
@@ -100,17 +95,15 @@ export async function proxy(request: NextRequest) {
       for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
         if (pathname.startsWith(route)) {
           if (!allowedRoles.includes(role)) {
-            console.timeEnd(logLabel)
             return NextResponse.redirect(new URL('/unauthorized', request.url))
           }
         }
       }
     }
   } catch (err) {
-    console.error(`[proxy] Error on ${pathname}:`, err)
+    console.error(`[middleware] Error on ${pathname}:`, err)
   }
 
-  console.timeEnd(logLabel)
   return response
 }
 

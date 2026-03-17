@@ -34,7 +34,7 @@ export default async function IntegrationsPage() {
         <p className="text-muted-foreground font-medium">Connect your Operations Center with third-party infrastructure.</p>
       </div>
 
-      <IntegrationsList initialData={configs || []} />
+      <IntegrationsList initialConfigs={configs || []} />
     </div>
   )
 }

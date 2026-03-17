@@ -13,9 +13,7 @@ const PAYMENT_METHOD_MAP: Record<string, StripePaymentMethod[]> = {
 
 export async function POST(request: Request) {
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2024-06-20',
-    })
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
     const supabase = await createClient()
     const {
       data: { user },
@@ -72,19 +70,20 @@ export async function POST(request: Request) {
     })
 
     // Log pending payment — fails gracefully if table doesn't exist yet
-    await supabase
-      .from('stripe_payments' as any)
-      .insert({
-        stripe_session_id: session.id,
-        user_id: user.id,
-        amount,
-        credits_to_add: credits,
-        status: 'pending',
-        payment_method: paymentMethod,
-      })
-      .catch((err: any) =>
-        console.warn('[create-checkout] stripe_payments table may not exist yet:', err?.message)
-      )
+    try {
+      await supabase
+        .from('stripe_payments' as any)
+        .insert({
+          stripe_session_id: session.id,
+          user_id: user.id,
+          amount,
+          credits_to_add: credits,
+          status: 'pending',
+          payment_method: paymentMethod,
+        })
+    } catch (err: any) {
+      console.warn('[create-checkout] stripe_payments table may not exist yet:', err?.message)
+    }
 
     return NextResponse.json({ checkoutUrl: session.url })
   } catch (err: any) {

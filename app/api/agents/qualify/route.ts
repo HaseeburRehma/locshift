@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Lead, QualificationResult } from '@/lib/types'
 
 // Simulated AI qualification logic - in production this would call an LLM
-function qualifyLead(lead: Lead): QualificationResult {
+function qualifyLead(lead: Lead): any {
   const description = (lead.description || '').toLowerCase()
   
   // Detect urgency based on keywords
@@ -54,7 +54,7 @@ function qualifyLead(lead: Lead): QualificationResult {
     estimated_value: valueMap[jobType],
     priority,
     reasoning: `Lead qualifiziert als ${jobType} mit ${urgency} Dringlichkeit. Geschätzter Wert: ${valueMap[jobType]}.`
-  }
+  } as any
 }
 
 export async function POST(request: NextRequest) {

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
     // Check permission
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (!hasPermission(profile?.role, 'settings.edit')) {
+    if (!hasPermission(profile?.role, 'settings.manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

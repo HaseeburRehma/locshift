@@ -13,7 +13,7 @@ export async function PATCH(
 
     // Check permission
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (!hasPermission(profile?.role, 'reviews.moderate')) {
+    if (!hasPermission(profile?.role, 'reviews.manage')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

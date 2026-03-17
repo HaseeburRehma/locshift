@@ -23,6 +23,10 @@ const leadSchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   try {
     const secret = request.headers.get('x-fixdone-secret')
     if (secret !== process.env.WEBHOOK_SECRET) {

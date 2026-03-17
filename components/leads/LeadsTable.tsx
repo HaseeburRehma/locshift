@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ExternalLink, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { Lead } from '@/lib/types'
 import { LeadStatusBadge, UrgencyBadge } from './LeadStatusBadge'
 import { LeadFilters, FilterState } from './LeadFilters'
