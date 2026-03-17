@@ -6,13 +6,14 @@ import { CreateJobForm } from '@/components/leads/CreateJobForm'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { User, Phone, Mail, MapPin, Briefcase, FileText, Clock, ExternalLink } from 'lucide-react'
+import { User, Phone, Mail, MapPin, Briefcase, FileText, Timer, ExternalLink, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
-import { enUS } from 'date-fns/locale'
+import { enUS, de } from 'date-fns/locale'
 import { Lead } from '@/lib/types'
 
-export default async function LeadDetailPage({ params }: { params: { id: string } }) {
+export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -21,7 +22,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
   const { data: lead, error } = await supabase
     .from('leads')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !lead) {
@@ -62,7 +63,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
               <div>
                 <CardTitle className="text-2xl">{lead.name}</CardTitle>
                 <CardDescription className="flex items-center gap-1 mt-1">
-                  <Clock className="w-3 h-3" />
+                  <Timer className="w-3 h-3" />
                   {format(new Date(lead.created_at), 'PPPp', { locale: enUS })}
                 </CardDescription>
               </div>
@@ -151,6 +152,52 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
 
       {/* RIGHT COLUMN - Job creation or summary */}
       <div className="space-y-6">
+        {lead.ai_score !== null && (
+          <Card className="border-none shadow-md bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100/50">
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className="bg-blue-600 p-1.5 rounded-lg">
+                    <Zap className="w-4 h-4 text-white fill-white" />
+                  </div>
+                  <CardTitle className="text-lg">AI Insights</CardTitle>
+                </div>
+                <Badge variant="outline" className="bg-white/80 backdrop-blur-sm border-blue-200 text-blue-700">
+                  Score: {lead.ai_score}/100
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-white/60 backdrop-blur-sm rounded-xl border border-blue-100">
+                <p className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-1">Recommended Action</p>
+                <p className="text-sm font-semibold text-slate-900 capitalize">{lead.ai_recommended_action?.replace(/_/g, ' ')}</p>
+              </div>
+              
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Analysis Summary</p>
+                <p className="text-sm text-slate-700 leading-relaxed italic">"{lead.ai_summary}"</p>
+              </div>
+
+              <div className="pt-2 border-t border-blue-100/50">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Qualification Reasoning</p>
+                <div className="text-xs text-slate-600 leading-relaxed space-y-1">
+                  {lead.qualification_reason}
+                </div>
+              </div>
+
+              {lead.ai_matched_technician_id && (
+                <div className="mt-2 p-3 bg-green-50 rounded-xl border border-green-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-green-600" />
+                    <span className="text-xs font-medium text-green-800">AI Matched Technician Found</span>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-green-700 hover:text-green-800 p-0 px-2">View</Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Job Details</CardTitle>

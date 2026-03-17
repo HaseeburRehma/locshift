@@ -1,9 +1,11 @@
+// lib/user-context.tsx
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
-import type { Profile, UserRole, ROLE_PERMISSIONS } from "@/lib/types";
+import type { Profile, UserRole } from "@/lib/types";
+import { ROLE_PERMISSIONS } from "@/lib/types";
 
 interface UserContextType {
   user: User | null;
@@ -33,6 +35,35 @@ const UserContext = createContext<UserContextType>({
   signOut: async () => { },
 });
 
+// ─── single reusable fetch ────────────────────────────────────────────────────
+async function fetchProfile(
+  supabase: ReturnType<typeof createClient>,
+  userId: string
+): Promise<Profile | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")          // select * so every field in Profile is present
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    console.error("[UserContext] Profile fetch error:", {
+      code: error.code,
+      message: error.message,
+    });
+    if (error.code === "42P17") {
+      console.error(
+        "[UserContext] CRITICAL: Infinite recursion in RLS policy. " +
+        "Run the fix SQL in Supabase dashboard."
+      );
+    }
+    return null;
+  }
+
+  return data as Profile;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -40,40 +71,35 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchUser = async () => {
+    // Initial load
+    const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      setUser(user ?? null);
 
       if (user) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-
-        setProfile(profileData);
+        const p = await fetchProfile(supabase, user.id);
+        setProfile(p);
       }
 
       setIsLoading(false);
     };
 
-    fetchUser();
+    init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
+    // Auth state changes (login / logout / token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const sessionUser = session?.user ?? null;
+        setUser(sessionUser);
 
-      if (session?.user) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
-
-        setProfile(profileData);
-      } else {
-        setProfile(null);
+        if (sessionUser) {
+          const p = await fetchProfile(supabase, sessionUser.id);
+          setProfile(p);
+        } else {
+          setProfile(null);
+        }
       }
-    });
+    );
 
     return () => subscription.unsubscribe();
   }, [supabase]);
@@ -85,59 +111,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   const role: UserRole = profile?.role ?? "viewer";
+  const permissions = ROLE_PERMISSIONS[role] ?? ROLE_PERMISSIONS.viewer;
 
-  const rolePermissions = {
-    admin: {
-      canManageLeads: true,
-      canManageTechnicians: true,
-      canManageJobs: true,
-      canSendMessages: true,
-      canRunAgents: true,
-      canViewReports: true,
-      canManageUsers: true,
-    },
-    manager: {
-      canManageLeads: true,
-      canManageTechnicians: true,
-      canManageJobs: true,
-      canSendMessages: true,
-      canRunAgents: true,
-      canViewReports: true,
-      canManageUsers: true,
-    },
-    dispatcher: {
-      canManageLeads: true,
-      canManageTechnicians: true,
-      canManageJobs: true,
-      canSendMessages: true,
-      canRunAgents: true,
-      canViewReports: true,
-      canManageUsers: true,
-    },
-    technician: {
-      canManageLeads: true,
-      canManageTechnicians: true,
-      canManageJobs: true,
-      canSendMessages: true,
-      canRunAgents: true,
-      canViewReports: true,
-      canManageUsers: true,
-    },
-    viewer: {
-      canManageLeads: true,
-      canManageTechnicians: true,
-      canManageJobs: true,
-      canSendMessages: true,
-      canRunAgents: true,
-      canViewReports: true,
-      canManageUsers: true,
-    },
-  };
-
-  const permissions = rolePermissions[role];
+  useEffect(() => {
+    if (!isLoading) {
+      console.log("[UserContext] Resolved:", {
+        userId: user?.id,
+        role,
+        email: profile?.email,
+      });
+    }
+  }, [user, profile, role, isLoading]);
 
   return (
-    <UserContext.Provider value={{ user, profile, role, permissions, isLoading, signOut }}>
+    <UserContext.Provider
+      value={{ user, profile, role, permissions, isLoading, signOut }}
+    >
       {children}
     </UserContext.Provider>
   );

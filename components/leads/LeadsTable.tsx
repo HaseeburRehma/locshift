@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
 import {
   useReactTable,
   getCoreRowModel,
@@ -24,9 +25,27 @@ import { ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Lead } from '@/lib/types'
 import { LeadStatusBadge, UrgencyBadge } from './LeadStatusBadge'
 import { LeadFilters, FilterState } from './LeadFilters'
+import { usePermissions } from '@/lib/rbac/usePermissions'
+import { EyeOff } from 'lucide-react'
 
 export function LeadsTable({ leads, onRefresh }: { leads: Lead[]; onRefresh?: () => void }) {
   const router = useRouter()
+  const { can } = usePermissions()
+  const canViewPII = can('leads.view_pii')
+
+  const maskPhone = (phone: string) => {
+    if (!phone) return '—'
+    if (canViewPII) return phone
+    const lastTwo = phone.slice(-2)
+    return `+49 *** *** **${lastTwo}`
+  }
+
+  const maskEmail = (email: string | null) => {
+    if (!email) return '—'
+    if (canViewPII) return email
+    const [user, domain] = email.split('@')
+    return `${user[0]}***@***.${domain.split('.').pop()}`
+  }
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     status: 'all',
@@ -66,9 +85,20 @@ export function LeadsTable({ leads, onRefresh }: { leads: Lead[]; onRefresh?: ()
       accessorKey: 'phone',
       header: 'Phone',
       cell: ({ row }) => (
-        <a href={`tel:${row.original.phone}`} className="text-blue-600 hover:underline">
-          {row.original.phone}
-        </a>
+        <div className="flex items-center gap-2">
+          {!canViewPII && (
+            <span title="Kontaktdaten eingeschränkt">
+              <EyeOff className="h-3 w-3 text-muted-foreground" />
+            </span>
+          )}
+          <a 
+            href={canViewPII ? `tel:${row.original.phone}` : '#'} 
+            className={cn("text-blue-600 hover:underline", !canViewPII && "cursor-default no-underline text-muted-foreground")}
+            onClick={(e) => !canViewPII && e.preventDefault()}
+          >
+            {maskPhone(row.original.phone)}
+          </a>
+        </div>
       ),
     },
     {
@@ -113,19 +143,47 @@ export function LeadsTable({ leads, onRefresh }: { leads: Lead[]; onRefresh?: ()
     {
       id: 'actions',
       header: () => <div className="text-right">Actions</div>,
-      cell: ({ row }) => (
-        <div className="text-right" onClick={(e) => e.stopPropagation()}>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1"
-            onClick={() => router.push(`/dashboard/leads/${row.original.id}`)}
-          >
-            <ExternalLink className="h-3 w-3" />
-            View
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const handleDelete = async (e: React.MouseEvent) => {
+          e.stopPropagation()
+          if (!confirm('Are you sure you want to delete this lead?')) return
+          
+          try {
+            const res = await fetch(`/api/leads/${row.original.id}`, { method: 'DELETE' })
+            if (res.ok) {
+              onRefresh?.()
+            } else {
+              const err = await res.json()
+              alert(err.error || 'Failed to delete lead')
+            }
+          } catch (err) {
+            alert('Failed to delete lead')
+          }
+        }
+
+        return (
+          <div className="text-right flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1"
+              onClick={() => router.push(`/dashboard/leads/${row.original.id}`)}
+            >
+              <ExternalLink className="h-3 w-3" />
+              View
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
+              onClick={handleDelete}
+              title="Delete Lead"
+            >
+              <Plus className="h-4 w-4 rotate-45" />
+            </Button>
+          </div>
+        )
+      },
     },
   ]
 

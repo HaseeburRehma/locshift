@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { withTimeout } from '@/lib/supabase/with-timeout'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,13 +17,17 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status)
     }
 
-    const { data, error } = await query
+    const result: any = await withTimeout(
+      query as any,
+      10000,
+      { data: [], error: null } as any
+    )
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (result.error) {
+      return NextResponse.json({ error: result.error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(result.data)
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -1,3 +1,5 @@
+// hooks/useProfile.ts
+
 'use client'
 
 import { useEffect, useState } from 'react'

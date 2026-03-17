@@ -5,6 +5,7 @@ import { Zap, Bell, Settings, LogOut, User, Shield, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import Image from 'next/image'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,17 +26,21 @@ export function DashboardHeader() {
   const roleLabels: Record<string, string> = {
     admin: locale === 'en' ? 'Administrator' : 'Administrator',
     manager: locale === 'en' ? 'Manager' : 'Manager',
-    dispatcher: locale === 'en' ? 'Dispatcher' : 'Disponent',
+    disponent: locale === 'en' ? 'Dispatcher' : 'Disponent',
     technician: locale === 'en' ? 'Technician' : 'Techniker',
     viewer: locale === 'en' ? 'Viewer' : 'Betrachter',
+    partner_admin: locale === 'en' ? 'Partner Admin' : 'Partner Admin',
+    partner_agent: locale === 'en' ? 'Partner Agent' : 'Partner Agent',
   }
 
   const roleColors: Record<string, string> = {
-    admin: 'bg-destructive text-destructive-foreground',
-    manager: 'bg-primary text-primary-foreground',
-    dispatcher: 'bg-accent text-accent-foreground',
-    technician: 'bg-secondary text-secondary-foreground',
-    viewer: 'bg-muted text-muted-foreground',
+    admin: 'bg-destructive text-destructive-foreground font-black',
+    manager: 'bg-primary text-primary-foreground font-black',
+    disponent: 'bg-blue-500 text-white font-black',
+    technician: 'bg-emerald-500 text-white font-black',
+    viewer: 'bg-muted text-muted-foreground font-medium',
+    partner_admin: 'bg-indigo-600 text-white font-black',
+    partner_agent: 'bg-indigo-100 text-indigo-700 font-bold',
   }
 
   const handleSignOut = async () => {
@@ -52,11 +57,8 @@ export function DashboardHeader() {
     <header className="sticky top-0 z-50 border-b border-border bg-card">
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Zap className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">fixdone.de</h1>
+          <Image src="/logo.png" alt="FixDone Logo" width={140} height={32} className="h-8 w-auto" />
+          <div className="hidden sm:block border-l border-border pl-3 ml-1">
             <p className="text-xs text-muted-foreground">Operations Center</p>
           </div>
         </div>

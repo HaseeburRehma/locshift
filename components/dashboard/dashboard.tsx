@@ -11,6 +11,8 @@ import { JobsPanel } from './jobs-panel'
 import { TechniciansPanel } from './technicians-panel'
 import { ReviewsPanel } from './reviews-panel'
 import { AutomationsPanel } from './automations-panel'
+import { UserManagementPanel } from './user-management-panel'
+import { PartnerConfigPanel } from './partner-config-panel'
 import { AgentActivity } from './agent-activity'
 import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +21,9 @@ import { useUser } from '@/lib/user-context'
 import type { Lead, Job, Technician } from '@/lib/types'
 import { Sidebar, ViewType } from './sidebar'
 import { useTranslation } from '@/lib/i18n'
+import { Zap, TrendingUp, Users, MessageSquare } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -198,9 +203,9 @@ export function Dashboard() {
       case 'dashboard':
         return (
           <div className="space-y-6">
-            <StatsCards 
-              leads={leads} 
-              jobs={jobs} 
+            <StatsCards
+              leads={leads}
+              jobs={jobs}
               notificationsSentToday={messages?.filter(m => {
                 if (!m.sent_at) return false
                 return new Date(m.sent_at).toDateString() === new Date().toDateString()
@@ -208,7 +213,9 @@ export function Dashboard() {
             />
 
             <div className="flex justify-between items-center">
-              <h3 className="text-xl font-bold">Leads Overview</h3>
+              <h3 className="text-xl font-bold">
+                {locale === 'en' ? 'Leads Overview' : 'Anfragen-Übersicht'}
+              </h3>
               <CreateLeadButton />
             </div>
             <NewLeadsTable
@@ -221,15 +228,17 @@ export function Dashboard() {
                 {/* Jobs Today Section */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Jobs Today</CardTitle>
+                    <CardTitle className="text-lg">
+                      {locale === 'en' ? 'Jobs Today' : 'Aufträge Heute'}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <JobsTable 
+                    <JobsTable
                       jobs={jobs?.filter(j => {
                         if (!j.scheduled_time) return false
                         const d = new Date(j.scheduled_time)
                         return d.toDateString() === new Date().toDateString()
-                      }) || []} 
+                      }) || []}
                     />
                   </CardContent>
                 </Card>
@@ -237,7 +246,9 @@ export function Dashboard() {
                 {/* Recent Leads Section */}
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-lg">Recent Leads</CardTitle>
+                    <CardTitle className="text-lg">
+                      {locale === 'en' ? 'Recent Leads' : 'Neueste Anfragen'}
+                    </CardTitle>
                     <CreateLeadButton />
                   </CardHeader>
                   <CardContent>
@@ -249,6 +260,38 @@ export function Dashboard() {
                 </Card>
               </div>
               <div className="space-y-6">
+                {/* AI Highlights Card */}
+                {leads?.some(l => (l as any).ai_score >= 80) && (
+                  <Card className="border-none shadow-md bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-blue-200 fill-blue-200" />
+                        <CardTitle className="text-base font-bold">AI Priority Insights</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {leads
+                        .filter(l => (l as any).ai_score >= 80)
+                        .slice(0, 2)
+                        .map(lead => (
+                          <div key={lead.id} className="p-3 bg-white/10 backdrop-blur-md rounded-lg border border-white/10 group cursor-pointer hover:bg-white/20 transition-colors">
+                            <div className="flex justify-between items-start mb-1">
+                              <p className="text-xs font-bold text-blue-100 uppercase tracking-wider">{lead.name}</p>
+                              <Badge variant="outline" className="text-[10px] bg-white/10 text-white border-white/20">Score: {(lead as any).ai_score}</Badge>
+                            </div>
+                            <p className="text-xs text-blue-50 line-clamp-1 italic">{(lead as any).ai_summary}</p>
+                            <div className="flex items-center gap-1 mt-2 text-[10px] text-blue-200 font-semibold group-hover:text-white transition-colors">
+                              <span>Action: {(lead as any).ai_recommended_action?.replace(/_/g, ' ')}</span>
+                            </div>
+                          </div>
+                        ))}
+                      <Button variant="ghost" size="sm" className="w-full text-xs text-blue-100 hover:text-white hover:bg-white/10 border border-white/10 h-8">
+                        View all AI insights
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
                 <TechniciansPanel
                   technicians={technicians || []}
                   jobs={jobs || []}
@@ -263,7 +306,9 @@ export function Dashboard() {
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">Leads Management</h2>
+              <h2 className="text-2xl font-bold">
+                {locale === 'en' ? 'Leads Management' : 'Lead-Management'}
+              </h2>
               <CreateLeadButton />
             </div>
             <NewLeadsTable
@@ -296,15 +341,19 @@ export function Dashboard() {
         return <AutomationsPanel />
       case 'settings':
         return (
-          <div className="rounded-lg border border-dashed p-12 text-center h-full flex flex-col items-center justify-center bg-card">
-            <h3 className="text-lg font-medium">
-              {locale === 'en' ? 'Settings' : 'Einstellungen'}
-            </h3>
-            <p className="text-muted-foreground">
-              {locale === 'en'
-                ? 'Configure your fixdone.de Operations Center.'
-                : 'Konfigurieren Sie Ihr fixdone.de Operations Center.'}
-            </p>
+          <div className="space-y-6">
+            <UserManagementPanel />
+            <PartnerConfigPanel />
+            <div className="rounded-lg border border-dashed p-12 text-center flex flex-col items-center justify-center bg-card">
+              <h3 className="text-lg font-medium">
+                {locale === 'en' ? 'More Settings' : 'Weitere Einstellungen'}
+              </h3>
+              <p className="text-muted-foreground">
+                {locale === 'en'
+                  ? 'Configure remaining fixdone.de Operations Center parameters.'
+                  : 'Konfigurieren Sie weitere Parameter Ihres fixdone.de Operations Center.'}
+              </p>
+            </div>
           </div>
         )
       default:

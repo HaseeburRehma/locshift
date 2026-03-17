@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("admin");
+  const [role, setRole] = useState("viewer");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,7 +34,7 @@ export default function SignUpPage() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${window.location.origin}/dashboard`,
         data: { full_name: fullName, role },
       },
     });
@@ -45,7 +46,7 @@ export default function SignUpPage() {
       // Email confirmation required
       setSuccess(true);
     } else {
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     }
   };
@@ -91,10 +92,8 @@ export default function SignUpPage() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary mb-4 shadow-lg shadow-primary/25">
-              <Zap className="h-7 w-7 text-primary-foreground" />
-            </div>
+          <div className="text-center mb-8 flex flex-col items-center">
+            <Image src="/logo.png" alt="FixDone Logo" width={180} height={48} className="h-12 w-auto mb-6" />
             <h1 className="text-2xl font-bold tracking-tight">Konto erstellen</h1>
             <p className="text-muted-foreground text-sm mt-1">Starten Sie kostenlos in 60 Sekunden</p>
           </div>
@@ -148,22 +147,6 @@ export default function SignUpPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Rolle</label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger className="h-11">
-                  <SelectValue placeholder="Rolle auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Administrator</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="dispatcher">Disponent</SelectItem>
-                  <SelectItem value="technician">Techniker</SelectItem>
-                  <SelectItem value="viewer">Betrachter</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             {error && (

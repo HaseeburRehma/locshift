@@ -9,16 +9,25 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { User, Phone, MapPin, AlignLeft, Wrench, Clock, FileText } from 'lucide-react'
 
-export default async function JobDetailPage({ params }: { params: { id: string } }) {
+export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  if (!id || id === 'undefined' || id.length < 32) {
+    return (
+      <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm font-medium border border-destructive/20">
+        Invalid Job ID: "{id}". Please return to the dashboard and try again.
+      </div>
+    )
+  }
+
   const { data: job, error } = await supabase
     .from('jobs')
     .select('*, lead:leads(*), technician:technicians(*)')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !job) {

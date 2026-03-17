@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { withTimeout } from '@/lib/supabase/with-timeout'
 
 export async function GET() {
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('technicians')
-      .select('*')
-      .eq('is_active', true)
-      .order('name')
+    const result: any = await withTimeout(
+      supabase
+        .from('technicians')
+        .select('*')
+        .eq('is_active', true)
+        .order('name') as any,
+      10000,
+      { data: [], error: null } as any
+    )
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (result.error) {
+      return NextResponse.json({ error: result.error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data ?? [], {
+    return NextResponse.json(result.data ?? [], {
       headers: {
         'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
       }

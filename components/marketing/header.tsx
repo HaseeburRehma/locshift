@@ -1,8 +1,10 @@
+// components/marketing/header.tsx
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Zap, Menu, X, Globe, LayoutDashboard, LogOut, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUser } from '@/lib/user-context'
@@ -14,6 +16,11 @@ export function MarketingHeader() {
     const { t, locale, setLocale } = useTranslation()
     const router = useRouter()
     const [menuOpen, setMenuOpen] = useState(false)
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     const handleSignOut = async () => {
         await signOut()
@@ -32,10 +39,7 @@ export function MarketingHeader() {
             <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-2.5 group">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary transition-transform group-hover:scale-110">
-                        <Zap className="h-4 w-4 text-primary-foreground" />
-                    </div>
-                    <span className="font-bold text-lg tracking-tight">fixdone.de</span>
+                    <Image src="/logo.png" alt="FixDone Logo" width={140} height={32} className="h-8 w-auto transition-transform group-hover:scale-105" />
                 </Link>
 
                 {/* Desktop Nav */}
@@ -60,10 +64,10 @@ export function MarketingHeader() {
                         title="Toggle language"
                     >
                         <Globe className="h-3.5 w-3.5" />
-                        <span className="uppercase">{locale}</span>
+                        <span className="uppercase">{mounted ? locale : 'de'}</span>
                     </button>
 
-                    {user ? (
+                    {mounted && (user ? (
                         <>
                             <Button asChild variant="ghost" size="sm" className="hidden md:flex gap-2">
                                 <Link href="/dashboard">
@@ -93,7 +97,7 @@ export function MarketingHeader() {
                                 <Link href="/auth/sign-up">{t('nav.signup')}</Link>
                             </Button>
                         </>
-                    )}
+                    ))}
 
                     {/* Mobile Menu Toggle */}
                     <button
@@ -120,7 +124,7 @@ export function MarketingHeader() {
                             </Link>
                         ))}
                         <div className="pt-4 border-t border-border flex flex-col gap-2">
-                            {user ? (
+                            {mounted && (user ? (
                                 <>
                                     <Button asChild variant="outline" size="sm">
                                         <Link href="/dashboard">{t('nav.dashboard')}</Link>
@@ -136,7 +140,7 @@ export function MarketingHeader() {
                                         <Link href="/auth/sign-up">{t('nav.signup')}</Link>
                                     </Button>
                                 </>
-                            )}
+                            ))}
                         </div>
                     </div>
                 </div>

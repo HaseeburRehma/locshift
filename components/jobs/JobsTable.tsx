@@ -77,19 +77,36 @@ export function JobsTable({ jobs }: { jobs: Job[] }) {
     {
       id: 'actions',
       header: () => <div className="text-right">Actions</div>,
-      cell: ({ row }) => (
-        <div className="text-right" onClick={(e) => e.stopPropagation()}>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1"
-            onClick={() => router.push(`/dashboard/jobs/${row.original.id}`)}
-          >
-            <ExternalLink className="h-3 w-3" />
-            View
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        return (
+          <div className="text-right flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1"
+              onClick={() => router.push(`/dashboard/jobs/${row.original.id}`)}
+            >
+              <ExternalLink className="h-3 w-3" />
+              View
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!confirm('Are you sure you want to delete this job?')) return;
+                const res = await fetch(`/api/jobs/${row.original.id}`, { method: 'DELETE' });
+                if (res.ok) window.location.reload();
+                else alert('Failed to delete job');
+              }}
+              title="Delete Job"
+            >
+              <Plus className="h-4 w-4 rotate-45" />
+            </Button>
+          </div>
+        )
+      },
     },
   ]
 

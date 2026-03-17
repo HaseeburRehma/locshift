@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Zap, Twitter, Linkedin, Github } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 
@@ -32,10 +33,7 @@ export function MarketingFooter() {
                     {/* Brand */}
                     <div className="col-span-2">
                         <Link href="/" className="flex items-center gap-2.5 mb-4 group w-fit">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary transition-transform group-hover:scale-110">
-                                <Zap className="h-5 w-5 text-primary-foreground" />
-                            </div>
-                            <span className="font-bold text-xl">fixdone.de</span>
+                            <Image src="/logo.png" alt="FixDone Logo" width={160} height={40} className="h-10 w-auto transition-transform group-hover:scale-105" />
                         </Link>
                         <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
                             {t('footer.tagline')}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     }
   };
@@ -57,10 +58,8 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary mb-4 shadow-lg shadow-primary/25">
-              <Zap className="h-7 w-7 text-primary-foreground" />
-            </div>
+          <div className="text-center mb-8 flex flex-col items-center">
+            <Image src="/logo.png" alt="FixDone Logo" width={180} height={48} className="h-12 w-auto mb-6" />
             <h1 className="text-2xl font-bold tracking-tight">{t('auth.login.title')}</h1>
             <p className="text-muted-foreground text-sm mt-1">{t('auth.login.subtitle')}</p>
           </div>

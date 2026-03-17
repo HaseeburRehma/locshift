@@ -1,5 +1,5 @@
 // RBAC Types
-export type UserRole = 'admin' | 'manager' | 'dispatcher' | 'technician' | 'viewer'
+export type UserRole = 'admin' | 'manager' | 'disponent' | 'technician' | 'viewer' | 'partner_admin' | 'partner_agent'
 
 export interface Profile {
   id: string
@@ -44,12 +44,30 @@ export const ROLE_PERMISSIONS: Record<UserRole, {
     canViewReports: true,
     canManageUsers: false,
   },
-  dispatcher: {
+  disponent: {
     canManageLeads: true,
     canManageTechnicians: false,
     canManageJobs: true,
     canSendMessages: true,
     canRunAgents: true,
+    canViewReports: true,
+    canManageUsers: false,
+  },
+  partner_admin: {
+    canManageLeads: true,
+    canManageTechnicians: false,
+    canManageJobs: true,
+    canSendMessages: true,
+    canRunAgents: false,
+    canViewReports: true,
+    canManageUsers: false,
+  },
+  partner_agent: {
+    canManageLeads: true,
+    canManageTechnicians: false,
+    canManageJobs: true,
+    canSendMessages: true,
+    canRunAgents: false,
     canViewReports: false,
     canManageUsers: false,
   },
@@ -141,17 +159,19 @@ export interface Message {
 }
 
 export interface QualificationResult {
-  is_qualified: boolean
-  job_type: string
-  urgency: 'low' | 'medium' | 'high'
-  estimated_value: string
-  priority: string
-  reasoning: string
+  score: number
+  recommended_action: 'dispatch_now' | 'schedule' | 'follow_up' | 'disqualify'
+  qualification_reason: string
+  ai_summary: string
+  confidence: 'high' | 'medium' | 'low'
 }
 
 export interface MatchResult {
   technician_id: string
   technician_name: string
-  match_score: number
-  reasoning: string
+  score: number
+  reason: string
+  areaMatch: boolean
+  skillMatch: boolean
+  workloadScore: number
 }

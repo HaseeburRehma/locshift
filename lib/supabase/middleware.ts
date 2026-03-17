@@ -49,7 +49,12 @@ export async function updateSession(request: NextRequest) {
 
     let user = null;
     try {
-        const { data } = await supabase.auth.getUser();
+        const { withTimeout } = await import("./with-timeout");
+        const { data } = await withTimeout(
+            supabase.auth.getUser(),
+            5000,
+            { data: { user: null }, error: null } as any
+        );
         user = data.user;
     } catch (e) {
         console.error("Supabase auth check failed (connectivity issue):", e);
