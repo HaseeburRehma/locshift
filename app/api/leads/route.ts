@@ -57,12 +57,14 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('Lead insert error:', error)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
     return NextResponse.json(data, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Lead POST catch error:', err)
+    return NextResponse.json({ error: err?.message || 'Internal server error' }, { status: 500 })
   }
 }
 export async function PATCH(request: NextRequest) {
