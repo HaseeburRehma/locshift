@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/mail'
 
-type MessageTemplate = 'confirmation' | 'reminder' | 'review_request' | 'custom'
+export type MessageTemplate = 'confirmation' | 'reminder' | 'review_request' | 'custom'
 
 interface MessageRequest {
   job_id: string | null
@@ -14,7 +14,7 @@ interface MessageRequest {
 }
 
 // Generate message content based on template and job data
-function generateMessage(
+export function generateMessage(
   template: MessageTemplate,
   lead: { name: string; description: string; email?: string },
   technician: { name: string; phone: string } | null,

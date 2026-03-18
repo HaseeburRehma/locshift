@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Lead, Technician, MatchResult } from '@/lib/types'
 
 // Simulated AI matching logic - in production this would use embeddings/LLM
-function matchTechnician(lead: Lead, technicians: Technician[]): MatchResult | null {
+export function matchTechnician(lead: Lead, technicians: Technician[]): MatchResult | null {
   const availableTechs = technicians.filter(t => t.is_available && t.is_active)
 
   if (availableTechs.length === 0) {
