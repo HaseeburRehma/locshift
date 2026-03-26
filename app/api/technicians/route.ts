@@ -5,14 +5,16 @@ import { withTimeout } from '@/lib/supabase/with-timeout'
 export async function GET() {
   try {
     const supabase = await createClient()
+    const controller = new AbortController()
     const result: any = await withTimeout(
       supabase
         .from('technicians')
         .select('*')
         .eq('is_active', true)
         .order('name') as any,
-      10000,
-      { data: [], error: null } as any
+      8000,
+      { data: [], error: null } as any,
+      controller
     )
 
     if (result.error) {

@@ -6,16 +6,23 @@
  * @param promise  The Supabase query promise (or any promise)
  * @param ms       Timeout in milliseconds (default 8000)
  * @param fallback Value to return on timeout/error
+ * @param controller Optional AbortController to signal cancellation
  */
 export async function withTimeout<T>(
   promise: Promise<T>,
   ms = 8000,
-  fallback: T
+  fallback: T,
+  controller?: AbortController
 ): Promise<T> {
   let timeoutId: any
+  
   const timeout = new Promise<T>((resolve) => {
     timeoutId = setTimeout(() => {
       console.error(`[withTimeout] Query timed out after ${ms}ms`)
+      if (controller) {
+        console.log('[withTimeout] Signaling AbortController stop')
+        controller.abort()
+      }
       resolve(fallback)
     }, ms)
   })
@@ -23,8 +30,12 @@ export async function withTimeout<T>(
   try {
     const result = await Promise.race([promise, timeout])
     return result
-  } catch (err) {
-    console.error('[withTimeout] Query failed:', err)
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      console.log('[withTimeout] Fetch aborted successfully')
+    } else {
+      console.error('[withTimeout] Query failed:', err)
+    }
     return fallback
   } finally {
     if (timeoutId) clearTimeout(timeoutId)

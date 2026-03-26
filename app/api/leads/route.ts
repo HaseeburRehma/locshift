@@ -17,10 +17,12 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status)
     }
 
+    const controller = new AbortController()
     const result: any = await withTimeout(
       query as any,
-      10000,
-      { data: [], error: null } as any
+      8000,
+      { data: [], error: null } as any,
+      controller
     )
 
     if (result.error) {
