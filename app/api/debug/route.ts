@@ -5,7 +5,8 @@ export async function GET() {
   const supabase = await createClient()
   
   // 1. Get current logged in user from Auth
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { data: { session }, error: authError } = await supabase.auth.getSession()
+  const user = session?.user
   
   // 2. Try fetching their specific profile
   let myProfile = null;

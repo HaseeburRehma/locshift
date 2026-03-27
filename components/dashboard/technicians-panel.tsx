@@ -31,6 +31,9 @@ interface TechniciansPanelProps {
 
 export function TechniciansPanel({ technicians, jobs, onRefresh }: TechniciansPanelProps) {
   const { t, locale } = useTranslation()
+  // Defensive guards — API may return error objects on timeout
+  const safeTechnicians = Array.isArray(technicians) ? technicians : []
+  const safeJobs = Array.isArray(jobs) ? jobs : []
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editData, setEditData] = useState<Partial<Technician>>({})
   const [loading, setLoading] = useState<string | null>(null)
@@ -80,7 +83,7 @@ export function TechniciansPanel({ technicians, jobs, onRefresh }: TechniciansPa
   }
 
   const getActiveJobsCount = (techId: string) => {
-    return jobs.filter(j =>
+    return safeJobs.filter(j =>
       j.technician_id === techId &&
       ['pending', 'scheduled', 'confirmed', 'in_progress'].includes(j.status)
     ).length
@@ -138,7 +141,7 @@ export function TechniciansPanel({ technicians, jobs, onRefresh }: TechniciansPa
             {locale === 'en' ? 'Technicians' : 'Techniker'}
           </CardTitle>
           <CardDescription>
-            {technicians.filter(t => t.is_available).length} {locale === 'en' ? 'of' : 'von'} {technicians.length} {locale === 'en' ? 'available' : 'verfügbar'}
+            {safeTechnicians.filter(t => t.is_available).length} {locale === 'en' ? 'of' : 'von'} {safeTechnicians.length} {locale === 'en' ? 'available' : 'verfügbar'}
           </CardDescription>
         </div>
         <Button variant="outline" size="sm" className="h-8 px-2" onClick={() => setIsNewDialogOpen(true)}>
@@ -147,7 +150,7 @@ export function TechniciansPanel({ technicians, jobs, onRefresh }: TechniciansPa
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {technicians.map((tech) => {
+          {safeTechnicians.map((tech) => {
             const isEditing = editingId === tech.id
             const activeJobs = getActiveJobsCount(tech.id)
 

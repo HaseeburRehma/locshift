@@ -5,7 +5,8 @@ import { hasPermission } from '@/lib/rbac/permissions'
 export async function PATCH(request: Request) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     // Check permission

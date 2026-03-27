@@ -45,6 +45,11 @@ export function LeadsTable({ leads, technicians = [], jobs = [], onQualify, onMa
   const [editData, setEditData] = useState<Partial<Lead>>({})
   const [assignedTechId, setAssignedTechId] = useState<string>('none')
 
+  // Defensive guards
+  const safeLeads = Array.isArray(leads) ? leads : []
+  const safeTechnicians = Array.isArray(technicians) ? technicians : []
+  const safeJobs = Array.isArray(jobs) ? jobs : []
+
   // i18n-aware config objects – rebuilt on each render so they pick up locale changes
   const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
     new: { label: locale === 'en' ? 'New' : 'Neu', variant: 'default' },
@@ -61,12 +66,12 @@ export function LeadsTable({ leads, technicians = [], jobs = [], onQualify, onMa
     low: { label: locale === 'en' ? 'Low' : 'Niedrig', className: 'bg-muted text-muted-foreground border-border' },
   }
 
-  const filteredLeads = filter === 'all' ? leads : leads.filter(l => l.status === filter)
+  const filteredLeads = filter === 'all' ? safeLeads : safeLeads.filter(l => l.status === filter)
 
   const handleEdit = (lead: Lead) => {
     setEditingId(lead.id)
     setEditData({ ...lead })
-    const existingJob = jobs?.find(j => j.lead_id === lead.id)
+    const existingJob = safeJobs?.find(j => j.lead_id === lead.id)
     setAssignedTechId(existingJob?.technician_id || 'none')
   }
 
@@ -86,7 +91,7 @@ export function LeadsTable({ leads, technicians = [], jobs = [], onQualify, onMa
       })
       if (!response.ok) throw new Error('Failed to save')
 
-      const existingJob = jobs?.find(j => j.lead_id === leadId)
+      const existingJob = safeJobs?.find(j => j.lead_id === leadId)
       if (assignedTechId && assignedTechId !== 'none') {
         if (existingJob) {
           if (existingJob.technician_id !== assignedTechId) {
@@ -351,7 +356,7 @@ export function LeadsTable({ leads, technicians = [], jobs = [], onQualify, onMa
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="none" className="text-sm">{locale === 'en' ? 'Unassigned' : 'Nicht zugewiesen'}</SelectItem>
-                                    {technicians?.map((t) => (
+                                    {safeTechnicians?.map((t) => (
                                       <SelectItem key={t.id} value={t.id} className="text-sm">{t.name}</SelectItem>
                                     ))}
                                   </SelectContent>

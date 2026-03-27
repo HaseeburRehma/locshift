@@ -7,7 +7,8 @@ export async function PATCH(request: Request) {
     const { partner_lead_id, status } = await request.json()
 
     // 1. Auth Check
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     // 2. Fetch Partner Lead & Check Ownership

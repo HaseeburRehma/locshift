@@ -7,7 +7,8 @@ export async function POST(request: Request) {
     const { marketplace_id } = await request.json()
 
     // 1. Auth & Role Check
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { data: profile } = await supabase

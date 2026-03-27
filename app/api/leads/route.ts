@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('leads')
-      .select('*')
+      .select('id, name, email, phone, city, service_type, status, created_at, priority, source')
       .order('created_at', { ascending: false })
 
     if (status && status !== 'all') {

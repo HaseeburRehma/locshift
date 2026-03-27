@@ -14,15 +14,19 @@ interface StatsCardsProps {
 export function StatsCards({ leads, jobs, notificationsSentToday = 0 }: StatsCardsProps) {
   const { locale } = useTranslation()
 
-  const newLeads = leads.filter(l => l.status === 'new').length
-  const activeJobs = jobs.filter(j => ['pending', 'scheduled', 'confirmed', 'in_progress'].includes(j.status)).length
-  const scheduledToday = jobs.filter(j => {
+  // Defensive guards — API may return error objects during load failures
+  const safeLeads = Array.isArray(leads) ? leads : []
+  const safeJobs = Array.isArray(jobs) ? jobs : []
+
+  const newLeads = safeLeads.filter(l => l.status === 'new').length
+  const activeJobs = safeJobs.filter(j => ['pending', 'scheduled', 'confirmed', 'in_progress'].includes(j.status)).length
+  const scheduledToday = safeJobs.filter(j => {
     if (!j.scheduled_time) return false
     return new Date(j.scheduled_time).toDateString() === new Date().toDateString() && j.status !== 'completed'
   }).length
-  const completedWithReview = jobs.filter(j => j.review_received).length
+  const completedWithReview = safeJobs.filter(j => j.review_received).length
   const avgRating = completedWithReview > 0
-    ? jobs.filter(j => j.review_rating).reduce((acc, j) => acc + (j.review_rating || 0), 0) / completedWithReview
+    ? safeJobs.filter(j => j.review_rating).reduce((acc, j) => acc + (j.review_rating || 0), 0) / completedWithReview
     : 0
 
   const stats = [

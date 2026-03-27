@@ -11,9 +11,14 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('jobs')
       .select(`
-        *,
-        lead:leads(*),
-        technician:technicians(*)
+        id,
+        status,
+        scheduled_time,
+        estimated_duration,
+        notes,
+        created_at,
+        lead:leads(id, name, city, service_type),
+        technician:technicians(id, name)
       `)
       .order('created_at', { ascending: false })
     
@@ -21,10 +26,12 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status)
     }
     
+    const controller = new AbortController()
     const result: any = await withTimeout(
       query as any,
-      15000,
-      { data: [], error: null } as any
+      10000,
+      { data: [], error: null } as any,
+      controller
     )
     
     if (result.error) {

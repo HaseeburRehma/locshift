@@ -47,6 +47,9 @@ export function JobsPanel({ jobs, onUpdateStatus, onSendMessage, onRefresh, canM
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editData, setEditData] = useState<Partial<Job>>({})
 
+  // Defensive guard — API may return error object instead of array on timeout
+  const safeJobs = Array.isArray(jobs) ? jobs : []
+
   const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
     pending: { label: locale === 'en' ? 'Pending' : 'Ausstehend', icon: Clock, color: 'text-muted-foreground' },
     scheduled: { label: locale === 'en' ? 'Scheduled' : 'Geplant', icon: Calendar, color: 'text-primary' },
@@ -56,7 +59,7 @@ export function JobsPanel({ jobs, onUpdateStatus, onSendMessage, onRefresh, canM
     cancelled: { label: locale === 'en' ? 'Cancelled' : 'Abgebrochen', icon: Clock, color: 'text-destructive' }
   }
 
-  const activeJobs = jobs.filter(j =>
+  const activeJobs = safeJobs.filter(j =>
     ['pending', 'scheduled', 'confirmed', 'in_progress'].includes(j.status)
   )
 

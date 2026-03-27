@@ -17,12 +17,18 @@ const fetcher = (url: string) => fetch(url).then(res => res.json())
 export default function DashboardOverview() {
   const { user, profile, isLoading: userLoading } = useUser()
 
-  const { data: leads } = useSWR<Lead[]>('/api/leads', fetcher)
-  const { data: jobs } = useSWR<Job[]>('/api/jobs', fetcher)
-  const { data: technicians } = useSWR<Technician[]>('/api/technicians', fetcher)
-  const { data: messages } = useSWR<any[]>('/api/messages', fetcher)
+  const { data: leadsData } = useSWR<any>('/api/leads', fetcher)
+  const { data: jobsData } = useSWR<any>('/api/jobs', fetcher)
+  const { data: techniciansData } = useSWR<any>('/api/technicians', fetcher)
+  const { data: messagesData } = useSWR<any>('/api/messages', fetcher)
 
-  const isLoading = !leads || !jobs || !technicians || !messages || userLoading
+  const leads = Array.isArray(leadsData) ? leadsData : []
+  const jobs = Array.isArray(jobsData) ? jobsData : []
+  const technicians = Array.isArray(techniciansData) ? techniciansData : []
+  const messages = Array.isArray(messagesData) ? messagesData : []
+
+  const isDataLoading = !leadsData || !jobsData || !techniciansData || !messagesData
+  const isLoading = isDataLoading || userLoading
 
   if (isLoading) {
     return (
@@ -46,10 +52,10 @@ export default function DashboardOverview() {
       <StatsCards 
         leads={leads} 
         jobs={jobs} 
-        notificationsSentToday={messages?.filter(m => {
+        notificationsSentToday={messages.filter(m => {
           if (!m.sent_at) return false
           return new Date(m.sent_at).toDateString() === new Date().toDateString()
-        }).length || 0}
+        }).length}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

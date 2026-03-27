@@ -1,14 +1,27 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(100)
+import { withTimeout } from '@/lib/supabase/with-timeout'
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+export async function GET() {
+  try {
+    const supabase = await createClient()
+    const controller = new AbortController()
+    
+    const result: any = await withTimeout(
+      supabase
+        .from('messages')
+        .select('id, direction, content, status, sent_at, created_at, lead_id')
+        .order('created_at', { ascending: false })
+        .limit(50) as any,
+      10000,
+      { data: [], error: null } as any,
+      controller
+    )
+
+    if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
+    return NextResponse.json(result.data || [])
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
+  }
 }

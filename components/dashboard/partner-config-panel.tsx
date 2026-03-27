@@ -17,10 +17,12 @@ export function PartnerConfigPanel() {
   // In a full implementation, you'd want a separate /api/partners endpoint
   const { data: users, error } = useSWR('/api/users', fetcher)
 
-  if (error) return <div className="text-red-500">Failed to load partners</div>
+  if (error) return <div className="text-red-500 p-4">Failed to load partners: {error?.message}</div>
   if (!users) return <div className="flex justify-center p-8"><Spinner /></div>
 
-  const partners = users.filter((u: any) => u.role === 'partner_admin' || u.role === 'partner_agent')
+  // Guard against API returning an error object instead of an array
+  const usersList = Array.isArray(users) ? users : []
+  const partners = usersList.filter((u: any) => u.role === 'partner_admin' || u.role === 'partner_agent')
 
   return (
     <Card className="shadow-sm border-slate-200 mt-6">

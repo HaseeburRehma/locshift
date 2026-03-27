@@ -7,7 +7,8 @@ export async function POST(request: Request) {
     const { lead_id, price, max_claims, is_exclusive } = await request.json()
 
     // 1. Admin/Manager Check
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { data: profile } = await supabase

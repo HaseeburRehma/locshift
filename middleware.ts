@@ -15,10 +15,8 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/dashboard/marketplace': ['admin', 'manager'],
   '/partner': ['partner_admin', 'partner_agent'],
 }
-
 export default async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  const url = request.nextUrl.clone()
 
   let response = NextResponse.next({
     request: {
@@ -26,7 +24,18 @@ export default async function middleware(request: NextRequest) {
     },
   })
 
-  // 1. Check for cached role in cookies to avoid redundant DB hits
+  // 1. Fast-Path: Bypass ALL API routes and static assets entirely.
+  //    Each /api/* route handles its own authentication internally.
+  if (pathname.startsWith('/api/') || pathname === '/') {
+    return response
+  }
+
+  // Also bypass auth pages
+  if (pathname.startsWith('/auth')) {
+    return response
+  }
+
+  // 2. Check for cached role in cookies to avoid redundant DB hits
   const cachedRole = request.cookies.get('user-role')?.value
 
   try {
@@ -49,34 +58,27 @@ export default async function middleware(request: NextRequest) {
       }
     )
 
-    // 2. Optimized Auth Check: getSession is faster than getUser for middleware
+    // 3. Reverted to getUser for security as requested by Supabase warnings
     const controller = new AbortController()
-    const { data: { session } } = await withTimeout(
-      supabase.auth.getSession() as any,
-      2000,
-      { data: { session: null }, error: null } as any,
+    const { data: { user } } = await withTimeout(
+      supabase.auth.getUser() as any,
+      3000,
+      { data: { user: null }, error: null } as any,
       controller
     )
 
-    const user = session?.user
-
-    // Public routes bypass
-    const publicPrefixes = ['/auth', '/api/inquiry', '/api/leads', '/api/agents', '/review']
-    const isPublicRoute = publicPrefixes.some(p => pathname.startsWith(p)) || pathname === '/'
-    
-    if (isPublicRoute && !pathname.startsWith('/dashboard') && !pathname.startsWith('/partner')) {
-      return response
-    }
-
-    // Auth requirement
-    if (!user && !isPublicRoute) {
-      return NextResponse.redirect(new URL('/auth/login', request.url))
+    // Auth requirement: at this point, the route is always a protected dashboard/partner page.
+    // If no session → clear stale cookie and redirect to login.
+    if (!user) {
+      const loginRedirect = NextResponse.redirect(new URL('/auth/login', request.url))
+      loginRedirect.cookies.delete('user-role')
+      return loginRedirect
     }
 
     if (user) {
       let role = cachedRole || 'viewer'
 
-      // 3. If role not cached, fetch it (Parallel would be better but we need user ID)
+      // 4. If role not cached, fetch it
       if (!cachedRole) {
         const profileController = new AbortController()
         const { data: profile } = await withTimeout(
@@ -91,7 +93,7 @@ export default async function middleware(request: NextRequest) {
         response.cookies.set('user-role', role, { maxAge: 3600, path: '/' })
       }
 
-      // 4. Role-based redirects for the root /dashboard
+      // 5. Role-based redirects for the root /dashboard
       if (pathname === '/dashboard') {
         if (role === 'technician') return NextResponse.redirect(new URL('/dashboard/jobs', request.url))
         if (['partner_admin', 'partner_agent'].includes(role)) {
@@ -99,7 +101,7 @@ export default async function middleware(request: NextRequest) {
         }
       }
 
-      // 5. Route protection
+      // 6. Route protection
       for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
         if (pathname.startsWith(route)) {
           if (!allowedRoles.includes(role)) {

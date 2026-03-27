@@ -7,7 +7,7 @@ import * as z from 'zod'
 const techSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().min(10).regex(/^(\+49|0)\d{9,12}$/, 'Must be a valid German phone number'),
+  phone: z.string().min(7, 'Phone number must be at least 7 digits'),
   service_area: z.array(z.string()).min(1, 'At least one service area is required'),
   skills: z.array(z.string()).min(1, 'At least one skill is required'),
   is_available: z.boolean().default(true),
@@ -18,7 +18,8 @@ const techSchema = z.object({
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     // Check permission

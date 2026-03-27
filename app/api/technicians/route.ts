@@ -9,7 +9,7 @@ export async function GET() {
     const result: any = await withTimeout(
       supabase
         .from('technicians')
-        .select('*')
+        .select('id, name, email, phone, is_available, is_active, created_at')
         .eq('is_active', true)
         .order('name') as any,
       8000,

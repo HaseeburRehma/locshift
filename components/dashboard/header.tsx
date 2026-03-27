@@ -45,8 +45,8 @@ export function DashboardHeader() {
 
   const handleSignOut = async () => {
     await signOut()
-    router.push('/auth/login')
-    router.refresh()
+    // Hard redirect so middleware re-evaluates the cleared session
+    window.location.href = '/auth/login'
   }
 
   const initials = profile?.full_name
