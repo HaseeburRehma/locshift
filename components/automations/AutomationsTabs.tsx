@@ -108,7 +108,7 @@ function HistoryTab({ initialLogs }: { initialLogs: AutomationLogRow[] }) {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'automation_logs' },
-        (payload) => {
+        (payload: any) => {
           setLogs((prev) => [payload.new as AutomationLogRow, ...prev.slice(0, 19)])
         }
       )

@@ -49,7 +49,7 @@ export default function LiveShiftPage() {
             table: 'plans',
             filter: `employee_id=eq.${user?.id}`,
           },
-          (payload) => {
+          (payload: any) => {
             console.log('Realtime shift update', payload)
             if (payload.new) {
                const newShift = payload.new as Plan

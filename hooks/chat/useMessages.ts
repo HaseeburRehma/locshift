@@ -64,7 +64,7 @@ export function useMessages(conversationId: string | null) {
           table: 'chat_messages',
           filter: `conversation_id=eq.${conversationId}`
         },
-        async (payload) => {
+        async (payload: any) => {
           // Fetch sender profile for the new message
           const { data: sender } = await supabase
             .from('profiles')
@@ -89,7 +89,7 @@ export function useMessages(conversationId: string | null) {
           table: 'chat_messages',
           filter: `conversation_id=eq.${conversationId}`
         },
-        (payload) => {
+        (payload: any) => {
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === payload.new.id ? { ...msg, ...(payload.new as ChatMessage) } : msg

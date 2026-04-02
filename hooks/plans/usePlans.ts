@@ -41,7 +41,7 @@ export function usePlans() {
         schema: 'public',
         table: 'plans',
         filter: `organization_id=eq.${profile.organization_id}`
-      }, (payload) => {
+      }, (payload: any) => {
         // Fetch full plan with joins for the new row
         supabase
           .from('plans')
@@ -71,7 +71,7 @@ export function usePlans() {
         schema: 'public',
         table: 'plans',
         filter: `organization_id=eq.${profile.organization_id}`
-      }, (payload) => {
+      }, (payload: any) => {
         // Update in place — animate the status badge, no refetch
         setPlans(prev => prev.map(p =>
           p.id === payload.new.id ? { ...p, ...payload.new } : p
@@ -90,7 +90,7 @@ export function usePlans() {
         schema: 'public',
         table: 'plans',
         filter: `organization_id=eq.${profile.organization_id}`
-      }, (payload) => {
+      }, (payload: any) => {
         // Fade out handled by _deleting flag; remove on DB confirm
         setPlans(prev => prev.filter(p => p.id !== payload.old.id))
       })

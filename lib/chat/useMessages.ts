@@ -36,7 +36,7 @@ export function useMessages(conversationId: string | null) {
           table: 'chat_messages',
           filter: `conversation_id=eq.${conversationId}`
         },
-        (payload) => {
+        (payload: any) => {
           setMessages((prev) => [...prev, payload.new])
         }
       )

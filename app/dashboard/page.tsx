@@ -3,12 +3,12 @@
 
 import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { 
-  Users, 
-  Calendar, 
-  Clock, 
-  MessageSquare, 
-  TrendingUp, 
+import {
+  Users,
+  Calendar,
+  Clock,
+  MessageSquare,
+  TrendingUp,
   AlertCircle,
   ArrowUpRight,
   Plus,
@@ -19,6 +19,7 @@ import { useUser } from '@/lib/user-context'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n'
 
 export default function DashboardPage() {
   const { profile, isAdmin, isDispatcher } = useUser()
@@ -58,7 +59,7 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
           </p>
         </div>
         <div className="flex gap-3">
-          <Button 
+          <Button
             className="h-12 rounded-2xl px-6 font-bold shadow-lg shadow-primary/20 gap-2"
             onClick={() => window.location.href = '/dashboard/plans/new'}
           >
@@ -70,30 +71,30 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
 
       {/* KPI Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard 
-          title={locale === 'en' ? 'Active Employees' : 'Aktive Mitarbeiter'} 
-          value={stats.activeEmployees?.toString() || '0'} 
-          icon={Users} 
+        <StatCard
+          title={locale === 'en' ? 'Active Employees' : 'Aktive Mitarbeiter'}
+          value={stats.activeEmployees?.toString() || '0'}
+          icon={Users}
           trend="up"
         />
-        <StatCard 
-          title={locale === 'en' ? 'Open Plans' : 'Ausstehende Pläne'} 
-          value={stats.openPlans?.toString() || '0'} 
-          icon={Calendar} 
+        <StatCard
+          title={locale === 'en' ? 'Open Plans' : 'Ausstehende Pläne'}
+          value={stats.openPlans?.toString() || '0'}
+          icon={Calendar}
           trend="up"
           color="blue"
         />
-        <StatCard 
-          title={locale === 'en' ? 'Total Hours' : 'Gesamtstunden'} 
-          value={`${stats.totalHours}h`} 
-          icon={Clock} 
+        <StatCard
+          title={locale === 'en' ? 'Total Hours' : 'Gesamtstunden'}
+          value={`${stats.totalHours}h`}
+          icon={Clock}
           trend="up"
           color="emerald"
         />
-        <StatCard 
-          title={locale === 'en' ? 'Unread Notifications' : 'Ungelesene Meldungen'} 
-          value={stats.unreadChats?.toString() || '0'} 
-          icon={MessageSquare} 
+        <StatCard
+          title={locale === 'en' ? 'Unread Notifications' : 'Ungelesene Meldungen'}
+          value={stats.unreadChats?.toString() || '0'}
+          icon={MessageSquare}
           color="orange"
         />
       </div>
@@ -113,39 +114,39 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 pt-0">
-               <div className="space-y-4">
-                  {(stats.upcomingShifts || []).length > 0 ? (
-                    stats.upcomingShifts.map((plan: any) => (
-                      <div key={plan.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center border border-gray-100 overflow-hidden">
-                            {plan.employee?.avatar_url ? (
-                              <img src={plan.employee.avatar_url} alt="user" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-xs">
-                                {plan.employee?.full_name?.charAt(0) || 'U'}
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-bold text-gray-900 text-sm">{plan.employee?.full_name || 'Unassigned'}</p>
-                            <p className="text-xs text-gray-500 font-medium">{plan.route || 'No route specified'}</p>
-                          </div>
+              <div className="space-y-4">
+                {(stats.upcomingShifts || []).length > 0 ? (
+                  stats.upcomingShifts.map((plan: any) => (
+                    <div key={plan.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center border border-gray-100 overflow-hidden">
+                          {plan.employee?.avatar_url ? (
+                            <img src={plan.employee.avatar_url} alt="user" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary font-bold text-xs">
+                              {plan.employee?.full_name?.charAt(0) || 'U'}
+                            </div>
+                          )}
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-gray-900 text-sm">
-                            {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(plan.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                          <p className="text-[10px] font-black uppercase text-[#0064E0]">{plan.status}</p>
+                        <div>
+                          <p className="font-bold text-gray-900 text-sm">{plan.employee?.full_name || 'Unassigned'}</p>
+                          <p className="text-xs text-gray-500 font-medium">{plan.route || 'No route specified'}</p>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 text-gray-400 font-medium">
-                      {locale === 'en' ? 'No upcoming shifts found.' : 'Keine kommenden Schichten gefunden.'}
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900 text-sm">
+                          {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(plan.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="text-[10px] font-black uppercase text-[#0064E0]">{plan.status}</p>
+                      </div>
                     </div>
-                  )}
-               </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-gray-400 font-medium">
+                    {locale === 'en' ? 'No upcoming shifts found.' : 'Keine kommenden Schichten gefunden.'}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -182,67 +183,67 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
 
         {/* Right Column: Events & Insights */}
         <div className="space-y-8">
-           {/* Upcoming Events Section */}
-           <Card className="border-border/50 rounded-[2.5rem] shadow-sm p-8 bg-white">
-              <h3 className="text-lg font-black text-gray-900 mb-6 flex items-center justify-between">
-                {locale === 'en' ? 'Calendar Events' : 'Kalender-Events'}
-                <Calendar className="w-4 h-4 text-primary" />
-              </h3>
-              <div className="space-y-4">
-                {(stats.upcomingEvents || []).length > 0 ? (
-                  stats.upcomingEvents.map((event: any) => (
-                    <div key={event.id} className="flex gap-4 group">
-                      <div className="flex flex-col items-center shrink-0">
-                        <div className="text-[10px] font-black uppercase text-gray-400">{new Date(event.start_time).toLocaleDateString([], { month: 'short' })}</div>
-                        <div className="text-xl font-black text-gray-900 leading-none">{new Date(event.start_time).getDate()}</div>
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1 group-hover:text-primary transition-colors cursor-pointer">{event.title}</p>
-                        <p className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
+          {/* Upcoming Events Section */}
+          <Card className="border-border/50 rounded-[2.5rem] shadow-sm p-8 bg-white">
+            <h3 className="text-lg font-black text-gray-900 mb-6 flex items-center justify-between">
+              {locale === 'en' ? 'Calendar Events' : 'Kalender-Events'}
+              <Calendar className="w-4 h-4 text-primary" />
+            </h3>
+            <div className="space-y-4">
+              {(stats.upcomingEvents || []).length > 0 ? (
+                stats.upcomingEvents.map((event: any) => (
+                  <div key={event.id} className="flex gap-4 group">
+                    <div className="flex flex-col items-center shrink-0">
+                      <div className="text-[10px] font-black uppercase text-gray-400">{new Date(event.start_time).toLocaleDateString([], { month: 'short' })}</div>
+                      <div className="text-xl font-black text-gray-900 leading-none">{new Date(event.start_time).getDate()}</div>
                     </div>
-                  ))
-                ) : (
-                  <div className="py-4 text-center text-xs text-gray-400 font-medium italic border border-dashed border-gray-100 rounded-2xl">
-                    No events scheduled
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-bold text-gray-800 line-clamp-1 group-hover:text-primary transition-colors cursor-pointer">{event.title}</p>
+                      <p className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
                   </div>
-                )}
-                <Button variant="ghost" className="w-full h-10 rounded-xl text-xs font-bold text-primary hover:bg-primary/5 mt-2" onClick={() => window.location.href = '/dashboard/calendar'}>
-                  Open Calendar
+                ))
+              ) : (
+                <div className="py-4 text-center text-xs text-gray-400 font-medium italic border border-dashed border-gray-100 rounded-2xl">
+                  No events scheduled
+                </div>
+              )}
+              <Button variant="ghost" className="w-full h-10 rounded-xl text-xs font-bold text-primary hover:bg-primary/5 mt-2" onClick={() => window.location.href = '/dashboard/calendar'}>
+                Open Calendar
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="bg-[#000814] text-white border-none rounded-[2.5rem] shadow-2xl p-8 overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-8 text-primary shadow-2xl opacity-20 transform translate-x-8 -translate-y-8">
+              <TrendingUp className="w-32 h-32" />
+            </div>
+            <div className="relative z-10 space-y-6">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                System Insights
+              </h3>
+              <p className="text-sm text-gray-400 font-medium leading-relaxed">
+                Shift utilization and performance metrics are pulled from your live organizational data.
+              </p>
+              <Link href="/dashboard/reports" className="block">
+                <Button className="w-full h-12 rounded-2xl bg-white text-black font-bold hover:bg-gray-100">
+                  Generate Full Report
                 </Button>
-              </div>
-           </Card>
+              </Link>
+            </div>
+          </Card>
 
-           <Card className="bg-[#000814] text-white border-none rounded-[2.5rem] shadow-2xl p-8 overflow-hidden relative">
-              <div className="absolute top-0 right-0 p-8 text-primary shadow-2xl opacity-20 transform translate-x-8 -translate-y-8">
-                 <TrendingUp className="w-32 h-32" />
-              </div>
-              <div className="relative z-10 space-y-6">
-                 <h3 className="text-lg font-bold flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                    System Insights
-                 </h3>
-                 <p className="text-sm text-gray-400 font-medium leading-relaxed">
-                    Shift utilization and performance metrics are pulled from your live organizational data.
-                 </p>
-                 <Link href="/dashboard/reports" className="block">
-                    <Button className="w-full h-12 rounded-2xl bg-white text-black font-bold hover:bg-gray-100">
-                       Generate Full Report
-                    </Button>
-                 </Link>
-              </div>
-           </Card>
-
-           <div className="p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100 flex items-start gap-4">
-              <AlertCircle className="w-6 h-6 text-blue-500 shrink-0" />
-              <div>
-                <h4 className="font-bold text-blue-900 text-sm">System Status</h4>
-                <p className="text-[10px] text-blue-700 font-medium">All real-time services are running normally.</p>
-              </div>
-           </div>
+          <div className="p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100 flex items-start gap-4">
+            <AlertCircle className="w-6 h-6 text-blue-500 shrink-0" />
+            <div>
+              <h4 className="font-bold text-blue-900 text-sm">System Status</h4>
+              <p className="text-[10px] text-blue-700 font-medium">All real-time services are running normally.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -256,8 +257,8 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
         <div className="h-8 w-48 bg-gray-100 rounded-lg" />
         <div className="h-64 bg-[#0064E0]/10 rounded-[2.5rem]" />
         <div className="grid grid-cols-2 gap-4">
-           <div className="h-32 bg-gray-50 rounded-[2rem]" />
-           <div className="h-32 bg-gray-50 rounded-[2rem]" />
+          <div className="h-32 bg-gray-50 rounded-[2rem]" />
+          <div className="h-32 bg-gray-50 rounded-[2rem]" />
         </div>
       </div>
     )
@@ -272,7 +273,7 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
           {locale === 'en' ? `Good morning, ${profile.full_name?.split(' ')[0]}` : `Guten Morgen, ${profile.full_name?.split(' ')[0]}`}
         </h2>
         <p className="text-sm text-gray-500 font-bold">
-          {nextShift 
+          {nextShift
             ? (locale === 'en' ? `Next shift: ${new Date(nextShift.start_time).toLocaleDateString()}` : `Nächste Schicht: ${new Date(nextShift.start_time).toLocaleDateString()}`)
             : (locale === 'en' ? 'No upcoming shifts assigned.' : 'Keine kommenden Schichten zugewiesen.')
           }
@@ -294,7 +295,7 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
             <Calendar className="w-6 h-6" />
           </div>
         </div>
-        
+
         {nextShift && (
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="space-y-1">
@@ -322,22 +323,22 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm flex flex-col gap-3">
-           <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-orange-500" />
-           </div>
-           <div>
-              <p className="text-2xl font-black text-gray-900">{stats.hoursBalance > 0 ? '+' : ''}{stats.hoursBalance}h</p>
-              <p className="text-[10px] font-black uppercase text-gray-400">Balance</p>
-           </div>
+          <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center">
+            <Clock className="w-5 h-5 text-orange-500" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-gray-900">{stats.hoursBalance > 0 ? '+' : ''}{stats.hoursBalance}h</p>
+            <p className="text-[10px] font-black uppercase text-gray-400">Balance</p>
+          </div>
         </div>
         <div className="p-6 bg-white rounded-[2rem] border border-gray-100 shadow-sm flex flex-col gap-3">
-           <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center">
-              <Wallet className="w-5 h-5 text-emerald-500" />
-           </div>
-           <div>
-              <p className="text-2xl font-black text-gray-900">{stats.monthlyPerDiem}€</p>
-              <p className="text-[10px] font-black uppercase text-gray-400">Per Diem (Monthly)</p>
-           </div>
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center">
+            <Wallet className="w-5 h-5 text-emerald-500" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-gray-900">{stats.monthlyPerDiem}€</p>
+            <p className="text-[10px] font-black uppercase text-gray-400">Per Diem (Monthly)</p>
+          </div>
         </div>
       </div>
     </div>
@@ -356,21 +357,21 @@ function StatCard({ title, value, change, icon: Icon, trend, color = "primary" }
     <Card className="border-border/50 rounded-[2rem] shadow-sm hover:shadow-md transition-all">
       <CardContent className="p-3 md:p-4">
         <div className="flex items-center gap-3 mb-2 md:mb-4">
-           <div className={cn("w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0", colorMap[color])}>
-              <Icon className="w-5 h-5 md:w-6 md:h-6" />
-           </div>
-           <p className="text-[10px] md:text-sm font-bold text-muted-foreground leading-tight">{title}</p>
+          <div className={cn("w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0", colorMap[color])}>
+            <Icon className="w-5 h-5 md:w-6 md:h-6" />
+          </div>
+          <p className="text-[10px] md:text-sm font-bold text-muted-foreground leading-tight">{title}</p>
         </div>
         <div className="flex items-end justify-between">
-           <h4 className="text-3xl font-black text-gray-900 tracking-tighter">{value}</h4>
-           {change && (
-              <span className={cn(
-                "text-[10px] font-black px-2 py-1 rounded-full",
-                trend === 'up' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-              )}>
-                {change}
-              </span>
-           )}
+          <h4 className="text-3xl font-black text-gray-900 tracking-tighter">{value}</h4>
+          {change && (
+            <span className={cn(
+              "text-[10px] font-black px-2 py-1 rounded-full",
+              trend === 'up' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+            )}>
+              {change}
+            </span>
+          )}
         </div>
       </CardContent>
     </Card>
