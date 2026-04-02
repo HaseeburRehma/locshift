@@ -33,11 +33,11 @@ export const JobReminderCustomer = ({
     <Preview>Erinnerung: Ihr Termin ist morgen</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Heading style={h1}>FixDone</Heading>
+        <Heading style={h1}>LokShift</Heading>
         <Text style={h2}>Erinnerung an Ihren Termin 📅</Text>
         <Text style={text}>Guten Tag {customerName},</Text>
         <Text style={text}>
-          Wir möchten Sie daran erinnern, dass Ihr FixDone-Termin für "{jobType}" morgen um {scheduledTime} Uhr stattfindet.
+          Wir möchten Sie daran erinnern, dass Ihr LokShift-Termin für "{jobType}" morgen um {scheduledTime} Uhr stattfindet.
         </Text>
         
         <Section style={detailsBox}>

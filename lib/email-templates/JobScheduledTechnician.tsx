@@ -48,7 +48,7 @@ export const JobScheduledTechnician = ({
       <Preview>Neuer Auftrag zugewiesen</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={h1}>FixDone Dispatch</Heading>
+          <Heading style={h1}>LokShift Dispatch</Heading>
           <Text style={h2}>Neuer Auftrag zugewiesen</Text>
           <Text style={text}>Hallo {technicianName},</Text>
           <Text style={text}>Ein neuer Auftrag wurde dir zugewiesen.</Text>
@@ -65,14 +65,14 @@ export const JobScheduledTechnician = ({
             <Text style={detailsText}><strong>ℹ️ Beschreibung:</strong> {description || '-'}</Text>
           </Section>
 
-          {/* This would link back to the FixDone Technician App deep link */}
+          {/* This would link back to the LokShift Technician App deep link */}
           <Button href={`https://app.fixdone.de/jobs/${jobId}`} style={button}>
             Auftrag ansehen / starten
           </Button>
           
           <Hr style={hr} />
           <Text style={footer}>
-            Automatische Benachrichtigung von FixDone Dispatch.
+            Automatische Benachrichtigung von LokShift Dispatch.
           </Text>
         </Container>
       </Body>

@@ -72,7 +72,7 @@ export default async function SettingsHubPage() {
     <div className="space-y-8 pb-20">
       <div className="space-y-2">
         <h1 className="text-4xl font-black tracking-tight">Settings Hub</h1>
-        <p className="text-muted-foreground font-medium">Fine-tune your FixDone Operations Center parameters.</p>
+        <p className="text-muted-foreground font-medium">Fine-tune your LokShift Operations Center parameters.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

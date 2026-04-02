@@ -111,7 +111,7 @@ export function generateCustomerCalendarLink(params: {
   const endTimeDate = new Date(params.scheduledDateTime.getTime() + params.estimatedDurationMinutes * 60000)
   const endTime = endTimeDate.toISOString().replace(/-|:|\.\d\d\d/g, "")
   
-  const text = encodeURIComponent(`FixDone: ${params.jobType}`)
+  const text = encodeURIComponent(`LokShift: ${params.jobType}`)
   const details = encodeURIComponent(`Termin für ${params.customerName}`)
   const location = encodeURIComponent(`${params.city}, Deutschland`)
 

@@ -18,7 +18,7 @@ export async function sendSmsJobScheduled(params: {
   try {
     if (!client) throw new Error('Twilio not configured')
     
-    const message = `FixDone: Ihr Termin für ${params.jobType} ist bestätigt! Am ${params.scheduledDate} um ${params.scheduledTime} Uhr. Techniker: ${params.technicianName} (${params.technicianPhone}).`
+    const message = `LokShift: Ihr Termin für ${params.jobType} ist bestätigt! Am ${params.scheduledDate} um ${params.scheduledTime} Uhr. Techniker: ${params.technicianName} (${params.technicianPhone}).`
     
     const response = await client.messages.create({
       body: message,
@@ -39,7 +39,7 @@ export async function sendSmsCompleted(params: {
   try {
     if (!client) throw new Error('Twilio not configured')
     
-    const message = `FixDone: Auftrag abgeschlossen! Wir danken für das Vertrauen. Bewerten Sie uns gerne: ${params.reviewLink}`
+    const message = `LokShift: Auftrag abgeschlossen! Wir danken für das Vertrauen. Bewerten Sie uns gerne: ${params.reviewLink}`
     
     const response = await client.messages.create({
       body: message,
@@ -61,7 +61,7 @@ export async function sendSmsReminder(params: {
   try {
     if (!client) throw new Error('Twilio not configured')
     
-    const message = `FixDone Erinnerung: Ihr Termin ist morgen (${params.scheduledDate}) um ${params.scheduledTime} Uhr mit ${params.technicianName}.`
+    const message = `LokShift Erinnerung: Ihr Termin ist morgen (${params.scheduledDate}) um ${params.scheduledTime} Uhr mit ${params.technicianName}.`
     
     const response = await client.messages.create({
       body: message,

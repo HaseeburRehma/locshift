@@ -102,7 +102,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
                       <FormItem>
                         <FormLabel>Brand Name*</FormLabel>
                         <FormControl>
-                          <Input placeholder="FixDone" className="h-11 rounded-xl" {...field} />
+                          <Input placeholder="LokShift" className="h-11 rounded-xl" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -115,7 +115,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
                       <FormItem>
                         <FormLabel>Legal Entity Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="FixDone GmbH" className="h-11 rounded-xl" {...field} />
+                          <Input placeholder="LokShift GmbH" className="h-11 rounded-xl" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

@@ -32,7 +32,7 @@ export const JobCompletedCustomer = ({
     <Preview>Ihr Auftrag wurde abgeschlossen</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Heading style={h1}>FixDone</Heading>
+        <Heading style={h1}>LokShift</Heading>
         <Text style={h2}>Auftrag abgeschlossen ✅</Text>
         <Text style={text}>Guten Tag {customerName},</Text>
         <Text style={text}>

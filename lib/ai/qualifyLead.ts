@@ -11,7 +11,7 @@ export async function qualifyLead(lead: Lead): Promise<QualificationResult> {
   }
 
   const prompt = `
-    You are an expert lead qualification assistant for FixDone, a platform connecting customers with service technicians (plumbers, electricians, etc.).
+    You are an expert lead qualification assistant for LokShift, a platform connecting customers with service technicians (plumbers, electricians, etc.).
     
     Analyze the following lead data and provide a qualification score (0-100), a recommended action, a brief reason for the qualification, and a summary of the request.
     

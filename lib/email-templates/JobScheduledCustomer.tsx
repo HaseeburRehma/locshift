@@ -38,7 +38,7 @@ export const JobScheduledCustomer = ({
     <Preview>Ihr Auftrag wurde bestätigt</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Heading style={h1}>FixDone</Heading>
+        <Heading style={h1}>LokShift</Heading>
         <Text style={h2}>Ihr Auftrag wurde bestätigt</Text>
         <Text style={text}>Guten Tag {customerName},</Text>
         <Text style={text}>

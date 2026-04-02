@@ -16,9 +16,9 @@ import {
 } from 'lucide-react'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useUser } from '@/lib/user-context'
-import { useTranslation } from '@/lib/i18n'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export default function DashboardPage() {
   const { profile, isAdmin, isDispatcher } = useUser()

@@ -22,7 +22,7 @@ export async function sendWhatsAppJobScheduledCustomer(params: {
   try {
     if (!client) throw new Error('Twilio not configured')
     
-    const message = `Hallo ${params.customerName} 👋\n\nIhr FixDone-Auftrag wurde bestätigt ✅\n\n🔧 Leistung: ${params.jobType}\n📅 Datum: ${params.scheduledDate}\n🕐 Uhrzeit: ${params.scheduledTime} Uhr\n👨🔧 Techniker: ${params.technicianName}\n📞 Bei Fragen: ${params.technicianPhone}\n\nWir freuen uns auf Ihren Auftrag!\n– Team FixDone`
+    const message = `Hallo ${params.customerName} 👋\n\nIhr LokShift-Auftrag wurde bestätigt ✅\n\n🔧 Leistung: ${params.jobType}\n📅 Datum: ${params.scheduledDate}\n🕐 Uhrzeit: ${params.scheduledTime} Uhr\n👨🔧 Techniker: ${params.technicianName}\n📞 Bei Fragen: ${params.technicianPhone}\n\nWir freuen uns auf Ihren Auftrag!\n– Team LokShift`
     
     const response = await client.messages.create({
       body: message,
@@ -51,7 +51,7 @@ export async function sendWhatsAppJobScheduledTechnician(params: {
   try {
     if (!client) throw new Error('Twilio not configured')
     
-    const message = `Hallo ${params.technicianName} 🔧\n\nNeuer Auftrag zugewiesen 📋\n\n👤 Kunde: ${params.customerName}\n📞 Tel: ${params.customerPhone}\n📍 Ort: ${params.city}\n🔧 Auftrag: ${params.jobType}\n📅 ${params.scheduledDate} um ${params.scheduledTime} Uhr\n📝 Notizen: ${params.notes || '-'}\n\nBitte bestätigen Sie Ihre Ankunft über die App.\n– FixDone Disposition`
+    const message = `Hallo ${params.technicianName} 🔧\n\nNeuer Auftrag zugewiesen 📋\n\n👤 Kunde: ${params.customerName}\n📞 Tel: ${params.customerPhone}\n📍 Ort: ${params.city}\n🔧 Auftrag: ${params.jobType}\n📅 ${params.scheduledDate} um ${params.scheduledTime} Uhr\n📝 Notizen: ${params.notes || '-'}\n\nBitte bestätigen Sie Ihre Ankunft über die App.\n– LokShift Disposition`
     
     const response = await client.messages.create({
       body: message,
@@ -72,7 +72,7 @@ export async function sendWhatsAppJobCompleted(params: {
   try {
     if (!client) throw new Error('Twilio not configured')
     
-    const message = `Hallo ${params.customerName} 👋\n\nIhr Auftrag für ${params.jobType} wurde erfolgreich abgeschlossen ✅\n\nWir würden uns sehr über eine kurze Bewertung freuen:\n${params.reviewLink}\n\nVielen Dank!\n– Team FixDone`
+    const message = `Hallo ${params.customerName} 👋\n\nIhr Auftrag für ${params.jobType} wurde erfolgreich abgeschlossen ✅\n\nWir würden uns sehr über eine kurze Bewertung freuen:\n${params.reviewLink}\n\nVielen Dank!\n– Team LokShift`
     
     const response = await client.messages.create({
       body: message,
@@ -94,7 +94,7 @@ export async function sendWhatsAppReminder(params: {
   try {
     if (!client) throw new Error('Twilio not configured')
     
-    const message = `Hallo ${params.customerName} 👋\n\nErinnerung: Ihr FixDone-Termin findet morgen, den ${params.scheduledDate} um ${params.scheduledTime} Uhr statt.\nTechniker: ${params.technicianName}\n\nBei Änderungen rufen Sie uns rechtzeitig an.\n– Team FixDone`
+    const message = `Hallo ${params.customerName} 👋\n\nErinnerung: Ihr LokShift-Termin findet morgen, den ${params.scheduledDate} um ${params.scheduledTime} Uhr statt.\nTechniker: ${params.technicianName}\n\nBei Änderungen rufen Sie uns rechtzeitig an.\n– Team LokShift`
     
     const response = await client.messages.create({
       body: message,

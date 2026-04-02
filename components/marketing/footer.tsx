@@ -33,7 +33,7 @@ export function MarketingFooter() {
                     {/* Brand */}
                     <div className="col-span-2">
                         <Link href="/" className="flex items-center gap-2.5 mb-4 group w-fit">
-                            <Image src="/logo-3.png" alt="FixDone Logo" width={160} height={40} className="h-10 w-auto transition-transform group-hover:scale-105" />
+                            <Image src="/logo-3.png" alt="LokShift Logo" width={160} height={40} className="h-10 w-auto transition-transform group-hover:scale-105" />
                         </Link>
                         <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
                             {t('footer.tagline')}

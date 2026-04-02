@@ -39,7 +39,7 @@ export function MarketingHeader() {
             <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-2.5 group">
-                    <Image src="/logo-3.png" alt="FixDone Logo" width={140} height={32} className="h-8 w-auto transition-transform group-hover:scale-105" />
+                    <Image src="/logo-3.png" alt="LokShift Logo" width={140} height={32} className="h-8 w-auto transition-transform group-hover:scale-105" />
                 </Link>
 
                 {/* Desktop Nav */}

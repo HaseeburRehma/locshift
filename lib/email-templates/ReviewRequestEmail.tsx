@@ -29,7 +29,7 @@ export const ReviewRequestEmail = ({
   return (
     <Html>
       <Head />
-      <Preview>Wie war Ihr Erlebnis mit FixDone?</Preview>
+      <Preview>Wie war Ihr Erlebnis mit LokShift?</Preview>
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>⭐ Wie war Ihr Erlebnis?</Heading>
@@ -56,7 +56,7 @@ export const ReviewRequestEmail = ({
 
           <Hr style={hr} />
           <Text style={footer}>
-            FixDone · Professioneller Elektro-Service<br />
+            LokShift · Professioneller Elektro-Service<br />
             info@fixdone.de · www.fixdone.de
           </Text>
         </Container>

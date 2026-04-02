@@ -15,7 +15,7 @@ export async function sendJobScheduledCustomer(params: {
 }): Promise<{ success: boolean, messageId?: string, error?: string }> {
   try {
     const data = await resend.emails.send({
-      from: `FixDone <${FROM_EMAIL}>`,
+      from: `LokShift <${FROM_EMAIL}>`,
       to: params.to,
       subject: `Ihre Terminbestätigung: ${params.jobType}`,
       react: JobScheduledCustomer({ ...params }),
@@ -36,7 +36,7 @@ export async function sendJobScheduledTechnician(params: {
 }): Promise<{ success: boolean, messageId?: string, error?: string }> {
   try {
     const data = await resend.emails.send({
-      from: `FixDone Dispatch <${FROM_EMAIL}>`,
+      from: `LokShift Dispatch <${FROM_EMAIL}>`,
       to: params.to,
       subject: `Neuer Auftrag: ${params.jobType} in ${params.city}`,
       react: JobScheduledTechnician({ ...params }),
@@ -54,7 +54,7 @@ export async function sendJobCompletedCustomer(params: {
 }): Promise<{ success: boolean, messageId?: string, error?: string }> {
   try {
     const data = await resend.emails.send({
-      from: `FixDone <${FROM_EMAIL}>`,
+      from: `LokShift <${FROM_EMAIL}>`,
       to: params.to,
       subject: `Auftrag abgeschlossen: ${params.jobType}`,
       react: JobCompletedCustomer({ ...params }),
@@ -73,7 +73,7 @@ export async function sendJobReminder(params: {
 }): Promise<{ success: boolean, messageId?: string, error?: string }> {
   try {
     const data = await resend.emails.send({
-      from: `FixDone <${FROM_EMAIL}>`,
+      from: `LokShift <${FROM_EMAIL}>`,
       to: params.to,
       subject: `Erinnerung: Termin morgen um ${params.scheduledTime} Uhr`,
       react: JobReminderCustomer({ ...params }),
