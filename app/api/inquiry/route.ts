@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { qualifyLead } from '@/app/api/agents/qualify/route'
-import { matchTechnician } from '@/app/api/agents/match/route'
-import { generateMessage } from '@/app/api/agents/message/route'
+import { qualifyLead } from '@/lib/ai/qualifyLead'
+import { matchTechnician } from '@/lib/ai/matchTechnician'
+import { generateMessage } from '@/lib/ai/message'
 import { sendEmail } from '@/lib/mail'
 import type { Lead, Technician } from '@/lib/types'
 
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         console.log('Inquiry: Step 3 - AI Qualification')
         let qualifiedData = null
         try {
-            qualifiedData = qualifyLead(lead as Lead)
+            qualifiedData = await qualifyLead(lead as Lead)
             if (qualifiedData) {
                 await adminClient
                     .from('leads')
@@ -85,8 +85,9 @@ export async function POST(request: NextRequest) {
                 .eq('is_active', true)
                 .eq('is_available', true)
 
-            const matchResult = matchTechnician(lead as Lead, (techs || []) as Technician[])
-            if (matchResult) {
+            const matches = await matchTechnician(lead as Lead, (techs || []) as Technician[])
+            const matchResult = matches[0]
+            if (matchResult && matchResult.score > 50) { // Threshold for auto-match
                 const { data: newJob, error: jobError } = await adminClient
                     .from('jobs')
                     .insert({

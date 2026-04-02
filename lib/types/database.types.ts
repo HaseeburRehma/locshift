@@ -22,6 +22,10 @@ export interface QualificationResult {
   qualification_reason: string
   ai_summary: string
   confidence: 'high' | 'medium' | 'low'
+  job_type?: string
+  urgency: LeadUrgency
+  estimated_value: string | number | null
+  priority: 'low' | 'medium' | 'high' | 'urgent'
 }
 
 // ─── Table Row Types ─────────────────────────────────────────────────────────
@@ -77,6 +81,7 @@ export interface LeadRow {
   service_type: string
   job_type: string | null
   urgency: LeadUrgency
+  budget: string | null
   estimated_value: string | null
   priority: string | null
   status: LeadStatus
@@ -109,6 +114,7 @@ export interface LeadInsert {
   service_type: string
   job_type?: string | null
   urgency?: LeadUrgency
+  budget?: string | null
   estimated_value?: string | null
   priority?: string | null
   status?: LeadStatus
@@ -140,6 +146,7 @@ export interface LeadUpdate {
   service_type?: string
   job_type?: string | null
   urgency?: LeadUrgency
+  budget?: string | null
   estimated_value?: string | null
   priority?: string | null
   status?: LeadStatus
@@ -793,13 +800,7 @@ export type NotificationType =
   | 'partner_purchased' | 'review_received' | 'automation_fired'
   | 'technician_unavailable' | 'urgent_lead'
 
-export interface QualificationResult {
-  score: number
-  recommendedAction: 'dispatch_now' | 'schedule' | 'follow_up' | 'disqualify'
-  qualificationReason: string
-  aiSummary: string
-  confidence: 'high' | 'medium' | 'low'
-}
+
 
 export interface MatchResult {
   technician_id: string

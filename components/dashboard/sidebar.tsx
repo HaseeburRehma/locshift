@@ -2,7 +2,6 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import Image from 'next/image'
 import {
     LayoutDashboard,
     Calendar,
@@ -25,10 +24,9 @@ import { useUser } from '@/lib/user-context'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-export function Sidebar() {
-    const [collapsed, setCollapsed] = useState(false)
+export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?: boolean, onItemClick?: () => void }) {
     const { locale } = useTranslation()
-    const { role, isAdmin, isDispatcher } = useUser()
+    const { role, isAdmin } = useUser()
     const pathname = usePathname()
 
     const navItems = [
@@ -64,37 +62,13 @@ export function Sidebar() {
     }
 
     return (
-        <aside
-            className={cn(
-                'hidden md:flex flex-col border-r border-border bg-card transition-all duration-300 h-screen sticky top-0',
-                collapsed ? 'w-20' : 'w-64'
-            )}
-        >
-            <div className="flex h-16 items-center justify-between px-4 border-b border-border">
-                {!collapsed && (
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                            <span className="text-white font-black text-xl leading-none">L</span>
-                        </div>
-                        <span className="font-black text-xl tracking-tighter text-foreground">LokShift</span>
-                    </div>
-                )}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setCollapsed(!collapsed)}
-                    className="ml-auto"
-                >
-                    {collapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
-                </Button>
-            </div>
-
+        <div className="flex flex-col h-full bg-card">
             <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
                 {filteredItems.map((item) => {
                     const Icon = item.icon
                     const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
                     return (
-                        <Link key={item.id} href={item.href}>
+                        <Link key={item.id} href={item.href} onClick={onItemClick}>
                             <Button
                                 variant={isActive ? 'secondary' : 'ghost'}
                                 className={cn(
@@ -124,6 +98,39 @@ export function Sidebar() {
                     </div>
                 )}
             </div>
+        </div>
+    )
+}
+
+export function Sidebar() {
+    const [collapsed, setCollapsed] = useState(false)
+
+    return (
+        <aside
+            className={cn(
+                'hidden md:flex flex-col border-r border-border bg-card transition-all duration-300 h-screen sticky top-0',
+                collapsed ? 'w-20' : 'w-64'
+            )}
+        >
+            <div className="flex h-16 items-center justify-between px-4 border-b border-border">
+                {!collapsed && (
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                            <span className="text-white font-black text-xl leading-none">L</span>
+                        </div>
+                        <span className="font-black text-xl tracking-tighter text-foreground">LokShift</span>
+                    </div>
+                )}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCollapsed(!collapsed)}
+                    className="ml-auto"
+                >
+                    {collapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                </Button>
+            </div>
+            <SidebarContent collapsed={collapsed} />
         </aside>
     )
 }

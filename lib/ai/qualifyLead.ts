@@ -28,7 +28,11 @@ export async function qualifyLead(lead: Lead): Promise<QualificationResult> {
       "recommended_action": "dispatch_now" | "schedule" | "follow_up" | "disqualify",
       "qualification_reason": "string",
       "ai_summary": "string",
-      "confidence": "high" | "medium" | "low"
+      "confidence": "high" | "medium" | "low",
+      "job_type": "string",
+      "urgency": "low" | "medium" | "high" | "urgent",
+      "estimated_value": number,
+      "priority": "low" | "medium" | "high" | "urgent"
     }
   `;
 
@@ -57,7 +61,11 @@ export async function qualifyLead(lead: Lead): Promise<QualificationResult> {
       recommended_action: lead.urgency === 'high' ? 'dispatch_now' : 'schedule',
       qualification_reason: 'AI qualification failed. Using fallback based on urgency.',
       ai_summary: lead.description.substring(0, 100) + '...',
-      confidence: 'low'
+      confidence: 'low',
+      job_type: lead.service_type,
+      urgency: lead.urgency as any,
+      estimated_value: 0,
+      priority: lead.urgency === 'high' ? 'high' : 'medium'
     };
   }
 }

@@ -2,7 +2,20 @@
 // LOKSHIFT CORE TYPES
 // ──────────────────────────────────────────────────────────
 
+import { 
+  LeadRow, 
+  TechnicianRow, 
+  JobRow, 
+  MatchResult as MatchResultDB, 
+  QualificationResult as QualificationResultDB 
+} from './types/database.types'
+
 export type UserRole = 'admin' | 'dispatcher' | 'employee'
+export type Lead = LeadRow
+export type Technician = TechnicianRow
+export type Job = JobRow
+export type MatchResult = MatchResultDB
+export type QualificationResult = QualificationResultDB
 
 export const EVENT_COLORS = {
   birthday:   '#A78BFA',  // purple

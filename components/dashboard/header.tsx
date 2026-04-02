@@ -15,13 +15,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
+import { SidebarContent } from './sidebar'
+import { useState } from 'react'
 
 export function DashboardHeader() {
   const { user, profile, role, signOut, isLoading } = useUser()
   const { locale, setLocale } = useTranslation()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const router = useRouter()
 
   const roleLabels: Record<string, string> = {
@@ -71,9 +81,24 @@ export function DashboardHeader() {
         {/* Mobile: Hamburger + Logo Center / Desktop: Left Logo */}
         <div className="flex-1 flex items-center gap-3">
           {/* Hamburger Menu (Mobile Only) */}
-          <button className="md:hidden p-2 -ml-2 text-gray-500 hover:text-gray-900 transition-colors">
-            <Menu className="w-6 h-6" />
-          </button>
+          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <button className="md:hidden p-2 -ml-2 text-gray-500 hover:text-gray-900 transition-colors">
+                <Menu className="w-6 h-6" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-64 bg-card border-none">
+              <SheetHeader className="p-4 border-b border-border bg-card">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                    <span className="text-white font-black text-xl leading-none">L</span>
+                  </div>
+                  <SheetTitle className="font-black text-xl tracking-tighter text-foreground">LokShift</SheetTitle>
+                </div>
+              </SheetHeader>
+              <SidebarContent onItemClick={() => setIsMobileMenuOpen(false)} />
+            </SheetContent>
+          </Sheet>
           
           <div className="flex-1 flex justify-center md:justify-start">
             <Image 
