@@ -1,3 +1,5 @@
+
+//app/api/users/[id]/route.tsx
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -16,7 +18,7 @@ export async function DELETE(
   try {
     const { id } = await params
     const supabaseServer = await createServerClient()
-    
+
     // 1. Verify requester is logged in via cookie
     const { data: { session } } = await supabaseServer.auth.getSession()
 
@@ -66,7 +68,7 @@ export async function PATCH(
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    
+
     // 2. Only allow self-update or admin-update via admin client
     const adminClient = getAdminClient()
     const { data: profile } = await adminClient

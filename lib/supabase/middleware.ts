@@ -31,9 +31,9 @@ export async function updateSession(request: NextRequest) {
 
     // Allow public routes immediately to prevent stalls
     const publicRoutes = [
-        "/auth/login",
-        "/auth/sign-up",
-        "/auth/sign-up-success",
+        "/login",
+        "/register",
+        "/register-success",
         "/auth/error",
         "/review",
         "/",

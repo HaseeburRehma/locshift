@@ -4,10 +4,8 @@ import { NextResponse } from 'next/server'
 export async function GET() {
   try {
     const supabase = await createClient()
-    
-    const { data: { session }, error: userError } = await supabase.auth.getSession()
-    const user = session?.user
-    
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -19,23 +17,10 @@ export async function GET() {
       .single()
 
     if (profileError) {
-      // Profile might not exist yet, return basic info
-      return NextResponse.json({
-        user: {
-          id: user.id,
-          email: user.email,
-        },
-        profile: null
-      })
+      return NextResponse.json({ user: { id: user.id, email: user.email }, profile: null })
     }
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-      },
-      profile
-    })
+    return NextResponse.json({ user: { id: user.id, email: user.email }, profile })
   } catch (error) {
     console.error('Profile fetch error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -45,10 +30,10 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const supabase = await createClient()
-    
-    const { data: { session }, error: userError } = await supabase.auth.getSession()
-    const user = session?.user
-    
+
+    // FIX: getUser() not getSession() — works reliably in server context
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -57,10 +42,7 @@ export async function PATCH(request: Request) {
 
     const { data, error } = await supabase
       .from('profiles')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', user.id)
       .select()
       .single()

@@ -13,7 +13,7 @@ export function AccessDenied() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push('/auth/login')
+    router.push('/login')
     router.refresh()
   }
 

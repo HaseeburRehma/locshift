@@ -5,91 +5,79 @@ import { cn } from '@/lib/utils'
 import Image from 'next/image'
 import {
     LayoutDashboard,
-    UserPlus,
-    Briefcase,
-    Users,
+    Calendar,
+    Clock,
+    BarChart3,
+    Wallet,
     Star,
-    Zap,
+    Users,
+    FileText,
+    MessageSquare,
+    ShieldAlert,
     Settings,
     Menu,
     X,
-    MessageSquare,
-    BarChart,
-    Building2,
-    BarChart3,
-    ShoppingCart,
-    ShieldAlert,
-    Handshake,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 import { useTranslation } from '@/lib/i18n'
-import { usePermissions } from '@/lib/rbac/usePermissions'
-import { Permission } from '@/lib/rbac/permissions'
+import { useUser } from '@/lib/user-context'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-export type ViewType = 'dashboard' | 'leads' | 'jobs' | 'technicians' | 'reviews' | 'automations' | 'settings' | 'partners' | 'users' | 'messages' | 'kpi' | 'finance'
-
-interface SidebarProps {
-    activeView?: ViewType
-    onViewChange?: (view: ViewType) => void
-}
-
-export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+export function Sidebar() {
     const [collapsed, setCollapsed] = useState(false)
     const { locale } = useTranslation()
-    const { can, role, isTechnician } = usePermissions()
+    const { role, isAdmin, isDispatcher } = useUser()
     const pathname = usePathname()
 
     const navItems = [
-        { id: 'dashboard', href: '/dashboard', label: locale === 'en' ? 'Dashboard' : 'Dashboard', icon: LayoutDashboard, permission: undefined },
-        { id: 'leads', href: '/dashboard/leads', label: locale === 'en' ? 'Leads' : 'Interessenten', icon: UserPlus, permission: 'leads.view' as Permission },
-        {
-            id: 'jobs',
-            href: '/dashboard/jobs',
-            label: isTechnician
-                ? (locale === 'en' ? 'My Jobs' : 'Meine Aufträge')
-                : (locale === 'en' ? 'Jobs' : 'Aufträge'),
-            icon: Briefcase,
-            permission: 'jobs.view' as Permission
-        },
-        { id: 'technicians', href: '/dashboard/technicians', label: locale === 'en' ? 'Technicians' : 'Techniker', icon: Users, permission: 'technicians.view' as Permission },
-        { id: 'partners', href: '/dashboard/partners', label: locale === 'en' ? 'Partners' : 'Partner', icon: Handshake, permission: 'partners.view' as Permission },
-        { id: 'users', href: '/dashboard/users', label: locale === 'en' ? 'User Roles' : 'Benutzerrollen', icon: ShieldAlert, permission: 'settings.manage' as Permission },
-        { id: 'reviews', href: '/dashboard/reviews', label: locale === 'en' ? 'Reviews' : 'Bewertungen', icon: Star, permission: 'reviews.view' as Permission },
-        { id: 'finance', href: '/dashboard/finance', label: locale === 'en' ? 'Finance' : 'Finanzen', icon: BarChart3, permission: 'finance.view' as Permission },
-        { id: 'automations', href: '/dashboard/automations', label: locale === 'en' ? 'Automations' : 'Automatisierung', icon: Zap, permission: 'automations.view' as Permission },
-        { id: 'messages', href: '/dashboard/messages', label: locale === 'en' ? 'Messages' : 'Nachrichten', icon: MessageSquare, permission: 'leads.view' as Permission },
-        { id: 'kpi', href: '/dashboard/kpi', label: locale === 'en' ? 'Analytics' : 'Analysen', icon: BarChart, permission: 'finance.view' as Permission },
-        { id: 'settings', href: '/dashboard/settings', label: locale === 'en' ? 'Settings' : 'Einstellungen', icon: Settings, permission: 'settings.view' as Permission },
+        { id: 'dashboard', href: '/dashboard', label: locale === 'en' ? 'Dashboard' : 'Dashboard', icon: LayoutDashboard },
+        { id: 'calendar', href: '/dashboard/calendar', label: locale === 'en' ? 'Calendar' : 'Kalender', icon: Calendar },
+        { id: 'plans', href: '/dashboard/plans', label: locale === 'en' ? 'Plans' : 'Pläne', icon: FileText },
+        { id: 'times', href: '/dashboard/times', label: locale === 'en' ? 'Times' : 'Arbeitszeiten', icon: Clock },
+        { id: 'time-account', href: '/dashboard/time-account', label: locale === 'en' ? 'Time Account' : 'Zeitkonto', icon: BarChart3 },
+        { id: 'per-diem', href: '/dashboard/per-diem', label: locale === 'en' ? 'Per Diem' : 'Verpflegung', icon: Wallet },
+        { id: 'holiday-bonus', href: '/dashboard/holiday-bonus', label: locale === 'en' ? 'Holiday Bonus' : 'Holiday Bonus', icon: Star },
+        { id: 'customers', href: '/dashboard/customers', label: locale === 'en' ? 'Customers' : 'Kunden', icon: Users },
+        { id: 'reports', href: '/dashboard/reports', label: locale === 'en' ? 'Reports' : 'Berichte', icon: FileText },
+        { id: 'chat', href: '/dashboard/chat', label: locale === 'en' ? 'Chat' : 'Chat', icon: MessageSquare },
+        { id: 'users', href: '/dashboard/users', label: locale === 'en' ? 'User Management' : 'Benutzerverwaltung', icon: ShieldAlert, adminOnly: true },
+        { id: 'settings', href: '/dashboard/settings', label: locale === 'en' ? 'Settings' : 'Einstellungen', icon: Settings },
     ]
 
     const filteredItems = navItems.filter(item => {
-        if (role === 'admin') return true; // Admins see everything
-        return !item.permission || can(item.permission as Permission);
+        if (item.adminOnly && !isAdmin) return false;
+        return true;
     })
 
     const roleColors: Record<string, string> = {
-        admin: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-        manager: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
-        disponent: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
-        technician: 'bg-green-500/10 text-green-500 border-green-500/20',
-        viewer: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-        partner_admin: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-        partner_agent: 'bg-purple-100 text-purple-700 border-purple-500/30'
+        admin: 'bg-red-500/10 text-red-500 border-red-500/20',
+        dispatcher: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+        employee: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+    }
+
+    const roleLabels: Record<string, string> = {
+        admin: 'ADMINISTRATOR',
+        dispatcher: 'DISPATCHER',
+        employee: 'EMPLOYEE',
     }
 
     return (
         <aside
             className={cn(
-                'flex flex-col border-r border-border bg-card transition-all duration-300 h-screen',
+                'hidden md:flex flex-col border-r border-border bg-card transition-all duration-300 h-screen sticky top-0',
                 collapsed ? 'w-20' : 'w-64'
             )}
         >
             <div className="flex h-16 items-center justify-between px-4 border-b border-border">
                 {!collapsed && (
-                    <Image src="/logo.png" alt="FixDone Logo" width={120} height={28} className="h-7 w-auto" />
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                            <span className="text-white font-black text-xl leading-none">L</span>
+                        </div>
+                        <span className="font-black text-xl tracking-tighter text-foreground">LokShift</span>
+                    </div>
                 )}
                 <Button
                     variant="ghost"
@@ -127,33 +115,15 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
             </nav>
 
             <div className="p-3 border-t border-border space-y-3">
-                <div className={cn('rounded-lg bg-primary/5 p-3', collapsed && 'p-2 flex justify-center')}>
-                    {!collapsed ? (
-                        <>
-                            <p className="text-xs font-medium text-primary mb-1">
-                                {locale === 'en' ? 'AI Agents active' : 'KI-Agenten aktiv'}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground leading-tight">
-                                {locale === 'en'
-                                    ? 'Qualification & matching running in background.'
-                                    : 'Qualifizierung und Matchmaking laufen im Hintergrund.'}
-                            </p>
-                        </>
-                    ) : (
-                        <Zap className="h-4 w-4 text-primary animate-pulse" />
-                    )}
-                </div>
-
                 {!collapsed && (
                     <div className={cn(
                         "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border text-center transition-all",
                         roleColors[role] || 'bg-muted text-muted-foreground'
                     )}>
-                        {role === 'admin' ? 'SYSTEM ADMINISTRATOR' : role}
+                        {roleLabels[role] || role}
                     </div>
                 )}
             </div>
         </aside>
     )
 }
-

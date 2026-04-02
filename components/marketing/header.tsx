@@ -24,7 +24,7 @@ export function MarketingHeader() {
 
     const handleSignOut = async () => {
         await signOut()
-        router.push('/auth/login')
+        router.push('/login')
         router.refresh()
     }
 
@@ -39,7 +39,7 @@ export function MarketingHeader() {
             <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-2.5 group">
-                    <Image src="/logo.png" alt="FixDone Logo" width={140} height={32} className="h-8 w-auto transition-transform group-hover:scale-105" />
+                    <Image src="/logo-3.png" alt="FixDone Logo" width={140} height={32} className="h-8 w-auto transition-transform group-hover:scale-105" />
                 </Link>
 
                 {/* Desktop Nav */}
@@ -88,13 +88,13 @@ export function MarketingHeader() {
                     ) : (
                         <>
                             <Button asChild variant="ghost" size="sm" className="hidden md:flex gap-2">
-                                <Link href="/auth/login">
+                                <Link href="/login">
                                     <LogIn className="h-4 w-4" />
                                     {t('nav.login')}
                                 </Link>
                             </Button>
                             <Button asChild size="sm" className="hidden md:flex">
-                                <Link href="/auth/sign-up">{t('nav.signup')}</Link>
+                                <Link href="/register">{t('nav.signup')}</Link>
                             </Button>
                         </>
                     ))}
@@ -134,10 +134,10 @@ export function MarketingHeader() {
                             ) : (
                                 <>
                                     <Button asChild variant="outline" size="sm">
-                                        <Link href="/auth/login">{t('nav.login')}</Link>
+                                        <Link href="/login">{t('nav.login')}</Link>
                                     </Button>
                                     <Button asChild size="sm">
-                                        <Link href="/auth/sign-up">{t('nav.signup')}</Link>
+                                        <Link href="/register">{t('nav.signup')}</Link>
                                     </Button>
                                 </>
                             ))}

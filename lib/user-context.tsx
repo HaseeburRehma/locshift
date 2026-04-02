@@ -5,64 +5,57 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import type { Profile, UserRole } from "@/lib/types";
-import { ROLE_PERMISSIONS } from "@/lib/types";
 
 interface UserContextType {
   user: User | null;
   profile: Profile | null;
   role: UserRole;
-  permissions: typeof ROLE_PERMISSIONS[UserRole];
+  isAdmin: boolean;
+  isDispatcher: boolean;
+  isEmployee: boolean;
   isLoading: boolean;
   signOut: () => Promise<void>;
 }
 
-const defaultPermissions = {
-  canManageLeads: false,
-  canManageTechnicians: false,
-  canManageJobs: false,
-  canSendMessages: false,
-  canRunAgents: false,
-  canViewReports: false,
-  canManageUsers: false,
-};
+const UserContext = createContext<UserContextType | undefined>(undefined);
 
-const UserContext = createContext<UserContextType>({
-  user: null,
-  profile: null,
-  role: "viewer",
-  permissions: defaultPermissions,
-  isLoading: true,
-  signOut: async () => { },
-});
-
-// ─── single reusable fetch ────────────────────────────────────────────────────
+// ─── single reusable fetch with retry ───────────────────────────────────────
 async function fetchProfile(
   supabase: ReturnType<typeof createClient>,
-  userId: string
+  userId: string,
+  attempt = 1
 ): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("*")          // select * so every field in Profile is present
+    .select("*")
     .eq("id", userId)
     .single();
 
   if (error) {
-    console.error("[UserContext] Profile fetch error:", {
-      code: error.code,
-      message: error.message,
-    });
-    if (error.code === "42P17") {
-      console.error(
-        "[UserContext] CRITICAL: Infinite recursion in RLS policy. " +
-        "Run the fix SQL in Supabase dashboard."
-      );
+    // 1. Silent ignore common/expected error cases
+    if (error.code === "PGRST116") return null; // No profile yet
+    
+    // 2. Handle AbortError / Canceled requests (often logged as "Lock broken by another request")
+    if (error.message?.includes('AbortError') || error.message?.includes('broken')) {
+      return null;
     }
+    
+    // 3. Retry on 500/406 (DB startup or recursion)
+    if ((error as any).status === 500 || (error as any).status === 406) {
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 1200 * attempt));
+        return fetchProfile(supabase, userId, attempt + 1);
+      }
+      return null;
+    }
+    
+    // 4. Log only real, persistent errors
+    console.warn("[UserContext] Profile fetch warning:", error.message || error);
     return null;
   }
 
   return data as Profile;
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -71,63 +64,71 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
-    // Initial load
-    const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user ?? null);
+    let mounted = true;
 
-      if (user) {
-        const p = await fetchProfile(supabase, user.id);
-        setProfile(p);
+    const handleUserAndProfile = async (sessionUser: User | null) => {
+      if (!mounted) return;
+      
+      setUser(sessionUser);
+      if (sessionUser) {
+        // Fetch profile if not already loaded or if user changed
+        const p = await fetchProfile(supabase, sessionUser.id);
+        if (mounted) setProfile(p);
+      } else {
+        if (mounted) setProfile(null);
       }
-
-      setIsLoading(false);
+      if (mounted) setIsLoading(false);
     };
 
-    init();
+    // 1. Initial Load
+    supabase.auth.getUser().then(({ data: { user: sessionUser } }: { data: { user: User | null } }) => {
+      handleUserAndProfile(sessionUser);
+    }).catch((err: Error) => {
+       if (mounted) setIsLoading(false);
+    });
 
-    // Auth state changes (login / logout / token refresh)
+    // 2. Auth State Sync
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const sessionUser = session?.user ?? null;
-        setUser(sessionUser);
-
-        if (sessionUser) {
-          const p = await fetchProfile(supabase, sessionUser.id);
-          setProfile(p);
-        } else {
-          setProfile(null);
+      async (event: string, session: Session | null) => {
+        if (event === 'SIGNED_OUT') {
+           handleUserAndProfile(null);
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+           handleUserAndProfile(session?.user ?? null);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [supabase]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    // Clear the cached role cookie
-    document.cookie = 'user-role=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     setUser(null);
     setProfile(null);
   };
 
-  const role: UserRole = profile?.role ?? "viewer";
-  const permissions = ROLE_PERMISSIONS[role] ?? ROLE_PERMISSIONS.viewer;
-
-  useEffect(() => {
-    if (!isLoading) {
-      console.log("[UserContext] Resolved:", {
-        userId: user?.id,
-        role,
-        email: profile?.email,
-      });
-    }
-  }, [user, profile, role, isLoading]);
+  const rawRole = (profile?.role || "employee").toLowerCase();
+  const role: UserRole = (rawRole === "administrator" ? "admin" : rawRole) as UserRole;
+  
+  const isAdmin = role === "admin";
+  const isDispatcher = role === "dispatcher";
+  const isEmployee = role === "employee";
 
   return (
     <UserContext.Provider
-      value={{ user, profile, role, permissions, isLoading, signOut }}
+      value={{ 
+        user, 
+        profile, 
+        role, 
+        isAdmin, 
+        isDispatcher, 
+        isEmployee, 
+        isLoading, 
+        signOut 
+      }}
     >
       {children}
     </UserContext.Provider>

@@ -12,7 +12,7 @@ export default async function UsersManagementPage() {
     8000,
     { data: { user: null }, error: null as any }
   )
-  if (!user) redirect('/auth/login')
+  if (!user) redirect('/login')
 
   return (
     <div className="space-y-8 pb-10">
