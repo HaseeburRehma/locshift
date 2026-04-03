@@ -8,7 +8,8 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
-  Globe
+  Globe,
+  Clock
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -18,6 +19,14 @@ export default async function SettingsHubPage() {
   if (!user) redirect('/login')
 
   const settingsCards = [
+    {
+      title: 'Global Settings',
+      description: 'Configure and manage system-wide working time models.',
+      href: '/dashboard/settings/global',
+      icon: Settings2,
+      color: 'bg-slate-900',
+      status: 'Core'
+    },
     {
       title: 'Company Profile',
       description: 'Manage your business details, branding, and contact info.',

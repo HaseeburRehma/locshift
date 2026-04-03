@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Users, Clock, MapPin, Search, ChevronRight, Activity } from 'lucide-react'
+import { Users, Clock, MapPin, Search, ChevronRight, Activity, Coffee, PlayCircle, Zap } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useActiveShifts } from '@/hooks/useActiveShifts'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 export function ActiveShiftsDashboard() {
   const { activeShifts, loading } = useActiveShifts()
@@ -16,85 +17,128 @@ export function ActiveShiftsDashboard() {
     return () => clearInterval(timer)
   }, [])
 
-  const calculateDuration = (startTime: string) => {
+  const calculateDuration = (startTime: string, totalBreakSeconds: number = 0, is_on_break: boolean = false, currentBreakStart?: string) => {
     const start = new Date(startTime).getTime()
-    const diff = now.getTime() - start
-    const hrs = Math.floor(diff / 3600000)
-    const mins = Math.floor((diff % 3600000) / 60000)
-    const secs = Math.floor((diff % 60000) / 1000)
+    const nowTime = now.getTime()
+    
+    let currentBreakSecs = 0
+    if (is_on_break && currentBreakStart) {
+      const breakStart = new Date(currentBreakStart).getTime()
+      currentBreakSecs = Math.floor((nowTime - breakStart) / 1000)
+    }
+
+    // Toggle: Return either individual break duration or net work duration
+    if (is_on_break) {
+       const hrs = Math.floor(currentBreakSecs / 3600)
+       const mins = Math.floor((currentBreakSecs % 3600) / 60)
+       const secs = currentBreakSecs % 60
+       return `${hrs}h ${mins}m ${secs}s`
+    }
+
+    const elapsedTotal = Math.floor((nowTime - start) / 1000)
+    const workingSeconds = Math.max(0, elapsedTotal - (totalBreakSeconds + currentBreakSecs))
+    
+    const hrs = Math.floor(workingSeconds / 3600)
+    const mins = Math.floor((workingSeconds % 3600) / 60)
+    const secs = workingSeconds % 60
     return `${hrs}h ${mins}m ${secs}s`
   }
 
   if (loading) return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {[1, 2, 3].map(i => (
-        <Card key={i} className="h-48 animate-pulse rounded-[2rem] bg-gray-50 border-none" />
+        <div key={i} className="h-40 animate-pulse rounded-2xl bg-slate-50 border border-slate-100" />
       ))}
     </div>
   )
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-50 rounded-2xl">
-            <Activity className="w-6 h-6 text-[#0064E0] animate-pulse" />
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50">
+            <Activity className={cn("w-5 h-5 text-blue-600", activeShifts.length > 0 && "animate-pulse")} />
           </div>
           <div>
-            <h3 className="text-xl font-black tracking-tight text-gray-900 leading-none mb-1 uppercase">Live Operations</h3>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{activeShifts.length} Employees currently working</p>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 leading-none mb-1">LIVE OPERATIONS MONITOR</h3>
+            <p className="text-xl font-black text-slate-900 leading-none flex items-center gap-2">
+               {activeShifts.length} Active Personnel
+               {activeShifts.length > 0 && <Zap className="w-4 h-4 text-emerald-500 animate-pulse" />}
+            </p>
           </div>
         </div>
       </div>
 
       {activeShifts.length === 0 ? (
-        <Card className="border-border/50 rounded-[2.5rem] bg-gray-50/50 border-dashed border-2 py-12 flex flex-col items-center justify-center text-center">
-          <Users className="w-12 h-12 text-gray-200 mb-4" />
-          <h4 className="text-lg font-black text-gray-400 uppercase">No active shifts</h4>
-          <p className="text-sm font-medium text-gray-400">All employees are currently offline.</p>
-        </Card>
+        <div className="border border-dashed border-slate-200 rounded-2xl py-12 flex flex-col items-center justify-center text-center bg-slate-50/30">
+          <Users className="w-10 h-10 text-slate-200 mb-3" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Zero Active Missions</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {activeShifts.map((shift) => (
-            <Card key={shift.id} className="border-none rounded-[2rem] shadow-xl shadow-gray-100 hover:shadow-2xl hover:shadow-blue-100 transition-all group active:scale-95 duration-500 overflow-hidden bg-white">
-               <CardHeader className="p-6 pb-2">
-                 <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="bg-blue-50 text-[#0064E0] border-none font-black text-[10px] uppercase tracking-widest px-3 py-1 animate-pulse">
-                      Currently Active
-                    </Badge>
-                    <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">
-                      Started {new Date(shift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                 </div>
-               </CardHeader>
-               <CardContent className="p-6 pt-2 space-y-6">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="w-14 h-14 rounded-2xl shadow-lg shadow-gray-200">
-                      <AvatarImage src={shift.employee?.avatar_url || ''} />
-                      <AvatarFallback className="bg-gray-100 font-black text-gray-400 uppercase">
-                        {shift.employee?.full_name?.substring(0, 2) || '??'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h4 className="font-black text-gray-900 text-lg tracking-tight leading-none mb-1">
-                        {shift.employee?.full_name || 'Unnamed Employee'}
-                      </h4>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                        {shift.employee?.role || 'Staff'}
-                      </p>
+            <Card key={shift.id} className={cn(
+              "border rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.99] group overflow-hidden bg-white",
+              shift.is_on_break ? "border-amber-200" : "border-slate-200/60 hover:border-blue-200"
+            )}>
+               <div className="p-4 space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                        <Avatar className={cn(
+                          "w-10 h-10 rounded-xl border",
+                          shift.is_on_break ? "border-amber-100" : "border-slate-200/40"
+                        )}>
+                          <AvatarImage src={shift.employee?.avatar_url || ''} />
+                          <AvatarFallback className="bg-slate-50 font-black text-slate-400 text-xs uppercase">
+                            {shift.employee?.full_name?.substring(0, 2) || '??'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h4 className="font-black text-slate-900 text-sm tracking-tight leading-none mb-1">
+                            {shift.employee?.full_name || 'Staff'}
+                          </h4>
+                          <div className={cn(
+                            "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-widest leading-none",
+                            shift.is_on_break ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                          )}>
+                             <div className={cn("w-1 h-1 rounded-full animate-pulse", shift.is_on_break ? "bg-amber-500" : "bg-emerald-500")} />
+                             {shift.is_on_break ? 'Pause' : 'Active'}
+                          </div>
+                        </div>
                     </div>
+                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                      {new Date(shift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
 
-                  <div className="bg-gray-50 rounded-2xl p-4 flex items-center justify-between">
+                  <div className={cn(
+                    "rounded-xl p-4 flex items-center justify-between border transition-all duration-300 shadow-inner",
+                    shift.is_on_break ? "bg-amber-500 border-amber-400 text-white" : "bg-slate-50/50 border-slate-50 text-slate-900"
+                  )}>
                     <div className="space-y-1">
-                      <p className="text-[10px] font-black text-gray-400 uppercase">Elapsed Time</p>
-                      <p className="text-xl font-black tabular-nums tracking-tighter text-[#0064E0]">
-                        {calculateDuration(shift.start_time)}
+                      <p className={cn(
+                        "text-[9px] font-black uppercase tracking-wider opacity-60",
+                        shift.is_on_break ? "text-white" : "text-slate-400"
+                      )}>
+                         {shift.is_on_break ? 'CURR. BREAK' : 'WORK TIME'}
+                      </p>
+                      <p className={cn(
+                        "text-xl font-black tabular-nums tracking-tighter leading-none flex items-center gap-2",
+                        shift.is_on_break ? "text-white" : "text-blue-600"
+                      )}>
+                        {calculateDuration(shift.start_time, shift.total_break_seconds, shift.is_on_break, shift.current_break_start)}
                       </p>
                     </div>
-                    <Clock className="w-8 h-8 text-gray-200" />
+                    {shift.is_on_break ? <Coffee className="w-6 h-6 text-white/50 animate-pulse" /> : <Clock className="w-6 h-6 text-blue-200" />}
                   </div>
-               </CardContent>
+                  
+                  {shift.location && (
+                    <div className="flex items-center gap-2 px-1">
+                       <MapPin className="w-3 h-3 text-slate-400" />
+                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight truncate">{shift.location}</span>
+                    </div>
+                  )}
+               </div>
             </Card>
           ))}
         </div>

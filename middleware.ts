@@ -1,11 +1,17 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-// Lokshift Route Permissions
+// ──────────────────────────────────────────────────────────
+// LOKSHIFT OPERATIONAL RBAC MATRIX (Section 4)
+// ──────────────────────────────────────────────────────────
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/dashboard/users': ['admin'],
   '/dashboard/customers': ['admin', 'dispatcher'],
   '/dashboard/reports': ['admin', 'dispatcher'],
+  '/dashboard/settings/security': ['admin'],
+  '/dashboard/settings/billing': ['admin'],
+  '/dashboard/settings/integrations': ['admin'],
+  '/dashboard/settings/work-models': ['admin'],
   '/dashboard/plans': ['admin', 'dispatcher', 'employee'],
   '/dashboard/times': ['admin', 'dispatcher', 'employee'],
   '/dashboard/time-account': ['admin', 'dispatcher', 'employee'],
@@ -20,7 +26,12 @@ export default async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
 
   // 1. Static/API Bypass
-  if (pathname.startsWith('/api/') || pathname === '/' || pathname.startsWith('/_next') || pathname.includes('.')) {
+  if (
+    pathname.startsWith('/api/') || 
+    pathname === '/' || 
+    pathname.startsWith('/_next') || 
+    pathname.includes('.')
+  ) {
     return response
   }
 
@@ -29,7 +40,7 @@ export default async function middleware(request: NextRequest) {
     return response
   }
 
-  // 3. Supabase Auth
+  // 3. Supabase Auth Session
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -47,65 +58,100 @@ export default async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // 4. Authentication Check
+  // 4. Force Authentication for Dashboard
   if (!user) {
-    if (pathname.startsWith('/dashboard')) {
+    if (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding')) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
     return response
   }
 
-  // 5. Auth Redirect (Already Logged In)
+  // 5. Already Authenticated Redirect
   if (PUBLIC_AUTH_ROUTES.includes(pathname)) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // 6. Onboarding & Role Discovery
-  // Get role from metadata (FASTEST) or fallback to database query
+  // 6. Role Discovery & Security Hardening
   let role = (user.user_metadata?.role || '').toLowerCase()
-  let onboardingCompleted = !!(user.user_metadata?.onboarding_completed)
+  // Always fetch onboarding_completed from the DB (source of truth).
+  // Auth metadata may not have this field set if the user registered before
+  // the flag was introduced, causing a redirect loop to /onboarding.
+  let onboardingCompleted = false
 
-  // Fallback if metadata is missing
-  if (!role) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, onboarding_completed')
-      .eq('id', user.id)
-      .single()
-    
-    role = (profile?.role || 'viewer').toLowerCase()
-    onboardingCompleted = profile?.onboarding_completed ?? false
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, onboarding_completed')
+    .eq('id', user.id)
+    .single()
+
+  if (profile) {
+    // DB profile is always authoritative for onboarding status
+    onboardingCompleted = profile.onboarding_completed ?? false
+    // Only fall back to DB role if metadata doesn't have it
+    if (!role) {
+      role = (profile.role || 'employee').toLowerCase()
+    }
+  } else if (!role) {
+    role = 'employee'
   }
 
-  // Final role mapping
+  // Standardize roles ('admin', 'dispatcher', 'employee')
   if (role === 'administrator' || role === 'admin') role = 'admin'
-  if (!role) role = 'viewer'
+  if (role === 'disponent') role = 'dispatcher'
+  if (!role) role = 'employee'
 
-  // A. Onboarding Redirect (Force ONLY employees to complete  // Onboarding check (Employees only)
+  // A. Onboarding Guard (Force ONLY Employees to complete - Section 4.3)
   const isOnboardingRoute = pathname === '/onboarding'
-  const needsOnboarding = onboardingCompleted === false && role === 'employee'
+  // Admins and dispatchers NEVER need onboarding, regardless of the DB flag.
+  // Employees need it only if it hasn't been completed yet.
+  const needsOnboarding = role === 'employee' && onboardingCompleted === false
   
   if (needsOnboarding && !isOnboardingRoute && !pathname.startsWith('/auth/')) {
-    return NextResponse.redirect(new URL('/onboarding', request.url))
+    const url = request.nextUrl.clone()
+    url.pathname = '/onboarding'
+    const redirectResponse = NextResponse.redirect(url)
+    // IMPORTANT: Pass along the cookies from the Supabase client response
+    response.cookies.getAll().forEach(cookie => {
+      redirectResponse.cookies.set(cookie.name, cookie.value)
+    })
+    return redirectResponse
   }
 
-  // B. Role-Based Access Control (RBAC) - TEMPORARY BYPASS
-  // This allows us to verify if navigation is working as expected
+  // B. Case: Non-employees on onboarding page should go to dashboard
+  if (isOnboardingRoute && role !== 'employee') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    const redirectResponse = NextResponse.redirect(url)
+    response.cookies.getAll().forEach(cookie => {
+      redirectResponse.cookies.set(cookie.name, cookie.value)
+    })
+    return redirectResponse
+  }
+
+  // C. Case: Onboarding completed employees on onboarding page should go to dashboard
+  if (isOnboardingRoute && role === 'employee' && onboardingCompleted) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    const redirectResponse = NextResponse.redirect(url)
+    response.cookies.getAll().forEach(cookie => {
+      redirectResponse.cookies.set(cookie.name, cookie.value)
+    })
+    return redirectResponse
+  }
+
+  // D. Strict RBAC Enforcement (Dashboard Routes)
   const isDashboardRoute = pathname.startsWith('/dashboard')
   if (isDashboardRoute) {
-    // Master Bypass for all authenticated users to unblock UI testing
-    return response
-
-    /* 
     for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
       if (pathname.startsWith(route)) {
-        const normalizedAllowed = allowedRoles.map(r => r.toLowerCase())
-        if (!normalizedAllowed.includes(role)) {
-          return NextResponse.redirect(new URL('/dashboard', request.url))
+        if (!allowedRoles.includes(role)) {
+          console.warn(`[Middleware] Unauthorized access attempt: ${role} -> ${pathname}`)
+          const url = request.nextUrl.clone()
+          url.pathname = '/dashboard'
+          return NextResponse.redirect(url)
         }
       }
     }
-    */
   }
 
   return response

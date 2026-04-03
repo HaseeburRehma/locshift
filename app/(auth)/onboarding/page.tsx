@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { WalkthroughCarousel } from '@/components/onboarding/WalkthroughCarousel'
 import { PermissionsScreen } from '@/components/onboarding/PermissionsScreen'
@@ -11,50 +11,63 @@ export default function OnboardingPage() {
   const { user, profile, role, isLoading } = useUser()
   const [showPermissions, setShowPermissions] = useState(false)
   const [checking, setChecking] = useState(true)
+  // Use a ref for the timeout so we don't need it in deps
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (!isLoading && user) {
-      // 1. Skip if already completed (DB driven)
-      if (profile?.onboarding_completed) {
+    // Clear any existing safety timer before setting logic
+    if (timerRef.current) clearTimeout(timerRef.current)
+
+    // 1. Wait for User Context to finish initial load
+    if (!isLoading) {
+      if (!user) {
+        // No session at all — middleware should have caught this, but redirect to be safe
+        router.replace('/login')
+        return
+      }
+
+      const isEmployee = role === 'employee' || profile?.role === 'employee'
+      const isCompleted = profile?.onboarding_completed === true
+
+      // 2. Bypass to dashboard for non-employees or already-completed employees
+      if (isCompleted || !isEmployee) {
         router.replace('/dashboard')
         return
       }
 
-      // 2. Skip for non-employees (Admins/Dispatchers)
-      if (role !== 'employee') {
-        router.replace('/dashboard')
-        return
-      }
+      // 3. Employee who needs onboarding — show the walkthrough
       setChecking(false)
+      return
     }
-    
-    const timer = setTimeout(() => {
-      if (isLoading || !user) {
-        setChecking(false)
-      }
-    }, 3000)
 
-    return () => clearTimeout(timer)
-  }, [router, user, profile, isLoading, role])
+    // 4. Still loading — set a 5s safety timeout to fail gracefully
+    timerRef.current = setTimeout(() => {
+      console.warn('[Onboarding] Init timeout — falling through.')
+      setChecking(false)
+    }, 5000)
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+    // NOTE: 'checking' intentionally OMITTED from deps — it must not be here.
+    // React requires a fixed-size dep array; adding state that this effect sets causes a loop.
+  }, [isLoading, user, profile, role, router])
 
   const handleFinishOnboarding = async () => {
     if (!user) return
-    
     try {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
-      
-      // Update Database
+
       await supabase
         .from('profiles')
         .update({ onboarding_completed: true } as any)
         .eq('id', user.id)
-      
-      // Sync Auth Metadata so Middleware is aware instantly
+
       await supabase.auth.updateUser({
         data: { onboarding_completed: true }
       })
-      
+
       router.push('/dashboard')
     } catch (err: any) {
       console.error('[Onboarding] Failed to save completion:', err)

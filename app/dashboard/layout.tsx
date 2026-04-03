@@ -8,7 +8,6 @@ import { useUser } from '@/lib/user-context'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { Spinner } from '@/components/ui/spinner'
-import { Zap } from 'lucide-react'
 import Image from 'next/image'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -17,29 +16,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!isLoading && user && profile) {
-      const needsOnboarding = profile.onboarding_completed === false && !isAdmin
-      if (needsOnboarding) router.replace('/onboarding')
+      // Synchronize with middleware: Only 'employee' role is forced through onboarding walkthrough.
+      // Admins and Dispatchers bypass directly to the Operations Console.
+      const isEmployee = profile.role === 'employee'
+      const needsOnboarding = profile.onboarding_completed === false && isEmployee
+      
+      if (needsOnboarding) {
+        router.replace('/onboarding')
+      }
     } else if (!isLoading && !user) {
       router.replace('/login')
     }
-  }, [user, profile, isLoading, isAdmin, router])
+  }, [user, profile, isLoading, router])
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-8">
-        <div className="relative">
-          <Image 
-            src="/logo-3.png" 
-            alt="LokShift" 
-            width={180} 
-            height={40} 
-            className="h-10 w-auto animate-pulse"
-          />
-          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-12 h-1 bg-blue-600 rounded-full animate-bounce" />
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-12">
+        <div className="relative animate-in fade-in zoom-in duration-1000">
+           <div className="flex flex-col items-center gap-6">
+              <Image 
+                src="/logo-3.png" 
+                alt="LokShift" 
+                width={200} 
+                height={56} 
+                className="w-48 h-auto object-contain" 
+                priority 
+              />
+              <span className="text-[12px] font-black uppercase tracking-[0.5em] text-blue-600 opacity-60">Operations Center</span>
+           </div>
         </div>
-        <div className="flex items-center gap-3 text-gray-400 font-bold text-xs uppercase tracking-[0.2em] animate-in fade-in slide-in-from-bottom-2 duration-1000 delay-500">
-          <Spinner className="h-4 w-4 text-blue-600" />
-          Initializing Ops Center
+        
+        <div className="flex flex-col items-center gap-4 max-w-[280px] text-center">
+            <Spinner className="h-6 w-6 text-blue-600" />
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 animate-pulse">Syncing Operational Data</p>
+              <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Universal Real-Time Synchronization Enabled</p>
+            </div>
         </div>
       </div>
     )
@@ -52,17 +64,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Realtime disconnection banner — auto-shows when WebSocket drops */}
       <RealtimeConnectionBanner />
 
-      <div className="flex h-screen bg-[#fafafa] overflow-hidden font-sans">
+      <div className="flex h-screen bg-slate-50/50 overflow-hidden font-sans">
         {/* Sidebar: Desktop Only */}
         <Sidebar />
 
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden relative">
+          {/* Subtle background glow for Ops Center feel */}
+          <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-50/20 blur-[120px] pointer-events-none rounded-full" />
+          
           {/* Header: All Sizes */}
           <DashboardHeader />
 
           {/* Main Content */}
-          <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8 pb-32 md:pb-8">
-            <div className="max-w-[1600px] mx-auto">
+          <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8 md:py-12 pb-32 md:pb-12 scroll-smooth">
+            <div className="max-w-[1700px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
               {children}
             </div>
           </main>

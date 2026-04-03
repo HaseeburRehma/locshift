@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Customer } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
@@ -10,37 +12,46 @@ export function useCustomers() {
   const { profile } = useUser()
   const supabase = createClient()
 
-  useEffect(() => {
+  const fetchCustomers = useCallback(async (isSilent = false) => {
     if (!profile?.organization_id) return
+    if (!isSilent) setLoading(true)
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('organization_id', profile.organization_id)
+      .order('name', { ascending: true })
 
-    const fetchCustomers = async () => {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('organization_id', profile.organization_id)
-        .order('name', { ascending: true })
+    if (!error) setCustomers(data || [])
+    setLoading(false)
+  }, [profile?.organization_id, supabase])
 
-      if (!error) setCustomers(data || [])
-      setLoading(false)
-    }
-
+  useEffect(() => {
     fetchCustomers()
 
+    if (!profile?.organization_id) return
+
+    // Real-time synchronization for customer mission data
     const channel = supabase
-      .channel('customers-realtime')
+      .channel(`customers-hub-${profile.organization_id}`)
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'customers', 
         filter: `organization_id=eq.${profile.organization_id}` 
-      }, () => fetchCustomers())
-      .subscribe()
+      }, (payload) => {
+        console.log('[useCustomers] Real-time operational change:', payload)
+        fetchCustomers(true) // Silent refetch to sync potential changes from other users
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[useCustomers] Successfully connected to HUD stream')
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [profile?.organization_id])
+  }, [profile?.organization_id, fetchCustomers, supabase])
 
   const addCustomer = async (customer: Partial<Customer>) => {
     if (!profile?.organization_id) return
@@ -51,24 +62,46 @@ export function useCustomers() {
       .single()
     if (error) throw error
 
-    // Notify all admins in the organization
+    // Sync local state immediately for instant UI reflection
+    setCustomers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+
+    // Notify all admins
     const { data: admins } = await supabase
       .from('profiles')
       .select('id')
       .eq('organization_id', profile.organization_id)
-      .in('role', ['admin', 'administrator', 'Admin', 'Administrator'])
+      .in('role', ['admin', 'dispatcher'])
 
     if (admins) {
       await Promise.all(admins.map((admin: { id: string }) =>
         sendNotification({
           userId: admin.id,
           title: '🏢 New Customer Added',
-          message: `A new customer "${customer.name}" has been added to your organization.`,
+          message: `A new customer "${customer.name}" has been added.`,
           module: 'customers',
           moduleId: data?.id
         })
       ))
     }
+    return data
+  }
+
+  const updateCustomer = async (id: string, updates: Partial<Customer>) => {
+    const { data, error } = await supabase
+      .from('customers')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    
+    // Sync local state immediately
+    setCustomers(prev => prev.map(c => c.id === id ? data : c))
+    return data
+  }
+
+  const toggleStatus = async (id: string, currentStatus: boolean) => {
+    return updateCustomer(id, { is_active: !currentStatus })
   }
 
   const deleteCustomer = async (id: string) => {
@@ -79,5 +112,31 @@ export function useCustomers() {
     if (error) throw error
   }
 
-  return { customers, loading, addCustomer, deleteCustomer }
+  const getCustomerStats = async (id: string) => {
+    const { data: plans } = await supabase
+      .from('plans')
+      .select('id')
+      .eq('customer_id', id)
+
+    const { data: times } = await supabase
+      .from('time_entries')
+      .select('net_hours')
+      .eq('customer_id', id)
+
+    const totalShifts = plans?.length || 0
+    const totalHours = times?.reduce((sum, t) => sum + (t.net_hours || 0), 0) || 0
+
+    return { totalShifts, totalHours }
+  }
+
+  return { 
+    customers, 
+    loading, 
+    addCustomer, 
+    updateCustomer, 
+    toggleStatus, 
+    deleteCustomer, 
+    getCustomerStats, 
+    refresh: fetchCustomers 
+  }
 }

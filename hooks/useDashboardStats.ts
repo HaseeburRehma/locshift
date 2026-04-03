@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
+import { startOfWeek, endOfWeek, format } from 'date-fns'
 
 export function useDashboardStats() {
   const { profile, isAdmin, isDispatcher } = useUser()
@@ -13,6 +14,8 @@ export function useDashboardStats() {
     setLoading(true)
     const now = new Date()
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 }).toISOString()
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 }).toISOString()
 
     try {
       if (isAdmin || isDispatcher) {
@@ -71,23 +74,38 @@ export function useDashboardStats() {
         const [
           { data: nextShifts },
           { data: userTimeEntries },
+          { data: weeklyEntries },
           { data: userPerDiems }
         ] = await Promise.all([
-          supabase.from('plans').select('*').eq('employee_id', profile.id)
-            .gte('start_time', now.toISOString()).order('start_time', { ascending: true }).limit(1),
+          supabase.from('plans').select('*, customer:customers(*)').eq('employee_id', profile.id)
+            .gte('start_time', now.toISOString()).order('start_time', { ascending: true }).limit(2),
           supabase.from('time_entries').select('net_hours').eq('employee_id', profile.id)
             .gte('date', firstDayOfMonth.split('T')[0]),
+          supabase.from('time_entries').select('net_hours').eq('employee_id', profile.id)
+            .gte('date', weekStart.split('T')[0])
+            .lte('date', weekEnd.split('T')[0]),
           supabase.from('per_diems').select('amount').eq('employee_id', profile.id)
             .gte('date', firstDayOfMonth.split('T')[0])
         ])
 
         const actualHours = (userTimeEntries || []).reduce((acc: number, curr: any) =>
           acc + (Number(curr.net_hours) || 0), 0)
+        
+        const weeklyHours = (weeklyEntries || []).reduce((acc: number, curr: any) =>
+          acc + (Number(curr.net_hours) || 0), 0)
+
         const perDiemTotal = (userPerDiems || []).reduce((acc: number, curr: any) =>
           acc + (Number(curr.amount) || 0), 0)
-        const balance = actualHours - (profile.target_hours || 40)
+        
+        const balance = actualHours - (profile.target_hours || 160) // assuming monthly balance if comparing to monthly entries
 
-        setStats({ nextShift: nextShifts?.[0] || null, hoursBalance: Math.round(balance), monthlyPerDiem: perDiemTotal })
+        setStats({ 
+          nextShifts: nextShifts || [],
+          hoursBalance: Math.round(balance), 
+          monthlyPerDiem: perDiemTotal,
+          weeklyHours: weeklyHours,
+          targetWeeklyHours: 40 // Default to 40 for now or derive from target_hours/4
+        })
       }
     } catch (err) {
       console.error('[useDashboardStats] Error:', err)
@@ -100,7 +118,6 @@ export function useDashboardStats() {
     if (!profile) return
     fetchStats()
 
-    // Real-time: any plan or time_entry change refreshes KPIs
     const channel = supabase
       .channel(`dashboard-stats-${profile.organization_id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'plans',
@@ -112,5 +129,5 @@ export function useDashboardStats() {
     return () => { supabase.removeChannel(channel) }
   }, [profile, isAdmin, isDispatcher, fetchStats])
 
-  return { stats, loading }
+  return { stats, loading, refresh: fetchStats }
 }

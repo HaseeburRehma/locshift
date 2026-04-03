@@ -1,17 +1,30 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Play, Square, Clock, MapPin, CheckCircle2 } from 'lucide-react'
+import { Play, Square, Clock, MapPin, Coffee, ArrowRight, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTimeTracking } from '@/hooks/useTimeTracking'
-import { useUser } from '@/lib/user-context'
 import { cn } from '@/lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-export function ClockInOutCard() {
-  const { activeEntry, clockIn, clockOut, elapsedTime, loading, todayPlans } = useTimeTracking()
-  const { profile } = useUser()
+interface ClockInOutCardProps {
+  className?: string
+  compact?: boolean
+}
+
+export function ClockInOutCard({ className, compact = false }: ClockInOutCardProps) {
+  const { 
+    activeEntry, 
+    clockIn, 
+    startBreak,
+    endBreak,
+    clockOut, 
+    elapsedSeconds, 
+    breakSeconds,
+    loading, 
+    todayPlans 
+  } = useTimeTracking()
+  
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>()
 
   const formatTime = (seconds: number) => {
@@ -24,98 +37,114 @@ export function ClockInOutCard() {
   const activePlan = todayPlans.find(p => p.id === activeEntry?.plan_id)
 
   if (loading) return (
-    <div className="h-48 w-full bg-gray-50 animate-pulse rounded-[2.5rem]" />
+    <div className="w-full bg-slate-50 animate-pulse h-16 rounded-2xl" />
   )
 
+  const isWorking = activeEntry && !activeEntry.is_on_break
+  const isOnBreak = activeEntry && activeEntry.is_on_break
+
   return (
-    <Card className={cn(
-      "border-none rounded-[3rem] shadow-2xl transition-all duration-700 overflow-hidden relative",
-      activeEntry ? "bg-[#0064E0] text-white ring-8 ring-blue-100" : "bg-white text-gray-900 border border-gray-100"
+    <div className={cn(
+      "relative overflow-hidden transition-all duration-500",
+      "border border-slate-200/60 bg-white shadow-sm rounded-2xl p-4 md:px-8",
+      activeEntry && (isOnBreak ? "bg-amber-500 border-amber-400 shadow-xl shadow-amber-200/50" : "bg-blue-600 border-blue-500 shadow-xl shadow-blue-200/50"),
+      className
     )}>
-      <CardHeader className="p-8 pb-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-xl font-black uppercase tracking-widest opacity-70">
-              {activeEntry ? 'Current Shift' : 'Time Tracking'}
-            </CardTitle>
-            <p className="text-sm font-bold opacity-60">
-              {activeEntry ? (activePlan?.route || 'In Progress') : 'Ready to start?'}
-            </p>
-          </div>
+      {/* Real-time Indicator Dot */}
+      {activeEntry && (
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full backdrop-blur-sm">
+           <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isOnBreak ? "bg-amber-100" : "bg-emerald-300")} />
+           <span className="text-[9px] font-black text-white uppercase tracking-widest leading-none">LIVE SYNC</span>
+        </div>
+      )}
+
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        {/* Status indicator & Time */}
+        <div className="flex items-center gap-5">
           <div className={cn(
-            "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500",
-            activeEntry ? "bg-white/20" : "bg-gray-100"
+            "w-12 h-12 rounded-xl flex items-center justify-center transition-all",
+            activeEntry ? "bg-white/20" : "bg-blue-50 text-blue-600"
           )}>
-            <Clock className={cn("w-6 h-6", activeEntry ? "text-white animate-pulse" : "text-gray-400")} />
+            {isOnBreak ? <Coffee className="w-6 h-6 animate-pulse" /> : <Clock className={cn("w-6 h-6", isWorking && "animate-pulse")} />}
+          </div>
+          
+          <div className="flex flex-col gap-1">
+            <span className={cn(
+              "text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-80",
+              activeEntry ? "text-white" : "text-slate-400"
+            )}>
+              {isOnBreak ? 'Pause session active' : (isWorking ? 'Current mission mission' : 'Operations Ready')}
+            </span>
+            <div className="flex items-baseline gap-3">
+              <span className={cn(
+                "font-black tracking-tighter tabular-nums leading-none text-2xl md:text-4xl",
+                activeEntry ? "text-white" : "text-slate-900"
+              )}>
+                {formatTime(isOnBreak ? breakSeconds : elapsedSeconds)}
+              </span>
+              {activeEntry && (
+                <div className="flex flex-col">
+                   <span className="text-[10px] font-black uppercase tracking-widest text-white/60 leading-none mb-1">
+                      {activePlan?.route || 'Standard Protocol'}
+                   </span>
+                   <span className="text-[8px] font-black text-white/40 uppercase tracking-tighter flex items-center gap-1">
+                      <Zap className="w-2.5 h-2.5" /> Synchronized
+                   </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </CardHeader>
-      
-      <CardContent className="p-8 pt-4 space-y-8">
-        <div className="flex flex-col items-center justify-center space-y-2 py-4">
-          <span className="text-6xl md:text-7xl font-black tracking-tighter tabular-nums leading-none">
-            {formatTime(elapsedTime)}
-          </span>
-          {activeEntry && (
-            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full backdrop-blur-md">
-              <MapPin className="w-3.5 h-3.5" />
-              <span className="text-xs font-bold uppercase tracking-tight">
-                {activeEntry.location || activePlan?.location || 'At Work'}
-              </span>
-            </div>
-          )}
-        </div>
 
-        <div className="flex flex-col gap-4">
-          {!activeEntry && todayPlans.length > 0 && (
-            <div className="space-y-3 mb-2 animate-in fade-in slide-in-from-top-2">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Assigned Shifts for Today</p>
-              <Select onValueChange={setSelectedPlanId} value={selectedPlanId}>
-                <SelectTrigger className="h-14 rounded-2xl border-gray-100 bg-gray-50 font-bold text-sm">
-                  <SelectValue placeholder="Select shift to start..." />
-                </SelectTrigger>
-                <SelectContent className="rounded-2xl border-gray-100">
-                  {todayPlans.map(plan => (
-                    <SelectItem key={plan.id} value={plan.id} className="font-bold py-3">
-                      {plan.route || 'Work Shift'} ({new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="none" className="font-bold py-3 text-gray-400">No specific shift</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {!activeEntry ? (
-            <Button 
-              onClick={() => clockIn(selectedPlanId === 'none' ? undefined : selectedPlanId)}
-              className="h-20 w-full rounded-[2rem] bg-[#0064E0] hover:bg-blue-700 text-white text-xl font-black gap-4 shadow-xl shadow-blue-200 transition-all active:scale-95"
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <Play className="fill-current w-5 h-5 ml-1" />
+        {/* Action Controls */}
+        <div className="flex items-center gap-3">
+           {!activeEntry ? (
+              <div className="flex flex-1 md:flex-none items-center gap-2">
+                 {todayPlans.length > 0 && (
+                    <Select onValueChange={setSelectedPlanId} value={selectedPlanId}>
+                      <SelectTrigger className="h-11 w-48 rounded-xl border-slate-100 bg-slate-50 font-bold text-[11px] uppercase tracking-wider hidden md:flex">
+                        <SelectValue placeholder="Daily Assignment" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
+                        {todayPlans.map(plan => (
+                          <SelectItem key={plan.id} value={plan.id} className="font-bold py-2">
+                            {plan.route || 'Mission Protocol'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                 )}
+                 <Button 
+                    onClick={() => clockIn(selectedPlanId)}
+                    className="h-12 flex-1 md:flex-none px-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[11px] tracking-widest transition-all active:scale-95 shadow-md shadow-blue-100"
+                 >
+                    <Play className="w-4 h-4 mr-2" />
+                    Begin Shift
+                 </Button>
               </div>
-              START SHIFT
-            </Button>
-          ) : (
-            <Button 
-              onClick={() => clockOut()}
-              variant="outline"
-              className="h-20 w-full rounded-[2rem] bg-white text-red-600 border-none text-xl font-black gap-4 shadow-xl hover:bg-gray-50 transition-all active:scale-95"
-            >
-              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                <Square className="fill-current w-4 h-4" />
+           ) : (
+              <div className="flex flex-1 md:flex-none items-center gap-2">
+                 <Button 
+                    onClick={isOnBreak ? endBreak : startBreak}
+                    className={cn(
+                      "h-12 flex-1 md:px-8 rounded-xl font-black uppercase text-[11px] tracking-widest transition-all shadow-sm",
+                      isOnBreak ? "bg-white text-amber-600 hover:bg-slate-50" : "bg-white/20 text-white hover:bg-white/30"
+                    )}
+                 >
+                    {isOnBreak ? <Play className="w-4 h-4 mr-2" /> : <Coffee className="w-4 h-4 mr-2" />}
+                    {isOnBreak ? 'Resume' : 'Pause'}
+                 </Button>
+                 <Button 
+                    onClick={() => clockOut()}
+                    className="h-12 flex-1 md:px-8 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black uppercase text-[11px] tracking-widest transition-all shadow-md active:scale-95"
+                 >
+                    <Square className="w-4 h-4 mr-2" />
+                    End
+                 </Button>
               </div>
-              STOP SHIFT
-            </Button>
-          )}
+           )}
         </div>
-        
-        {!activeEntry && (
-          <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-widest cursor-default hover:text-gray-600 transition-colors">
-            Tap to record your start time
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

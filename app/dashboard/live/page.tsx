@@ -1,166 +1,168 @@
-// app/dashboard/live/page.tsx
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import React from 'react'
+import { 
+  Navigation, 
+  MapPin, 
+  Clock, 
+  Activity, 
+  PlayCircle, 
+  Loader2,
+  ChevronRight
+} from 'lucide-react'
+import { ClockInOutCard } from '@/components/time/ClockInOutCard'
+import { PersonnelMonitor } from '@/components/dashboard/PersonnelMonitor'
+import { useTimeTracking } from '@/hooks/useTimeTracking'
 import { useUser } from '@/lib/user-context'
-import { Profile, Plan } from '@/lib/types'
-import { Upload, Navigation, MapPin, Clock, AlertCircle } from 'lucide-react'
-import { UploadBottomSheet } from '@/components/live/UploadBottomSheet'
+import { Badge } from '@/components/ui/badge'
+import { format } from 'date-fns'
+import { de } from 'date-fns/locale'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 export default function LiveShiftPage() {
-  const { user } = useUser()
-  const supabase = createClient()
-  const [currentShift, setCurrentShift] = useState<Plan | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [isUploadOpen, setIsUploadOpen] = useState(false)
-
-  useEffect(() => {
-    async function fetchShift() {
-      if (!user) return
-      
-      const today = new Date().toISOString().split('T')[0]
-      try {
-        const { data } = await supabase
-          .from('plans')
-          .select('*')
-          .eq('employee_id', user.id)
-          .eq('start_time', today)
-          .single()
-          
-        setCurrentShift(data as Plan)
-      } catch (err) {
-        console.error('No shift found', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchShift()
-
-    if (user) {
-      // Subscribe to real-time changes
-      const channel = supabase
-        .channel('live-shift')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'plans',
-            filter: `employee_id=eq.${user?.id}`,
-          },
-          (payload: any) => {
-            console.log('Realtime shift update', payload)
-            if (payload.new) {
-               const newShift = payload.new as Plan
-               const today = new Date().toISOString().split('T')[0]
-               if (newShift.start_time?.startsWith(today)) {
-                  setCurrentShift(newShift)
-               }
-            }
-          }
-        )
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
-  }, [user, supabase])
+  const { role, isAdmin, isDispatcher } = useUser()
+  const { activeEntry, todayPlans, loading } = useTimeTracking()
+  
+  const activePlan = todayPlans.find(p => p.id === activeEntry?.plan_id) || todayPlans[0]
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
-        <div className="w-8 h-8 border-4 border-[#0064E0] border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-500 font-medium italic">Fetching your live mission...</p>
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Syncing Operational HUD...</p>
       </div>
     )
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 1. ADMIN / DISPATCHER VIEW: PERSONNEL MONITOR (Section 4.1 & 4.2)
+  // ──────────────────────────────────────────────────────────────────────────
+  if (isAdmin || isDispatcher) {
+    return <PersonnelMonitor />
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 2. EMPLOYEE VIEW: MISSION CLOCK-IN (Section 4.3)
+  // ──────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex items-center justify-between">
-         <div>
-            <h2 className="text-3xl font-black tracking-tight text-gray-900 leading-tight">Live Mission</h2>
-            <p className="text-muted-foreground font-medium">Real-time shift management.</p>
-         </div>
-         {currentShift && (
-            <button 
-              onClick={() => setIsUploadOpen(true)}
-              className="w-12 h-12 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-gray-900 hover:bg-gray-50 active:scale-95 transition-all"
-            >
-              <Upload className="w-5 h-5" />
-            </button>
-         )}
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-5xl mx-auto pb-24">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4 md:px-0">
+        <div className="space-y-2">
+            <h2 className="text-4xl font-black tracking-tighter text-slate-900 leading-none flex items-center gap-4">
+               <div className="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-100">
+                  <Activity className="h-6 w-6" />
+               </div>
+               Live Mission
+            </h2>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Real-time operational center</p>
+        </div>
+        <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-4 py-2 rounded-full uppercase tracking-widest border border-blue-100/50">
+            {format(new Date(), 'EEEE, d. MMMM yyyy', { locale: de })}
+        </div>
       </div>
 
-      {!currentShift ? (
-        <div className="text-center space-y-4 pt-10 px-4">
-          <p className="text-[17px] text-gray-500 font-medium leading-relaxed mb-8">
-            No shift is scheduled for you yet. Check again later.
-          </p>
-          
-          <div className="relative w-full aspect-[322/214] max-w-[322px] mx-auto animate-in fade-in zoom-in duration-700">
-            <img 
-              src="/assets/illustrations/illustration 1.png" 
-              alt="No shift scheduled"
-              className="w-full h-full object-contain"
-              onError={(e) => {
-                (e.target as any).src = 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Sun%20with%20Face.png'
-              }}
-            />
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
+        {/* Left: Clock In Widget (Wider for mobile accessibility) */}
+        <div className="lg:col-span-2 px-4 md:px-0">
+          <ClockInOutCard />
+        </div>
+
+        {/* Right: Mission Details */}
+        <div className="lg:col-span-3 px-4 md:px-0 space-y-10">
+          {!activePlan ? (
+            <div className="text-center py-24 bg-slate-50/50 rounded-[3rem] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center space-y-6">
+              <div className="h-16 w-16 rounded-[2rem] bg-white flex items-center justify-center text-slate-200 shadow-sm">
+                 <Navigation className="h-8 w-8" />
+              </div>
+              <div className="space-y-2">
+                 <p className="text-xl font-bold text-slate-900 tracking-tight leading-none">No Scheduled Mission Today</p>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed max-w-[200px] mx-auto">
+                   Check your operational calendar for future deployment details.
+                 </p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-100 shadow-[0_32px_64px_-16px_rgba(37,99,235,0.08)] rounded-[3rem] p-10 space-y-10 relative overflow-hidden group">
+               <div className="absolute top-0 right-0 w-48 h-48 bg-blue-50/30 rounded-bl-[6rem] -z-0 transition-all group-hover:scale-110" />
+
+               <div className="relative z-10 space-y-8">
+                 <div className="flex items-center justify-between">
+                    <Badge className={cn(
+                      "font-black text-[10px] uppercase tracking-[0.2em] px-4 py-1.5 rounded-full shadow-sm border-none leading-none h-6",
+                      activeEntry ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600"
+                    )}>
+                      {activeEntry ? (activeEntry.is_on_break ? 'On Standby' : 'Mission Active') : 'Mission Ready'}
+                    </Badge>
+                 </div>
+
+                 <div className="flex gap-6">
+                    <div className="w-16 h-16 rounded-[2rem] bg-slate-100 flex items-center justify-center shrink-0 shadow-inner group-hover:bg-blue-50 transition-colors">
+                      <Navigation className="text-blue-600 w-8 h-8 group-hover:rotate-12 transition-transform duration-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h3 className="font-black text-slate-900 text-3xl tracking-tighter leading-none">
+                        {activePlan.route || 'Operational Hub'}
+                      </h3>
+                      <div className="flex items-center gap-3">
+                         <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <Clock className="w-3.5 h-3.5" /> 
+                            {format(new Date(activePlan.start_time), 'HH:mm')} – {format(new Date(activePlan.end_time), 'HH:mm')}
+                         </div>
+                         <div className="h-1 w-1 rounded-full bg-slate-200" />
+                         <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Mission ID: {activePlan.id.slice(0, 8)}</span>
+                      </div>
+                    </div>
+                 </div>
+               </div>
+
+               <div className="h-px bg-slate-50 w-full" />
+
+               <div className="space-y-6 relative z-10">
+                  <div className="flex items-center justify-between group/item">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover/item:text-blue-600 group-hover/item:bg-blue-50 transition-all border border-slate-50">
+                        <MapPin className="h-5 w-5" />
+                      </div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Current Work Site</span>
+                    </div>
+                    <span className="text-sm font-black text-slate-900 tracking-tight">{activePlan.location || 'Main Deployment Center'}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between group/item">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover/item:text-blue-600 group-hover/item:bg-blue-50 transition-all border border-slate-50">
+                        <PlayCircle className="h-5 w-5" />
+                      </div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Assignment Context</span>
+                    </div>
+                    <span className="text-sm font-black text-slate-900 tracking-tight uppercase">{activePlan.status} Operational</span>
+                  </div>
+               </div>
+
+               <div className="pt-4 flex gap-4">
+                  <Button className="flex-1 h-16 rounded-[2rem] bg-slate-900 hover:bg-black text-white font-black uppercase tracking-widest text-xs shadow-2xl transition-all active:scale-95 group">
+                    Mission Analytics <ChevronRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+               </div>
+            </div>
+          )}
+
+          {/* Guidelines Mini-Card */}
+          <div className="p-10 bg-slate-900 rounded-[3rem] shadow-2xl relative overflow-hidden group border border-slate-800">
+             <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:scale-125 transition-transform duration-700 pointer-events-none">
+                <Navigation className="w-32 h-32 text-blue-500" />
+             </div>
+             <div className="relative z-10 space-y-4">
+                <h4 className="text-xs font-black text-blue-400 uppercase tracking-[0.4em] leading-none">Operational Directives</h4>
+                <p className="text-[11px] font-bold text-slate-400 leading-relaxed max-w-[85%] italic">
+                  Mission completion mandates verification of all organizational checkpoints. Break durations are live-monitored by dispatch.
+                </p>
+             </div>
           </div>
         </div>
-      ) : (
-        <div className="w-full bg-white border border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[24px] p-6 space-y-6">
-           <div className="flex gap-4 border-b border-gray-100 pb-5">
-             <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-               <Navigation className="text-orange-500 w-6 h-6" />
-             </div>
-             <div>
-               <h3 className="font-bold text-gray-900 text-[18px] leading-tight mb-1">
-                 Route: {currentShift.route || 'Frankfurt → Berlin'}
-               </h3>
-               <p className="text-sm font-medium text-gray-500 flex items-center gap-1.5">
-                 <Clock className="w-3.5 h-3.5" /> 
-                 {new Date(currentShift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {new Date(currentShift.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-               </p>
-             </div>
-           </div>
-
-           <div className="space-y-4">
-              <div className="flex items-center justify-between text-[14px]">
-                <span className="font-medium text-gray-500">Status</span>
-                <span className="flex items-center gap-1.5 font-bold text-[#0064E0] bg-blue-50 px-3 py-1 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#0064E0] animate-pulse" />
-                  {currentShift.status === 'confirmed' ? 'Confirmed' : (currentShift.status as string)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[14px]">
-                <span className="font-medium text-gray-500">Location</span>
-                <span className="font-semibold text-gray-900 flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                  {currentShift.location || 'Gleis 7, Frankfurt Hbf'}
-                </span>
-              </div>
-           </div>
-
-           <div className="flex gap-3 pt-4 border-t border-gray-100">
-             <button className="flex-1 py-3.5 bg-[#0064E0] text-white rounded-xl text-[14px] font-semibold hover:bg-[#0050B3] transition-colors shadow-sm">
-               Mark Complete
-             </button>
-             <button className="flex-1 py-3.5 bg-red-50 text-red-600 rounded-xl text-[14px] font-semibold hover:bg-red-100 transition-colors">
-               Report Issue
-             </button>
-           </div>
-        </div>
-      )}
-
-      <UploadBottomSheet 
-        isOpen={isUploadOpen}
-        onClose={() => setIsUploadOpen(false)}
-        shiftId={currentShift?.id as string}
-      />
+      </div>
     </div>
   )
 }

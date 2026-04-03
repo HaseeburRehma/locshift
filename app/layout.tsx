@@ -1,13 +1,12 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { UserProvider } from '@/lib/user-context'
 import { I18nProvider } from '@/lib/i18n'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
   title: 'LokShift – Operational Excellence & Workforce Management',
@@ -16,19 +15,19 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/logo-3.png',
+        url: '/Fav-Icon Dark.svg',
         media: '(prefers-color-scheme: light)',
       },
       {
-        url: '/logo-3.png',
+        url: '/Fav-Icon Dark.svg',
         media: '(prefers-color-scheme: dark)',
       },
       {
-        url: '/logo-3.png',
-        type: 'image/png',
+        url: '/Fav-Icon Dark.svg',
+        type: 'image/svg+xml',
       },
     ],
-    apple: '/logo-3.png',
+    apple: '/Fav-Icon Dark.svg',
   },
 }
 
@@ -39,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de">
-      <body className="font-sans antialiased" suppressHydrationWarning>
+      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <UserProvider>
           <I18nProvider>
             {children}

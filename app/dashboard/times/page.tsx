@@ -1,167 +1,150 @@
-// app/dashboard/times/page.tsx
 'use client'
 
-import React, { useState } from 'react'
-import { Plus, History, Clock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import React, { useState, useEffect } from 'react'
+import { TimesList } from '@/components/time/TimesList'
+import { AddTimeEntryForm } from '@/components/time/AddTimeEntryForm'
+import { TimeEntryDetails } from '@/components/time/TimeEntryDetails'
+import { useTimeTracking } from '@/hooks/useTimeTracking'
 import { useUser } from '@/lib/user-context'
-import { useTranslation } from '@/lib/i18n'
-import { TimeEntry, TimeFilter } from '@/lib/types'
-import { useTimeEntries } from '@/hooks/times/useTimeEntries'
-import { useTimeMutations } from '@/hooks/times/useTimeMutations'
-import { TimeEntryCard } from '@/components/times/TimeEntryCard'
-import { TimeEntryForm } from '@/components/times/TimeEntryForm'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
-import { useMediaQuery } from '@/hooks/use-media-query'
-import { FilterChips } from '@/components/dashboard/FilterChips'
-import { ActiveShiftsDashboard } from '@/components/time/ActiveShiftsDashboard'
+import { createClient } from '@/lib/supabase/client'
+import { TimeEntry, TimeEntryFormData } from '@/lib/types'
+import { toast } from 'sonner'
+import { Loader2 } from 'lucide-react'
 
 export default function TimesPage() {
-  const { isAdmin, isDispatcher, profile } = useUser()
-  const { locale } = useTranslation()
-  const [filter, setFilter] = useState<TimeFilter>('all')
-  const { entries, loading } = useTimeEntries(filter)
-  const { createTimeEntry, isSubmitting } = useTimeMutations()
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const isDesktop = useMediaQuery("(min-width: 768px)")
+  const [view, setView] = useState<'list' | 'add' | 'details'>('list')
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  const [entries, setEntries] = useState<TimeEntry[]>([])
+  const [customers, setCustomers] = useState<{ id: string, name: string }[]>([])
+  const [fetching, setFetching] = useState(true)
+  
+  const { user, profile, isAdmin, isDispatcher } = useUser()
+  const { clockIn, clockOut } = useTimeTracking()
+  const supabase = createClient()
 
-  const filterOptions = [
-    { id: 'all', label: locale === 'en' ? 'All' : 'Alle' },
-    { id: 'pending', label: locale === 'en' ? 'Pending' : 'Offen' },
-    { id: 'approved', label: locale === 'en' ? 'Approved' : 'Bestätigt' },
-    { id: 'this_week', label: locale === 'en' ? 'This Week' : 'Diese Woche' },
-  ]
+  const canAddManually = isAdmin || isDispatcher
 
-  const handleAddEntry = async (data: any) => {
-    const success = await createTimeEntry(data)
-    if (success) {
-      setIsFormOpen(false)
-    }
-    return success
+  const fetchData = async () => {
+    if (!user || !profile?.organization_id) return
+    setFetching(true)
+    
+    // Fetch entries
+    const { data: entriesData, error: entriesError } = await supabase
+      .from('time_entries')
+      .select('*, customer:customers(id, name), verifier:profiles!verified_by(id, full_name)')
+      .eq('organization_id', profile.organization_id)
+      .order('date', { ascending: false })
+      .order('start_time', { ascending: false })
+
+    // Filter by employee if not admin/dispatcher
+    const filteredEntries = (isAdmin || isDispatcher)
+      ? entriesData 
+      : (entriesData?.filter(e => e.employee_id === user.id) || [])
+
+    if (entriesError) toast.error('Failed to load time entries')
+    else setEntries(filteredEntries || [])
+
+    // Fetch customers
+    const { data: customersData } = await supabase
+      .from('customers')
+      .select('id, name')
+      .eq('organization_id', profile.organization_id)
+      .eq('is_active', true)
+
+    setCustomers(customersData || [])
+    setFetching(false)
   }
 
-  const renderForm = () => (
-    <TimeEntryForm 
-      onSuccess={() => setIsFormOpen(false)}
-      onCancel={() => setIsFormOpen(false)}
-      onSubmit={handleAddEntry}
-      isSubmitting={isSubmitting}
-    />
-  )
+  useEffect(() => {
+    fetchData()
+  }, [user, profile, isAdmin, isDispatcher])
+
+  const handleAddSubmit = async (data: TimeEntryFormData) => {
+    if (!user || !profile?.organization_id || !canAddManually) {
+      toast.error('Unauthorized to add manual entries')
+      return
+    }
+
+    const startDateTime = `${data.date}T${data.startTime}:00`
+    const endDateTime = `${data.date}T${data.endTime}:00`
+    
+    const start = new Date(startDateTime).getTime()
+    const end = new Date(endDateTime).getTime()
+    const netHours = Math.max(0, (end - start) / (1000 * 60 * 60) - (data.breakMinutes / 60))
+
+    const { error } = await supabase
+      .from('time_entries')
+      .insert({
+        organization_id: profile.organization_id,
+        employee_id: user.id, // Manual entries are currently assigned to the creator, but could be selectable later
+        date: data.date,
+        start_time: startDateTime,
+        end_time: endDateTime,
+        break_minutes: data.breakMinutes,
+        customer_id: data.customerId || null,
+        location: data.location || null,
+        notes: data.notes || null,
+        net_hours: Number(netHours.toFixed(2))
+      })
+
+    if (error) {
+      toast.error('Failed to create entry')
+      return
+    }
+
+    toast.success('Time entry created')
+    setView('list')
+    fetchData()
+  }
+
+  const selectedEntry = entries.find(e => e.id === selectedEntryId)
+
+  if (fetching) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-32">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-6 pt-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-             <div className="p-2 bg-[#0064E0] rounded-xl shadow-lg shadow-blue-500/20">
-               <History className="w-5 h-5 text-white" />
-             </div>
-             <h2 className="text-3xl font-black tracking-tight text-gray-900 uppercase">
-                {locale === 'en' ? 'Times' : 'Stunden'}
-             </h2>
+    <div className="h-full bg-white md:bg-transparent min-h-screen">
+      <div className="max-w-md mx-auto md:max-w-6xl md:px-6 md:py-8 lg:px-8">
+        {view === 'list' && (
+          <TimesList 
+            entries={entries} 
+            userRole={profile?.role}
+            onEntryClick={(id) => {
+              setSelectedEntryId(id)
+              setView('details')
+            }}
+            onAddClick={() => {
+              if (canAddManually) setView('add')
+              else toast.error('Only administrators can add time manually')
+            }}
+          />
+        )}
+
+        {view === 'add' && (
+          <div className="md:max-w-2xl md:mx-auto md:bg-white md:rounded-[3rem] md:shadow-2xl md:overflow-hidden">
+            <AddTimeEntryForm 
+              onBack={() => setView('list')}
+              onSubmit={handleAddSubmit}
+              customers={customers}
+            />
           </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest opacity-60 ml-1">Working Hour Logs & Approval History</p>
-        </div>
-        
-        {/* Desktop Add Button */}
-        {isDesktop && (
-          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogTrigger asChild>
-              <Button className="h-14 rounded-2xl px-8 font-black shadow-2xl shadow-blue-500/20 gap-3 uppercase tracking-widest text-xs bg-[#0064E0] hover:bg-[#0050B3]">
-                <Plus className="w-5 h-5" />
-                {locale === 'en' ? 'Add Entry' : 'Stunde erfassen'}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-4xl rounded-[3rem] p-0 overflow-hidden border-none shadow-2xl max-h-[90vh] flex flex-col">
-              <div className="p-10 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
-                <DialogTitle className="text-3xl font-black text-gray-900 tracking-tight uppercase italic">
-                   New Time Entry
-                </DialogTitle>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Log professional service hours</p>
-              </div>
-              <div className="p-10 overflow-y-auto flex-grow custom-scrollbar">
-                {renderForm()}
-              </div>
-            </DialogContent>
-          </Dialog>
+        )}
+
+        {view === 'details' && selectedEntry && (
+          <div className="md:max-w-2xl md:mx-auto md:bg-white md:rounded-[3rem] md:shadow-2xl md:overflow-hidden">
+            <TimeEntryDetails 
+              entry={selectedEntry}
+              onBack={() => setView('list')}
+              onEdit={() => toast.info('Edit mode coming soon')}
+            />
+          </div>
         )}
       </div>
-
-      {/* Admin/Dispatcher Monitoring Section */}
-      {(isAdmin || isDispatcher) && (
-        <div className="px-6 space-y-6 pt-2">
-          <div>
-            <h3 className="text-xl font-bold tracking-tight text-gray-900 leading-none mb-1 uppercase">Live Operations</h3>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Employees currently working</p>
-          </div>
-          <ActiveShiftsDashboard />
-        </div>
-      )}
-
-      {/* History & Filter Section */}
-      <div className="space-y-6">
-        <div className="px-6">
-          <FilterChips 
-            options={filterOptions} 
-            value={filter} 
-            onChange={(val) => setFilter(val as TimeFilter)} 
-          />
-        </div>
-
-        <div className="px-6 space-y-4">
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-48 bg-gray-50 animate-pulse rounded-[2.5rem]" />
-              ))}
-            </div>
-          ) : entries.length > 0 ? (
-            entries.map(entry => (
-              <TimeEntryCard 
-                key={entry.id} 
-                entry={entry} 
-                onClick={(e) => {
-                  // Navigate to detail or open detail modal
-                  window.location.href = `/dashboard/times/${e.id}`
-                }}
-              />
-            ))
-          ) : (
-            <div className="text-center py-32 bg-gray-50/50 rounded-[3rem] border border-dashed border-gray-100">
-               <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Clock className="w-6 h-6 text-gray-300" />
-               </div>
-               <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
-                  {locale === 'en' ? 'No working hours found' : 'Keine Einträge gefunden'}
-               </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Mobile FAB */}
-      {!isDesktop && (
-        <div className="fixed bottom-24 right-6 z-50">
-          <Drawer open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DrawerTrigger asChild>
-              <Button className="w-16 h-16 rounded-3xl bg-[#0064E0] hover:bg-[#0050B3] text-white shadow-2xl shadow-blue-600/30 flex items-center justify-center active:scale-90 transition-all p-0">
-                <Plus className="w-8 h-8" />
-              </Button>
-            </DrawerTrigger>
-            <DrawerContent className="rounded-t-[3rem] px-8 pb-12 max-h-[90vh]">
-              <DrawerHeader className="px-0 pb-8">
-                <DrawerTitle className="text-3xl font-black uppercase leading-tight italic tracking-tighter">Log Your Time</DrawerTitle>
-              </DrawerHeader>
-              <div className="overflow-y-auto">
-                {renderForm()}
-              </div>
-            </DrawerContent>
-          </Drawer>
-        </div>
-      )}
     </div>
   )
 }

@@ -1,77 +1,103 @@
-// app/dashboard/time-account/page.tsx
 'use client'
 
-import React from 'react'
-import { History, Info } from 'lucide-react'
+import React, { useState } from 'react'
+import { TimeAccountOverview } from '@/components/time/TimeAccountOverview'
+import { MonthlyBreakdown } from '@/components/time/MonthlyBreakdown'
+import { PersonnelTimeAccounts } from '@/components/time/PersonnelTimeAccounts'
 import { useUser } from '@/lib/user-context'
-import { useTranslation } from '@/lib/i18n'
 import { useTimeAccount } from '@/hooks/times/useTimeAccount'
-import { TimeAccountKpiCards } from '@/components/times/TimeAccountKpiCards'
-import { MonthlyTimeRow } from '@/components/times/MonthlyTimeRow'
-import { useRouter } from 'next/navigation'
+import { useOrganizationTimeAccounts } from '@/hooks/times/useOrgTimeAccounts'
+import { Loader2, ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 export default function TimeAccountPage() {
-  const { profile, isAdmin, isDispatcher } = useUser()
-  const { locale } = useTranslation()
-  const { monthlyData, totalBalance, loading } = useTimeAccount()
-  const router = useRouter()
+  const { role, isAdmin, isDispatcher, isEmployee } = useUser()
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
+  const [view, setView] = useState<'personnel' | 'overview' | 'monthly'>(
+    (isAdmin || isDispatcher) ? 'personnel' : 'overview'
+  )
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null)
+
+  // 1. Organizational Hook (Admin/Dispatcher View)
+  const { accounts, loading: orgLoading } = useOrganizationTimeAccounts()
+
+  // 2. Individual Hook (Employee/Detail View)
+  const { 
+    monthlyData, 
+    totalBalance, 
+    loading: detailLoading 
+  } = useTimeAccount(selectedEmployeeId || undefined)
+
+  const selectedMonthData = monthlyData.find(m => m.key === selectedMonthKey)
+
+  const handleSelectEmployee = (id: string) => {
+    setSelectedEmployeeId(id)
+    setView('overview')
+  }
+
+  const handleBackToPersonnel = () => {
+    setSelectedEmployeeId(null)
+    setView('personnel')
+  }
+
+  if (orgLoading && view === 'personnel') {
+    return (
+      <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Syncing Personnel Balances...</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-700 pb-32">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-6 pt-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-             <div className="p-2 bg-[#16A34A] rounded-xl shadow-lg shadow-green-500/20">
-               <History className="w-5 h-5 text-white" />
-             </div>
-             <h2 className="text-3xl font-black tracking-tight text-gray-900 uppercase">
-                {locale === 'en' ? 'Time Account' : 'Zeitkonto'}
-             </h2>
+    <div className="h-full min-h-screen">
+      <div className="max-w-[1600px] mx-auto">
+        
+        {/* Personnel Overview (Admin/Dispatcher ONLY as per Section 4.1 & 4.2) */}
+        {view === 'personnel' && (isAdmin || isDispatcher) && (
+          <PersonnelTimeAccounts 
+            accounts={accounts} 
+            onSelectEmployee={handleSelectEmployee} 
+          />
+        )}
+
+        {/* Individual Overview (Detail View for Admins OR Primary View for Employees) */}
+        {view === 'overview' && (
+          <div className="animate-in fade-in slide-in-from-right duration-500">
+            {/* If Admin/Dispatcher, show a way to get back to the list */}
+            {(isAdmin || isDispatcher) && (
+              <div className="mb-4">
+                <Button 
+                    variant="ghost" 
+                    onClick={handleBackToPersonnel}
+                    className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 gap-2"
+                >
+                    <ArrowLeft className="h-3 w-3" /> Back to Personnel List
+                </Button>
+              </div>
+            )}
+            <TimeAccountOverview 
+              onBack={isEmployee ? () => window.history.back() : handleBackToPersonnel}
+              onMonthClick={(key) => {
+                setSelectedMonthKey(key)
+                setView('monthly')
+              }}
+              data={monthlyData}
+              totalBalance={totalBalance}
+              totalOvertimePaid={0} // To be connected with actual payroll if needed
+            />
           </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest opacity-60 ml-1">Historical Balance & Overtime Tracking</p>
-        </div>
-      </div>
+        )}
 
-      {/* KPI Section */}
-      {!loading && (
-        <TimeAccountKpiCards 
-          balance={totalBalance} 
-          overtimePaid={0} // Placeholder or from profile settings
-        />
-      )}
-
-      {/* Monthly History Section */}
-      <div className="space-y-6">
-        <div className="px-6 flex items-center justify-between">
-          <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-             Monthly History <Info className="w-3 h-3 opacity-50" />
-          </h3>
-        </div>
-
-        <div className="px-6 space-y-4">
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-24 bg-gray-50 animate-pulse rounded-[2rem]" />
-              ))}
-            </div>
-          ) : monthlyData.length > 0 ? (
-            monthlyData.map(month => (
-              <MonthlyTimeRow 
-                key={month.key} 
-                data={month} 
-                onClick={(m) => router.push(`/dashboard/time-account/${m.key}`)}
-              />
-            ))
-          ) : (
-            <div className="text-center py-20 bg-gray-50/50 rounded-[2.5rem] border border-dashed border-gray-100">
-               <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
-                  No historical data available
-               </p>
-            </div>
-          )}
-        </div>
+        {/* Monthly Deep-Dive */}
+        {view === 'monthly' && selectedMonthData && (
+          <div className="max-w-3xl mx-auto md:bg-white md:rounded-[2.5rem] md:shadow-2xl md:overflow-hidden animate-in zoom-in duration-300">
+            <MonthlyBreakdown 
+              onBack={() => setView('overview')}
+              monthData={selectedMonthData}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

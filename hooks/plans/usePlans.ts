@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plan } from '@/lib/types'
@@ -12,9 +14,10 @@ export function usePlans() {
   const { profile, isAdmin, isDispatcher, user } = useUser()
   const supabase = createClient()
 
-  const fetchPlans = useCallback(async () => {
+  const fetchPlans = useCallback(async (isSilent = false) => {
     if (!profile) return
-    setLoading(true)
+    if (!isSilent) setLoading(true)
+    
     let query = supabase
       .from('plans')
       .select('*, employee:profiles!employee_id(*), customer:customers(*)')
@@ -28,36 +31,41 @@ export function usePlans() {
     const { data, error } = await query
     if (!error) setPlans(data || [])
     setLoading(false)
-  }, [profile, isAdmin, isDispatcher])
+  }, [profile, isAdmin, isDispatcher, supabase])
 
   useEffect(() => {
     if (!profile) return
     fetchPlans()
 
+    // Real-time mission synchronization HUD
     const channel = supabase
-      .channel(`plans-realtime-${profile.organization_id}`)
+      .channel(`plans-realtime-hub-${profile.organization_id}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'plans',
         filter: `organization_id=eq.${profile.organization_id}`
-      }, (payload: any) => {
-        // Fetch full plan with joins for the new row
-        supabase
+      }, async (payload: any) => {
+        console.log('[usePlans] Real-time INSERT detected:', payload.new.id)
+        
+        // Fetch full plan with joins for the new row immediately (silent)
+        const { data, error } = await supabase
           .from('plans')
           .select('*, employee:profiles!employee_id(*), customer:customers(*)')
           .eq('id', payload.new.id)
           .single()
-          .then(({ data }) => {
-            if (data) {
-              setPlans(prev => {
-                // Remove optimistic temp entry if it exists, then add real one
-                const filtered = prev.filter(p => !p.id.startsWith('temp-'))
-                if (filtered.find(p => p.id === data.id)) return filtered
-                return [data, ...filtered]
-              })
-            }
+
+        if (data && !error) {
+          setPlans(prev => {
+            // Remove optimistic temp entry if it exists, then add real one
+            const filtered = prev.filter(p => !p.id.startsWith('temp-') && p.id !== data.id)
+            return [data, ...filtered]
           })
+        } else {
+          // Fallback silent refetch if single fetch fails
+          fetchPlans(true)
+        }
+
         // Notify current user if they are the assigned employee
         if (payload.new.employee_id === profile.id) {
           toast.info('📋 New shift assigned to you', {
@@ -72,17 +80,14 @@ export function usePlans() {
         table: 'plans',
         filter: `organization_id=eq.${profile.organization_id}`
       }, (payload: any) => {
-        // Update in place — animate the status badge, no refetch
+        // Sync local update from other sources
         setPlans(prev => prev.map(p =>
           p.id === payload.new.id ? { ...p, ...payload.new } : p
         ))
-        // Show status-change toasts for the creator/admins
+        
         const { old: old_, new: new_ } = payload
         if (old_?.status === 'assigned' && new_?.status === 'confirmed') {
           toast.success('✅ Plan confirmed by employee')
-        }
-        if (old_?.status === 'assigned' && new_?.status === 'rejected') {
-          toast.error('❌ Plan rejected by employee')
         }
       })
       .on('postgres_changes', {
@@ -91,13 +96,16 @@ export function usePlans() {
         table: 'plans',
         filter: `organization_id=eq.${profile.organization_id}`
       }, (payload: any) => {
-        // Fade out handled by _deleting flag; remove on DB confirm
         setPlans(prev => prev.filter(p => p.id !== payload.old.id))
       })
-      .subscribe()
+      .subscribe((status: `${import('@supabase/supabase-js').REALTIME_SUBSCRIBE_STATES}`) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[usePlans] Connected to mission HUD stream')
+        }
+      })
 
     return () => { supabase.removeChannel(channel) }
-  }, [profile, isAdmin, isDispatcher, fetchPlans])
+  }, [profile, isAdmin, isDispatcher, fetchPlans, supabase])
 
   /** Optimistic status update with rollback */
   const updatePlanStatus = useCallback(async (
@@ -107,7 +115,7 @@ export function usePlans() {
   ) => {
     const previous = plans.find(p => p.id === planId)
 
-    // Optimistic update
+    // Immediate local update for zero-delay reflection
     setPlans(prev => prev.map(p =>
       p.id === planId ? { ...p, status, _updating: true } : p
     ))
@@ -122,7 +130,7 @@ export function usePlans() {
       .eq('id', planId)
 
     if (error) {
-      // Rollback
+      // Rollback on error
       setPlans(prev => prev.map(p =>
         p.id === planId ? { ...p, status: previous?.status || 'assigned', _updating: false } : p
       ))
@@ -147,10 +155,9 @@ export function usePlans() {
 
     if (status === 'confirmed') actionToasts.planConfirmed()
     else if (status === 'rejected') actionToasts.planRejected()
-    else if (status === 'cancelled') actionToasts.planCancelled()
   }, [plans, profile, supabase])
 
-  /** Optimistic plan creation with rollback */
+  /** Optimistic plan creation with immediate local sync */
   const createPlan = useCallback(async (
     planData: Omit<Plan, 'id' | 'created_at' | 'updated_at'>
   ) => {
@@ -170,30 +177,38 @@ export function usePlans() {
       throw error
     }
 
-    // Replace optimistic entry with real data
+    // Replace optimistic entry with real data immediately
     setPlans(prev => prev.map(p => p.id === tempId ? newPlan : p))
+
+    // Notify the assigned employee
+    if (newPlan.employee_id) {
+      await sendNotification({
+        userId: newPlan.employee_id,
+        title: '📋 New Shift Assigned',
+        message: `You have been assigned a new shift for ${new Date(newPlan.start_time).toLocaleDateString()}. Please confirm.`,
+        module: 'plans',
+        moduleId: newPlan.id
+      })
+    }
+
     return newPlan
   }, [supabase])
 
-  /** Optimistic delete with rollback */
+  /** Optimistic delete with zero-delay */
   const deletePlan = useCallback(async (planId: string) => {
     const previous = plans.find(p => p.id === planId)
 
-    // Trigger fade-out animation
-    setPlans(prev => prev.map(p => p.id === planId ? { ...p, _deleting: true } : p))
+    // Immediate local removal for instant UI reflection
+    setPlans(prev => prev.filter(p => p.id !== planId))
 
-    // Wait for animation then remove
-    setTimeout(async () => {
-      const { error } = await supabase.from('plans').delete().eq('id', planId)
-      if (error) {
-        // Rollback
-        setPlans(prev => prev.map(p => p.id === planId ? { ...p, _deleting: false } : p))
-        actionToasts.genericError('Failed to delete plan')
-        return
-      }
-      setPlans(prev => prev.filter(p => p.id !== planId))
-      actionToasts.planDeleted()
-    }, 300)
+    const { error } = await supabase.from('plans').delete().eq('id', planId)
+    if (error) {
+      // Rollback if delete fails
+      if (previous) setPlans(prev => [...prev, previous].sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()))
+      actionToasts.genericError('Failed to delete plan')
+      return
+    }
+    actionToasts.planDeleted()
   }, [plans, supabase])
 
   return { plans, loading, updatePlanStatus, createPlan, deletePlan, refresh: fetchPlans }

@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PerDiem } from '@/lib/types'
@@ -11,9 +13,9 @@ export function usePerDiem() {
   const { profile, isAdmin, isDispatcher } = useUser()
   const supabase = createClient()
 
-  const fetchPerDiems = useCallback(async () => {
+  const fetchPerDiems = useCallback(async (isSilent = false) => {
     if (!profile?.organization_id) return
-    setLoading(true)
+    if (!isSilent) setLoading(true)
 
     let query = supabase
       .from('per_diems')
@@ -29,41 +31,49 @@ export function usePerDiem() {
     if (!error) setPerDiems(data || [])
     else console.error('[usePerDiem] Fetch error:', error)
     setLoading(false)
-  }, [profile, isAdmin, isDispatcher])
+  }, [profile, isAdmin, isDispatcher, supabase])
 
   useEffect(() => {
     fetchPerDiems()
     if (!profile?.organization_id) return
 
     const channel = supabase
-      .channel(`per-diems-sync-${profile.organization_id}`)
+      .channel(`per-diems-sync-hub-${profile.organization_id}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'per_diems',
         filter: `organization_id=eq.${profile.organization_id}`
       }, (payload: any) => {
-        if (payload.eventType === 'INSERT') {
-          setPerDiems(prev => [payload.new as PerDiem, ...prev])
-        } else if (payload.eventType === 'UPDATE') {
-          setPerDiems(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p))
-        } else if (payload.eventType === 'DELETE') {
-          setPerDiems(prev => prev.filter(p => p.id !== payload.old.id))
+        console.log('[usePerDiem] Operational status update:', payload)
+        // Silent refetch for parity with other users
+        fetchPerDiems(true)
+      })
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[usePerDiem] Connected to per-diems HUD stream')
         }
       })
-      .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [profile, fetchPerDiems])
+  }, [profile, fetchPerDiems, supabase])
 
   const createPerDiem = async (data: Partial<PerDiem>) => {
     if (!profile?.id || !profile?.organization_id) return
     try {
-      const { error } = await supabase.from('per_diems').insert({
-        ...data,
-        employee_id: profile.id,
-        organization_id: profile.organization_id,
-        status: 'submitted'
-      })
+      const { data: newEntry, error } = await supabase
+        .from('per_diems')
+        .insert({
+           ...data,
+           employee_id: profile.id,
+           organization_id: profile.organization_id,
+           status: 'submitted'
+        })
+        .select()
+        .single()
+
       if (error) throw error
+      
+      // Immediate local sync for zero-delay mission reflection
+      setPerDiems(prev => [newEntry, ...prev])
       actionToasts.perDiemSubmitted()
       return true
     } catch (err: any) {
@@ -75,7 +85,7 @@ export function usePerDiem() {
   const updatePerDiemStatus = async (id: string, status: 'approved' | 'rejected') => {
     const perDiem = perDiems.find(p => p.id === id)
 
-    // Optimistic update
+    // Optimistic local update for Command Center responsiveness
     setPerDiems(prev => prev.map(p => p.id === id ? { ...p, status } : p))
 
     try {
@@ -86,12 +96,12 @@ export function usePerDiem() {
 
       if (error) throw error
 
-      // Notify the employee
+      // Notify the employee about the audit result
       if (perDiem?.employee_id) {
         await sendNotification({
           userId: perDiem.employee_id,
           title: status === 'approved' ? '✅ Per Diem Approved' : '❌ Per Diem Rejected',
-          message: `Your per diem claim${(perDiem as any).amount ? ` of €${(perDiem as any).amount}` : ''} has been ${status}.`,
+          message: `Your per diem claim has been ${status}.`,
           module: 'plans',
           moduleId: id
         })
@@ -100,10 +110,8 @@ export function usePerDiem() {
       status === 'approved' ? actionToasts.perDiemApproved() : actionToasts.perDiemRejected()
       return true
     } catch (err: any) {
-      // Rollback
-      setPerDiems(prev => prev.map(p =>
-        p.id === id ? { ...p, status: perDiem?.status || 'submitted' } : p
-      ))
+      // Rollback logic
+      fetchPerDiems(true)
       actionToasts.genericError(err.message)
       return false
     }

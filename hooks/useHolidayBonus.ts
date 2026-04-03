@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { HolidayBonus } from '@/lib/types'
@@ -10,9 +12,9 @@ export function useHolidayBonus() {
   const { profile, isAdmin, isDispatcher } = useUser()
   const supabase = createClient()
 
-  const fetchBonuses = useCallback(async () => {
+  const fetchBonuses = useCallback(async (isSilent = false) => {
     if (!profile?.organization_id) return
-    setLoading(true)
+    if (!isSilent) setLoading(true)
 
     let query = supabase
       .from('holiday_bonuses')
@@ -28,7 +30,7 @@ export function useHolidayBonus() {
     if (!error) {
       setBonuses(data || [])
     } else {
-      console.error('[useHolidayBonus] Fetch error:', error)
+      console.error('[useHolidayBonus] Operational fetch error:', error)
     }
     setLoading(false)
   }, [profile, isAdmin, isDispatcher, supabase])
@@ -38,15 +40,23 @@ export function useHolidayBonus() {
 
     if (!profile?.organization_id) return
 
+    // Real-time synchronization for holiday bonus distribution
     const channel = supabase
-      .channel('holiday-bonuses-sync')
+      .channel(`holiday-bonuses-sync-hub-${profile.organization_id}`)
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'holiday_bonuses', 
         filter: `organization_id=eq.${profile.organization_id}` 
-      }, () => fetchBonuses())
-      .subscribe()
+      }, (payload: any) => {
+        console.log('[useHolidayBonus] Live operational update:', payload)
+        fetchBonuses(true) // Silent background synchronization
+      })
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[useHolidayBonus] Connected to bonus monitoring stream')
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -56,11 +66,19 @@ export function useHolidayBonus() {
   const createHolidayBonus = async (data: Partial<HolidayBonus>) => {
     if (!profile?.organization_id) return
     try {
-      const { error } = await supabase.from('holiday_bonuses').insert({
-        ...data,
-        organization_id: profile.organization_id
-      })
+      const { data: newBonus, error } = await supabase
+        .from('holiday_bonuses')
+        .insert({
+           ...data,
+           organization_id: profile.organization_id
+        })
+        .select()
+        .single()
+
       if (error) throw error
+
+      // Immediate local sync for zero-delay reflection
+      setBonuses(prev => [newBonus, ...prev])
       toast.success('Holiday bonus distributed')
       return true
     } catch (err: any) {
@@ -70,12 +88,17 @@ export function useHolidayBonus() {
   }
 
   const deleteHolidayBonus = async (id: string) => {
+    // Optimistic local removal for instant responsive feel
+    setBonuses(prev => prev.filter(b => b.id !== id))
+
     try {
       const { error } = await supabase.from('holiday_bonuses').delete().eq('id', id)
       if (error) throw error
       toast.success('Bonus deleted')
       return true
     } catch (err: any) {
+      // Rollback on audit failure
+      fetchBonuses(true)
       toast.error(err.message || 'Failed to delete bonus')
       return false
     }

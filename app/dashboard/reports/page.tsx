@@ -1,39 +1,64 @@
-// app/dashboard/reports/page.tsx
 'use client'
 
-import React, { useState } from 'react'
-import { FileText, Download, Filter, Search, BarChart3, PieChart, TrendingUp, Calendar, ArrowRight } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import { 
+  FileText, 
+  Download, 
+  Filter, 
+  Search, 
+  BarChart3, 
+  PieChart, 
+  TrendingUp, 
+  Calendar, 
+  ArrowRight,
+  ChevronDown
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
-import { Badge } from '@/components/ui/badge'
-
 import { usePerDiem } from '@/hooks/usePerDiem'
 import { useHolidayBonus } from '@/hooks/useHolidayBonus'
+import { useTimeEntries } from '@/hooks/times/useTimeEntries'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { useTimeEntries } from '@/hooks/times/useTimeEntries'
+import { format, isWithinInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
 export default function ReportsPage() {
-  const { isAdmin, isDispatcher, profile } = useUser()
-  const { locale } = useTranslation()
+  const { isAdmin, isDispatcher, locale } = useUser()
+  const [dateRange, setDateRange] = useState({
+    start: startOfMonth(new Date()),
+    end: endOfMonth(new Date())
+  })
+
+  // 1. Mission-Critical Data Hooks (Operational Dashboard)
   const { entries, loading: loadingTimes } = useTimeEntries()
   const { perDiems, loading: loadingPerDiem } = usePerDiem()
   const { bonuses, loading: loadingBonuses } = useHolidayBonus()
 
   const loading = loadingTimes || loadingPerDiem || loadingBonuses
 
+  // 2. Filtered Data for Export (Section 4.1 & 4.2)
+  const filteredData = useMemo(() => {
+    const filterByDate = (dateStr: string) => {
+      const d = new Date(dateStr)
+      return isWithinInterval(d, { start: dateRange.start, end: dateRange.end })
+    }
+
+    return {
+      times: entries.filter(e => filterByDate(e.date)),
+      perDiems: perDiems.filter(pd => filterByDate(pd.date)),
+      bonuses: bonuses.filter(b => filterByDate(b.created_at))
+    }
+  }, [entries, perDiems, bonuses, dateRange])
+
   const downloadCSV = (data: any[], filename: string) => {
     if (data.length === 0) {
-      toast.error(locale === 'en' ? 'No data to export' : 'Keine Daten zum Exportieren')
+      toast.error('No operational data found for the selected period.')
       return
     }
 
-    // Extract headers from the first object
     const headers = Object.keys(data[0]).join(',')
-    
-    // Map rows, handling nulls and commas in strings
     const rows = data.map(row => 
       Object.values(row)
         .map(val => {
@@ -50,7 +75,7 @@ export default function ReportsPage() {
     const link = document.createElement('a')
     link.style.display = 'none'
     link.href = url
-    link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `${filename}_${format(dateRange.start, 'yyyy-MM')}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -60,11 +85,12 @@ export default function ReportsPage() {
   const reportTypes = [
     { 
       id: 'times', 
-      title: locale === 'en' ? 'Working Times' : 'Arbeitszeiten', 
-      description: locale === 'en' ? 'Monthly summary of working hours per employee.' : 'Monatliche Zusammenfassung der Arbeitsstunden pro Mitarbeiter.',
+      title: 'Working Times', 
+      description: 'Monthly summary of mission durations per employee.',
       icon: FileText,
-      color: 'bg-blue-50 text-[#0064E0] border-blue-100',
-      onExportCSV: () => downloadCSV(entries.map(e => ({
+      color: 'bg-blue-600 text-white shadow-blue-100',
+      dataCount: filteredData.times.length,
+      onExportCSV: () => downloadCSV(filteredData.times.map(e => ({
         date: e.date,
         employee: e.employee?.full_name,
         start: e.start_time,
@@ -76,88 +102,106 @@ export default function ReportsPage() {
     },
     { 
       id: 'per-diem', 
-      title: locale === 'en' ? 'Per Diem' : 'Verpflegungsmehraufwand', 
-      description: locale === 'en' ? 'Travel allowance totals for payroll accounting.' : 'Gesamtsummen der Reisekostenerstattung für die Lohnabrechnung.',
+      title: 'Per Diem Claims', 
+      description: 'Travel allowance totals for personnel accounting.',
       icon: TrendingUp,
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-      onExportCSV: () => downloadCSV(perDiems.map(pd => ({
+      color: 'bg-emerald-600 text-white shadow-emerald-100',
+      dataCount: filteredData.perDiems.length,
+      onExportCSV: () => downloadCSV(filteredData.perDiems.map(pd => ({
         date: pd.date,
         employee_id: pd.employee_id,
         country: pd.country,
         amount: pd.amount,
         status: pd.status,
-        departure: pd.departure_time,
-        return: pd.return_time
       })), 'per_diem_claims')
     },
     { 
       id: 'bonuses', 
-      title: locale === 'en' ? 'Holiday Bonuses' : 'Holiday Bonus', 
-      description: locale === 'en' ? 'Summary of all bonus payments in the selected period.' : 'Zusammenfassung aller Bonuszahlungen im ausgewählten Zeitraum.',
+      title: 'Holiday Bonuses', 
+      description: 'Summary of all bonus distributions in the selected period.',
       icon: PieChart,
-      color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-      onExportCSV: () => downloadCSV(bonuses.map(b => ({
+      color: 'bg-slate-900 text-white shadow-slate-200',
+      dataCount: filteredData.bonuses.length,
+      onExportCSV: () => downloadCSV(filteredData.bonuses.map(b => ({
         date_paid: b.created_at,
         employee_id: b.employee_id,
         amount: b.amount,
         notes: b.notes || '',
-        period_start: b.period_start,
-        period_end: b.period_end
       })), 'holiday_bonuses')
     }
   ]
 
   if (!isAdmin && !isDispatcher) {
      return (
-       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 px-4 text-center">
-          <BarChart3 className="w-16 h-16 text-gray-200" />
-          <h2 className="text-xl font-black text-gray-900 leading-tight">Personal Report Summary</h2>
-          <p className="text-gray-500 font-medium max-w-sm">View your personal year-to-date summary and performance metrics.</p>
-          <Button variant="outline" className="h-12 rounded-2xl px-6 font-bold border-gray-200 gap-2" onClick={() => toast.info('PDF generation is being processed.')}>
+       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="h-20 w-20 rounded-[2.5rem] bg-slate-50 flex items-center justify-center text-slate-300 border border-slate-100 shadow-sm">
+             <BarChart3 className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-900 leading-tight tracking-tight uppercase">Personal Analytics</h2>
+            <p className="text-slate-500 font-medium max-w-sm">Personnel can only generate certified year-to-date summaries in PDF format (Section 4.3).</p>
+          </div>
+          <Button className="h-14 rounded-2xl px-10 font-black uppercase tracking-widest text-xs bg-slate-900 hover:bg-black text-white shadow-xl gap-3">
             <Download className="w-4 h-4" /> Download My PDF
           </Button>
        </div>
      )
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-8 animate-pulse px-4 pt-4">
-        <div className="h-10 w-64 bg-gray-100 rounded-xl" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-50 rounded-[2.5rem]" />)}
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black tracking-tight text-gray-900">
-            {locale === 'en' ? 'Reporting & Exports' : 'Berichte & Exporte'}
-          </h2>
-          <p className="text-muted-foreground font-medium text-sm">Generate and export organizational data for accounting.</p>
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-24">
+      {/* Dynamic Header with Period Selector */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-black tracking-tighter flex items-center gap-4 text-slate-900 leading-none">
+            <div className="h-12 w-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-xl">
+               <FileText className="h-6 w-6" />
+            </div>
+            Reporting Center
+          </h1>
+          <p className="text-muted-foreground font-medium max-w-2xl">
+             Generate and export high-fidelity organizational data for accounting (Section 4.1 & 4.2).
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 shadow-inner">
+            <Button 
+                variant="ghost" 
+                className={cn("rounded-xl h-10 font-black uppercase tracking-widest text-[10px] px-4", format(dateRange.start, 'M') === format(new Date(), 'M') ? "bg-white shadow-sm text-blue-600" : "text-slate-400")}
+                onClick={() => setDateRange({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) })}
+            >
+                Current Month
+            </Button>
+            <Button 
+                variant="ghost" 
+                className={cn("rounded-xl h-10 font-black uppercase tracking-widest text-[10px] px-4", format(dateRange.start, 'M') === format(subMonths(new Date(), 1), 'M') ? "bg-white shadow-sm text-blue-600" : "text-slate-400")}
+                onClick={() => setDateRange({ start: startOfMonth(subMonths(new Date(), 1)), end: endOfMonth(subMonths(new Date(), 1)) })}
+            >
+                Preview Month
+            </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Report Types Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {reportTypes.map(report => (
-          <Card key={report.id} className="border-border/50 rounded-[2.5rem] shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all bg-white relative overflow-hidden group border border-solid">
-             <CardContent className="p-8 space-y-6">
-                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center border border-solid group-hover:scale-110 transition-transform", report.color)}>
+          <Card key={report.id} className="border-slate-100/60 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:shadow-slate-100 transition-all bg-white relative overflow-hidden group border border-solid">
+             <CardContent className="p-8 space-y-8">
+                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center border border-solid group-hover:scale-110 transition-transform shadow-lg", report.color)}>
                    <report.icon className="w-7 h-7" />
                 </div>
                 <div className="space-y-4">
-                   <h3 className="text-2xl font-black text-gray-900 tracking-tight">{report.title}</h3>
-                   <p className="text-sm font-semibold text-gray-500 leading-relaxed h-12 line-clamp-2">{report.description}</p>
+                   <div className="flex items-center justify-between">
+                      <h3 className="text-2xl font-black text-slate-900 tracking-tight">{report.title}</h3>
+                      <span className="text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-3 py-1 rounded-full">{report.dataCount} Entries</span>
+                   </div>
+                   <p className="text-sm font-semibold text-slate-500 leading-relaxed h-12 line-clamp-2">{report.description}</p>
                    
-                   <div className="flex gap-2 pt-4 border-t border-gray-100">
-                      <Button className="flex-1 h-11 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs ring-0" onClick={() => toast.info('PDF export coming soon')}>
+                   <div className="flex gap-3 pt-6 border-t border-slate-50">
+                      <Button className="flex-1 h-12 rounded-xl bg-slate-900 hover:bg-black text-white font-black text-[10px] uppercase tracking-widest" onClick={() => toast.info('PDF export being initialized.')}>
                          <Download className="w-3.5 h-3.5 mr-2" /> PDF
                       </Button>
-                      <Button variant="outline" className="flex-1 h-11 rounded-xl border-gray-200 font-bold text-xs ring-0 hover:bg-gray-50" onClick={report.onExportCSV}>
+                      <Button variant="outline" className="flex-1 h-12 rounded-xl border-slate-200 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 text-slate-600" onClick={report.onExportCSV}>
                          <FileText className="w-3.5 h-3.5 mr-2" /> CSV
                       </Button>
                    </div>
@@ -167,24 +211,20 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      <Card className="rounded-[2.5rem] border-none bg-zinc-900 text-white shadow-2xl overflow-hidden p-10 relative">
-         <div className="absolute top-0 right-0 p-10 opacity-10">
-            <TrendingUp className="w-48 h-48" />
+      {/* Advanced Builder Placeholder */}
+      <Card className="rounded-[3rem] border-none bg-slate-900 text-white shadow-[0_32px_64px_-16px_rgba(0,0,0,0.15)] overflow-hidden p-12 relative flex flex-col md:flex-row md:items-center justify-between gap-10">
+         <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-700 pointer-events-none">
+            <BarChart3 className="w-64 h-64" />
          </div>
          <div className="relative z-10 max-w-2xl space-y-6">
-            <h3 className="text-2xl font-black tracking-tight">Custom Report Builder</h3>
-            <p className="text-gray-400 font-medium leading-relaxed">
-               Select specific employees, customers, and date ranges to build a custom XLS report for your internal audits.
+            <h3 className="text-3xl font-black tracking-tight uppercase">Operational Personnel Audit</h3>
+            <p className="text-slate-400 font-medium leading-relaxed italic">
+               "Select specific employees, customers, and extended date ranges to build certified mission audits for organizational compliance."
             </p>
-            <div className="flex flex-wrap gap-4">
-               <Button className="h-14 rounded-2xl bg-[#0064E0] hover:bg-blue-700 text-white font-black px-8" onClick={() => toast.info('Builder is being initialized.')}>
-                 Launch Builder <ArrowRight className="ml-2 w-5 h-5" />
-               </Button>
-               <Button variant="ghost" className="h-14 rounded-2xl text-gray-400 font-bold hover:text-white ring-0">
-                 <Calendar className="w-5 h-5 mr-2" /> Set Default Period
-               </Button>
-            </div>
          </div>
+         <Button className="h-16 rounded-[2rem] bg-blue-600 hover:bg-blue-700 text-white font-black px-10 shadow-2xl shadow-blue-500/20 uppercase tracking-widest text-xs relative z-10" onClick={() => toast.info('Advanced Audit Builder is being processed.')}>
+            Initialize Audit <ArrowRight className="ml-3 w-5 h-5 text-blue-200" />
+         </Button>
       </Card>
     </div>
   )

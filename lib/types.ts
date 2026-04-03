@@ -37,6 +37,18 @@ export interface Profile {
   is_active: boolean
   onboarding_completed: boolean
   target_hours: number
+  working_time_model_id?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkingTimeModel {
+  id: string
+  organization_id: string
+  name: string
+  description: string | null
+  target_hours_per_week: number
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -57,7 +69,10 @@ export interface Customer {
   name: string
   address: string | null
   contact_person: string | null
-  contact_info: string | null
+  contact_info: string | null // Legacy field
+  email: string | null
+  phone: string | null
+  notes: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -98,6 +113,9 @@ export interface TimeEntry {
   location?: string
   is_verified: boolean
   verified_by?: string
+  is_on_break?: boolean             // Real-time status
+  current_break_start?: string     // ISO timestamp
+  total_break_seconds?: number     // Accumulated
   created_at: string
   updated_at: string
   // Joined
