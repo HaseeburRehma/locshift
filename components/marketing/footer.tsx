@@ -78,10 +78,6 @@ export function MarketingFooter() {
 
                 <div className="mt-12 pt-8 border-t border-border/50 flex flex-col md:flex-row items-center justify-between gap-4">
                     <p className="text-xs text-muted-foreground">{t('footer.copyright')}</p>
-                    <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                        <span className="text-xs text-muted-foreground">{t('footer.status')}</span>
-                    </div>
                 </div>
             </div>
         </footer>
