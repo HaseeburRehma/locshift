@@ -85,14 +85,17 @@ export default async function middleware(request: NextRequest) {
     .single()
 
   if (profile) {
-    // DB profile is always authoritative for onboarding status
+    // Standardize DB Role as primary authoritative source (SoT)
+    const dbRole = (profile.role || '').toLowerCase()
+    
+    if (dbRole === 'administrator' || dbRole === 'admin') role = 'admin'
+    else if (dbRole === 'dispatcher' || dbRole === 'disponent') role = 'dispatcher'
+    else if (dbRole === 'employee') role = 'employee'
+    else role = 'employee' // default fallback
+
     onboardingCompleted = profile.onboarding_completed ?? false
-    // Only fall back to DB role if metadata doesn't have it
-    if (!role) {
-      role = (profile.role || 'employee').toLowerCase()
-    }
   } else if (!role) {
-    role = 'employee'
+    role = 'employee' // Fallback for new/unprovisioned users
   }
 
   // Standardize roles ('admin', 'dispatcher', 'employee')

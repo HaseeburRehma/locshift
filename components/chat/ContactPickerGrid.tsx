@@ -32,7 +32,7 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
       } else {
         setContacts(data || [])
         if (data?.length === 0) {
-           console.log('[ContactPicker] No other members found in org:', organizationId)
+          console.log('[ContactPicker] No other members found in org:', organizationId)
         }
       }
       setLoading(false)
@@ -41,7 +41,7 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
     fetchContacts()
   }, [organizationId, currentUserId, supabase])
 
-  const filtered = contacts.filter(c => 
+  const filtered = contacts.filter(c =>
     c.full_name?.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -63,7 +63,7 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
             type="text"
             placeholder="Search here..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             className="w-full h-12 pl-10 pr-4 bg-gray-50 border border-gray-100 rounded-xl text-[14px] outline-none focus:bg-white focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all font-medium placeholder:text-gray-400"
           />
         </div>
@@ -91,13 +91,13 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
                   {selectedIds.includes(contact.id) && (
                     <div className="absolute inset-0 bg-blue-500/20 backdrop-blur-[1px] flex items-center justify-center rounded-full animate-in zoom-in duration-200">
                       <div className="bg-blue-500 text-white rounded-full p-1 shadow-lg border-2 border-white">
-                         <Check className="w-4 h-4" />
+                        <Check className="w-4 h-4" />
                       </div>
                     </div>
                   )}
                 </div>
               </div>
-              
+
               <div className="flex flex-col items-center gap-1 min-w-0 w-full">
                 <span className="text-[13px] font-bold text-gray-900 truncate w-full text-center">
                   {contact.full_name?.split(' ')[0]}
@@ -107,7 +107,7 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
             </button>
           ))}
         </div>
-        
+
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-gray-400 font-medium">No contacts found in your organization.</p>

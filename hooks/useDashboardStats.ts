@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
-import { startOfWeek, endOfWeek, format } from 'date-fns'
+import { startOfWeek, endOfWeek, format, startOfDay } from 'date-fns'
 
 export function useDashboardStats() {
   const { profile, isAdmin, isDispatcher } = useUser()
@@ -16,6 +16,7 @@ export function useDashboardStats() {
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     const weekStart = startOfWeek(now, { weekStartsOn: 1 }).toISOString()
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 }).toISOString()
+    const startOfToday = startOfDay(now).toISOString()
 
     try {
       if (isAdmin || isDispatcher) {
@@ -42,7 +43,7 @@ export function useDashboardStats() {
           .from('plans')
           .select('*, employee:profiles!employee_id(*)')
           .eq('organization_id', profile.organization_id)
-          .gte('start_time', now.toISOString())
+          .gte('start_time', startOfToday)
           .order('start_time', { ascending: true })
           .limit(5)
 
@@ -50,7 +51,7 @@ export function useDashboardStats() {
           .from('calendar_events')
           .select('*')
           .eq('organization_id', profile.organization_id)
-          .gte('start_time', now.toISOString())
+          .gte('start_time', startOfToday)
           .order('start_time', { ascending: true })
           .limit(3)
 

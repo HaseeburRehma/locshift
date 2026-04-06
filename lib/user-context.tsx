@@ -3,7 +3,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import type { User, Session } from "@supabase/supabase-js";
 import type { Profile, UserRole } from "@/lib/types";
 
 interface UserContextType {
@@ -15,6 +15,7 @@ interface UserContextType {
   isEmployee: boolean;
   isLoading: boolean;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -110,9 +111,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   };
 
-  const rawRole = (profile?.role || "employee").toLowerCase();
-  const role: UserRole = (rawRole === "administrator" ? "admin" : rawRole) as UserRole;
-  
+  const refreshUser = async () => {
+    if (user) {
+      const p = await fetchProfile(supabase, user.id);
+      setProfile(p);
+    }
+  };
+
+  // Priority Mapping: Always prefer DB Profile role as the Source of Truth
+  const dbRole = (profile?.role || "employee").toLowerCase();
+  let role: UserRole = "employee";
+
+  if (dbRole === "administrator" || dbRole === "admin") role = "admin";
+  else if (dbRole === "dispatcher" || dbRole === "disponent") role = "dispatcher";
+  else role = "employee";
+
   const isAdmin = role === "admin";
   const isDispatcher = role === "dispatcher";
   const isEmployee = role === "employee";
@@ -127,7 +140,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         isDispatcher, 
         isEmployee, 
         isLoading, 
-        signOut 
+        signOut,
+        refreshUser 
       }}
     >
       {children}

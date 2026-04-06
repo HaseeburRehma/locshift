@@ -24,10 +24,10 @@ export function BottomNav() {
 
   const navItems = [
     { href: '/dashboard',          icon: Home,     label: 'Home' },
-    { href: '/dashboard/plans',    icon: FileText, label: 'Plans' },
-    { href: '/dashboard/times',    icon: Clock,    label: 'Times' },
+    { href: '/dashboard/live',     icon: Activity, label: 'Live' },
     { href: '/dashboard/chat',     icon: Send,     label: 'Chat' },
-    { href: '/dashboard/calendar', icon: Calendar, label: 'Calendar' },
+    { href: '/dashboard/calendar', icon: Calendar, label: 'Calender' },
+    { href: '/dashboard/settings', icon: Settings, label: 'Setting' },
   ]
 
   // Filter out 'Plans' or others if needed, but usually employees need them most on mobile

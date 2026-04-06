@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { PerDiem } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
@@ -19,7 +20,7 @@ export function usePerDiem() {
 
     let query = supabase
       .from('per_diems')
-      .select('*')
+      .select('*, plan:plans(*, customer:customers(*))')
       .eq('organization_id', profile.organization_id)
       .order('date', { ascending: false })
 
@@ -28,8 +29,12 @@ export function usePerDiem() {
     }
 
     const { data, error } = await query
-    if (!error) setPerDiems(data || [])
-    else console.error('[usePerDiem] Fetch error:', error)
+    if (!error) {
+      setPerDiems(data || [])
+    } else {
+      console.error('[usePerDiem] Detailed Fetch Error:', JSON.stringify(error, null, 2))
+      toast.error('Failed to sync per diem data. Please ensure the latest database migrations are applied.')
+    }
     setLoading(false)
   }, [profile, isAdmin, isDispatcher, supabase])
 
@@ -77,7 +82,8 @@ export function usePerDiem() {
       actionToasts.perDiemSubmitted()
       return true
     } catch (err: any) {
-      actionToasts.genericError(err.message)
+      console.error('[usePerDiem] Detailed Create Error:', err)
+      actionToasts.genericError(err.message || 'Failed to submit claim')
       return false
     }
   }

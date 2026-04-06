@@ -1,10 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ArrowLeft, ChevronRight, BarChart3, TrendingUp, TrendingDown, Calendar, Clock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { MonthlyTimeData } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -14,103 +11,112 @@ interface TimeAccountOverviewProps {
   data: MonthlyTimeData[]
   totalBalance: number
   totalOvertimePaid: number
+  employeeName?: string
 }
 
-export function TimeAccountOverview({ onBack, onMonthClick, data, totalBalance, totalOvertimePaid }: TimeAccountOverviewProps) {
+export function TimeAccountOverview({
+  onBack,
+  onMonthClick,
+  data,
+  totalBalance,
+  totalOvertimePaid,
+  employeeName,
+}: TimeAccountOverviewProps) {
   return (
-    <div className="flex flex-col h-full bg-slate-50/40 animate-in slide-in-from-right duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 md:px-8 border-b border-slate-100 sticky top-0 bg-white/80 backdrop-blur-md z-10">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-xl hover:bg-slate-50">
-            <ArrowLeft className="w-5 h-5 text-blue-600" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-slate-900 leading-none">Times Account</h1>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Operational Balance & History</p>
-          </div>
-        </div>
-        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50">
-          <Clock className="w-5 h-5 text-blue-600" />
-        </div>
+    <div className="flex flex-col min-h-full bg-white animate-in fade-in slide-in-from-right duration-300">
+
+      {/* ── iOS-style centred navigation header ── */}
+      <div className="relative flex items-center justify-center px-4 py-4 border-b border-slate-100 bg-white sticky top-0 z-50">
+        <button
+          onClick={onBack}
+          aria-label="Back"
+          className="absolute left-4 flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 active:scale-90 transition-all text-blue-600 shadow-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <h1 className="text-[17px] font-bold text-slate-900 tracking-tight">
+          {employeeName ? `${employeeName}` : 'Times Account'}
+        </h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 pb-32">
-        {/* High-level Summary Cards */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-6 rounded-2xl bg-white border border-slate-200/60 shadow-sm flex flex-col items-center justify-center text-center space-y-2 group hover:border-blue-200 transition-all">
-            <h3 className={cn(
-              "text-3xl font-black tracking-tighter tabular-nums leading-none",
-              totalBalance >= 0 ? "text-emerald-600" : "text-red-500"
+      {/* ── Content ── */}
+      <div className="flex-1 px-4 md:px-10 pt-8 pb-32 space-y-8">
+
+        {/* ── Top two balance cards ── */}
+        <div className="grid grid-cols-2 gap-4 md:gap-6">
+
+          {/* Hours Balance */}
+          <div className={cn(
+            'rounded-[2.5rem] border-[3px] p-6 md:p-8 flex flex-col items-center justify-center text-center space-y-1 md:space-y-2 transition-all shadow-xl',
+            totalBalance >= 0 ? 'border-blue-400 bg-white shadow-blue-100/50' : 'border-red-400 bg-white shadow-red-100/50'
+          )}>
+            <span className={cn(
+              'text-[32px] md:text-[48px] font-black tracking-tighter tabular-nums leading-none',
+              totalBalance >= 0 ? 'text-blue-600' : 'text-red-500'
             )}>
-              {totalBalance > 0 ? `+${totalBalance.toFixed(1)}` : totalBalance.toFixed(1)}
-              <span className="text-xs ml-0.5 opacity-60">h</span>
-            </h3>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">HOURS BALANCE</p>
+              {totalBalance > 0
+                ? `+${totalBalance.toFixed(1)}`
+                : totalBalance.toFixed(1)}
+            </span>
+            <p className="text-[11px] md:text-[13px] text-slate-400 font-bold uppercase tracking-[0.2em]">Hours Balance</p>
           </div>
-          <div className="p-6 rounded-2xl bg-white border border-slate-200/60 shadow-sm flex flex-col items-center justify-center text-center space-y-2 group hover:border-emerald-200 transition-all">
-            <h3 className="text-3xl font-black text-emerald-600 tracking-tighter tabular-nums leading-none">
+
+          {/* Overtime Paid */}
+          <div className="rounded-[2.5rem] border-[3px] border-emerald-400 bg-white p-6 md:p-8 flex flex-col items-center justify-center text-center space-y-1 md:space-y-2 transition-all shadow-xl shadow-emerald-100/50">
+            <span className="text-[32px] md:text-[48px] font-black tracking-tighter tabular-nums text-emerald-500 leading-none">
               {totalOvertimePaid.toFixed(1)}
-              <span className="text-xs ml-0.5 opacity-60">€</span>
-            </h3>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">PER DIEM CREDIT</p>
+            </span>
+            <p className="text-[11px] md:text-[13px] text-slate-400 font-bold uppercase tracking-[0.2em]">Overtime Paid</p>
           </div>
         </div>
 
-        {/* Monthly Performance List */}
-        <div className="space-y-4">
-          <h2 className="text-[10px] font-black text-slate-400 px-1 flex items-center gap-2 uppercase tracking-[0.2em]">
-             OPERATIONAL HISTORY
+        {/* ── Monthly Histoy Section ── */}
+        <div className="space-y-4 pt-4">
+          <h2 className="text-[14px] font-black text-slate-400 uppercase tracking-[0.3em] pl-2">
+             Operational History
           </h2>
-          <div className="space-y-3">
-            {data.map((month) => (
-              <Card 
+          {data.length === 0 && (
+            <div className="rounded-3xl bg-slate-50/50 border-2 border-dashed border-slate-200 p-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+              No Time Records Detected
+            </div>
+          )}
+
+          {data.map((month) => {
+            const label = new Date(month.year, month.month - 1).toLocaleDateString('en-US', {
+              month: 'long',
+              year: 'numeric',
+            })
+
+            return (
+              <button
                 key={month.key}
                 onClick={() => onMonthClick(month.key)}
-                className="p-5 border border-slate-200/60 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-200 transition-all active:scale-[0.98] cursor-pointer bg-white flex items-center justify-between group"
+                className="w-full text-left group bg-[#F2F4F8] rounded-2xl px-5 py-4.5 flex items-center justify-between hover:bg-blue-50 transition-all active:scale-[0.98] border border-transparent hover:border-blue-100"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-50 group-hover:bg-blue-50 transition-colors">
-                    <Calendar className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <h4 className="text-sm font-black text-slate-900 tracking-tight">
-                      {new Date(month.year, month.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                    </h4>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                      {month.workingDays} Active Shifts
-                    </p>
-                  </div>
+                <div className="space-y-1">
+                  <h4 className="text-[16px] font-bold text-slate-900 tracking-tight leading-none group-hover:text-blue-700 transition-colors">
+                    {label}
+                  </h4>
+                  <p className="text-[12px] font-semibold text-slate-500">
+                    {month.workingDays} working days
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <span className={cn(
-                      "text-[11px] font-black tabular-nums tracking-widest px-3 py-1.5 rounded-lg",
-                      month.difference >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-                    )}>
-                      {month.difference >= 0 ? `+${month.difference.toFixed(1)}H` : `${month.difference.toFixed(1)}H`}
-                    </span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-300" />
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={cn(
+                    "text-[14px] font-black tabular-nums tracking-tight",
+                    month.difference >= 0 ? "text-blue-600" : "text-red-500"
+                  )}>
+                    {month.difference >= 0
+                      ? `+${month.difference.toFixed(1)}hrs`
+                      : `${month.difference.toFixed(1)}hrs`}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
                 </div>
-              </Card>
-            ))}
-          </div>
+              </button>
+            )
+          })}
         </div>
-
-        {/* Insight Card */}
-        <Card className="p-6 rounded-2xl bg-slate-900 border-none relative overflow-hidden group shadow-xl">
-          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-transform duration-700">
-            <TrendingUp className="w-24 h-24 text-blue-500" />
-          </div>
-          <div className="relative z-10 space-y-3">
-            <h4 className="text-xs font-black text-blue-400 uppercase tracking-[0.2em] leading-none">Operational Insight</h4>
-            <p className="text-[11px] font-bold text-slate-400 leading-relaxed max-w-[85%]">
-              Maintaining a positive balance across multiple cycles qualifies your profile for specialized missions and quarterly incentives.
-            </p>
-          </div>
-        </Card>
       </div>
     </div>
   )

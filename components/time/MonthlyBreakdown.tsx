@@ -1,15 +1,17 @@
 'use client'
 
 import React from 'react'
-import { ArrowLeft, Calendar, FileText, ChevronRight, TrendingUp, Clock, Navigation } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { MonthlyTimeData, TimeEntry } from '@/lib/types'
+import { ArrowLeft } from 'lucide-react'
+import { MonthlyTimeData } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { format, startOfMonth, eachDayOfInterval, endOfMonth, isSameDay } from 'date-fns'
-import { de } from 'date-fns/locale'
-import { Progress } from '@/components/ui/progress'
+import {
+  format,
+  startOfMonth,
+  eachDayOfInterval,
+  endOfMonth,
+  isSameDay,
+  isWeekend,
+} from 'date-fns'
 
 interface MonthlyBreakdownProps {
   onBack: () => void
@@ -21,107 +23,153 @@ export function MonthlyBreakdown({ onBack, monthData }: MonthlyBreakdownProps) {
   const monthEnd = endOfMonth(monthStart)
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
+  const monthLabel = format(monthStart, 'MMMM yyyy')
+
+  // Paid overtime = sum of hours > 8 per worked day
+  const paidOvertimeHours = days.reduce((sum, day) => {
+    const entries = monthData.entries.filter(e =>
+      isSameDay(new Date(e.date), day)
+    )
+    const actual = entries.reduce((s, e) => s + (e.net_hours || 0), 0)
+    return sum + (actual > 8 ? actual - 8 : 0)
+  }, 0)
+
   return (
-    <div className="flex flex-col h-full bg-slate-50/40 animate-in slide-in-from-right duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 md:px-8 border-b border-slate-100 sticky top-0 bg-white/80 backdrop-blur-md z-10">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-xl hover:bg-slate-50">
-            <ArrowLeft className="w-5 h-5 text-blue-600" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-slate-900 leading-none">
-              {format(monthStart, 'MMMM yyyy', { locale: de })}
-            </h1>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Detailed Shift Breakdown</p>
+    <div className="flex flex-col min-h-full bg-white animate-in fade-in slide-in-from-right duration-300">
+
+      {/* ── iOS-style centred navigation header ── */}
+      <div className="relative flex items-center justify-center px-4 py-4 border-b border-slate-100 bg-white sticky top-0 z-50">
+        <button
+          onClick={onBack}
+          aria-label="Back"
+          className="absolute left-4 flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 active:scale-90 transition-all text-blue-600 shadow-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <h1 className="text-[17px] font-bold text-slate-900 tracking-tight">
+          {monthLabel}
+        </h1>
+      </div>
+
+      {/* ── Content ── */}
+      <div className="flex-1 px-4 md:px-10 pt-8 pb-32 space-y-10">
+
+        {/* ── Summary stats — plain rows with dividers ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 divide-y md:divide-y-0 divide-slate-100 px-2">
+          <div className="divide-y divide-slate-100">
+            <StatRow label="Scheduled Hours" value={`${monthData.scheduledHours.toFixed(1)} hrs`} />
+            <StatRow label="Actual Hours"    value={`${monthData.actualHours.toFixed(1)} hrs`} />
+          </div>
+          <div className="divide-y divide-slate-100">
+            <StatRow
+              label="Difference"
+              value={
+                monthData.difference >= 0
+                  ? `+${monthData.difference.toFixed(1)} hrs`
+                  : `${monthData.difference.toFixed(1)} hrs`
+              }
+              valueColor={monthData.difference >= 0 ? 'emerald' : 'red'}
+            />
+            <StatRow label="Paid Overtime" value={`${paidOvertimeHours.toFixed(1)} hrs`} />
           </div>
         </div>
-        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50">
-           <FileText className="w-5 h-5 text-blue-600" />
+
+        {/* ── Daily Breakdown heading ── */}
+        <div className="flex items-center justify-between px-2">
+            <h2 className="text-[24px] md:text-[32px] font-black text-slate-900 tracking-tight">
+            Daily Breakdown
+            </h2>
+            <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest hidden md:block">
+                Chronological Operational Log
+            </div>
+        </div>
+
+        {/* ── Day cards ── */}
+        <div className="space-y-3.5">
+          {days.map((day) => {
+            const entriesForDay = monthData.entries.filter(e =>
+              isSameDay(new Date(e.date), day)
+            )
+            const totalActual = entriesForDay.reduce(
+              (s, e) => s + (e.net_hours || 0),
+              0
+            )
+            const scheduled = isWeekend(day) ? 0 : 8.0
+            const diff = totalActual - scheduled
+            const dayLabel = format(day, 'EEE, MMM d')
+
+            // Diff display
+            let diffText = '0 hrs'
+            let diffColor = 'text-slate-400'
+            if (diff > 0) {
+              diffText = `+${diff.toFixed(1)} hrs`
+              diffColor = 'text-emerald-500'
+            } else if (diff < 0) {
+              diffText = `${diff.toFixed(1)} hrs`
+              diffColor = 'text-red-500'
+            }
+
+            return (
+              <div
+                key={day.toISOString()}
+                className="bg-[#F2F4F8] rounded-[24px] overflow-hidden border border-slate-100/50 shadow-sm"
+              >
+                {/* Day header row */}
+                <div className="flex items-center justify-between px-5 py-4">
+                  <span className="text-[16px] font-bold text-slate-900 tracking-tight">
+                    {dayLabel}
+                  </span>
+                  <span className={cn('text-[14px] font-black tabular-nums tracking-tight', diffColor)}>
+                    {diffText}
+                  </span>
+                </div>
+
+                {/* Scheduled + Actual sub-rows */}
+                <div className="grid grid-cols-1 divide-y divide-slate-200/40 border-t border-slate-200/40">
+                  <div className="flex items-center justify-between px-5 py-3 bg-white/60">
+                    <span className="text-[14px] font-medium text-slate-500">Scheduled</span>
+                    <span className="text-[14px] font-bold text-slate-800 tabular-nums">
+                      {scheduled.toFixed(1)} hrs
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-5 py-3 bg-white/60">
+                    <span className="text-[14px] font-medium text-slate-500">Actual</span>
+                    <span className="text-[14px] font-bold text-slate-800 tabular-nums">
+                      {totalActual.toFixed(1)} hrs
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 pb-32">
-        {/* Monthly Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatBox label="Scheduled" value={`${monthData.scheduledHours.toFixed(1)}h`} />
-          <StatBox label="Actual" value={`${monthData.actualHours.toFixed(1)}h`} />
-          <StatBox 
-             label="Balance" 
-             value={`${monthData.difference >= 0 ? '+' : ''}${monthData.difference.toFixed(1)}h`} 
-             color={monthData.difference >= 0 ? 'emerald' : 'red'}
-          />
-          <StatBox label="Overtime" value="2.0h" />
-        </div>
-
-        {/* Daily Breakdown List */}
-        <div className="space-y-6">
-          <h2 className="text-[10px] font-black text-slate-400 px-1 flex items-center gap-2 uppercase tracking-[0.2em]">
-             DAILY PERFORMANCE BREAKDOWN
-          </h2>
-          <div className="space-y-3">
-            {days.map((day) => {
-              const entriesForDay = monthData.entries.filter(e => isSameDay(new Date(e.date), day))
-              const totalActual = entriesForDay.reduce((sum, e) => sum + (e.net_hours || 0), 0)
-              const scheduled = 8.0 
-              const diff = totalActual - scheduled
-              const hasWorked = totalActual > 0
-              const progressProgress = (totalActual / 12) * 100
-
-              return (
-                <Card key={day.toISOString()} className="p-5 border border-slate-200/60 rounded-2xl bg-white shadow-sm hover:border-blue-200 transition-all">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                       <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-50">
-                          <Calendar className="w-4 h-4 text-slate-400" />
-                       </div>
-                       <span className="text-sm font-black text-slate-900 tracking-tight">
-                         {format(day, 'eeee, d. MMM', { locale: de })}
-                       </span>
-                    </div>
-                    {hasWorked && (
-                      <Badge variant="outline" className={cn(
-                        "font-black text-[9px] uppercase tracking-widest px-3 py-1 rounded-lg border-none",
-                        diff >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600"
-                      )}>
-                        {diff >= 0 ? `+${diff.toFixed(1)}H` : `${diff.toFixed(1)}H`}
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <Progress value={progressProgress} className="h-1.5 rounded-full bg-slate-100" indicatorClassName={hasWorked ? "bg-blue-600" : "bg-slate-200"} />
-                    <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">
-                       <div className="flex items-center gap-2">
-                          <Clock className="w-3 h-3" /> Scheduled: {scheduled.toFixed(1)}h
-                       </div>
-                       <div className={cn("flex items-center gap-2", hasWorked ? "text-blue-600" : "")}>
-                          Actual: {totalActual.toFixed(1)}h
-                       </div>
-                    </div>
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
 
-function StatBox({ label, value, color = 'blue' }: { label: string, value: string, color?: 'blue' | 'emerald' | 'red' }) {
-  const themes = {
-    blue: "text-blue-600",
-    emerald: "text-emerald-600",
-    red: "text-red-500"
+/* ── stat row helper ── */
+function StatRow({
+  label,
+  value,
+  valueColor = 'default',
+}: {
+  label: string
+  value: string
+  valueColor?: 'emerald' | 'red' | 'default'
+}) {
+  const colorMap = {
+    emerald: 'text-emerald-500',
+    red: 'text-red-500',
+    default: 'text-slate-900',
   }
   return (
-    <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-sm flex flex-col items-center justify-center text-center space-y-1">
-      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{label}</p>
-      <h3 className={cn("text-xl font-black tracking-tighter tabular-nums leading-none", themes[color])}>
+    <div className="flex items-center justify-between py-3.5">
+      <span className="text-[15px] text-slate-500">{label}</span>
+      <span className={cn('text-[15px] font-semibold tabular-nums', colorMap[valueColor])}>
         {value}
-      </h3>
+      </span>
     </div>
   )
 }

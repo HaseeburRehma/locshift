@@ -41,9 +41,9 @@ export function useOrganizationTimeAccounts() {
     }
 
     // 3. Map to TimeAccount interface
-    const calculatedAccounts: TimeAccount[] = employees.map(emp => {
-      const empEntries = entries?.filter(e => e.employee_id === emp.id) || []
-      const actual_hours = empEntries.reduce((sum, e) => sum + (e.net_hours || 0), 0)
+    const calculatedAccounts: TimeAccount[] = (employees as { id: string; full_name: string | null; target_hours: number }[]).map(emp => {
+      const empEntries = (entries ?? []).filter((e: { employee_id: string; net_hours: number | null }) => e.employee_id === emp.id)
+      const actual_hours = empEntries.reduce((sum: number, e: { net_hours: number | null }) => sum + (e.net_hours || 0), 0)
       
       // Simple balance calculation for the overview (Actual - Target)
       // Note: In a production system, target would be calculated per month/year

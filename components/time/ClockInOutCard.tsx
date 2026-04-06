@@ -77,8 +77,8 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
             </span>
             <div className="flex items-baseline gap-3">
               <span className={cn(
-                "font-black tracking-tighter tabular-nums leading-none text-2xl md:text-4xl",
-                activeEntry ? "text-white" : "text-slate-900"
+                "font-serif italic tracking-tight tabular-nums leading-none text-4xl md:text-5xl drop-shadow-sm",
+                activeEntry ? "text-white" : "text-blue-600"
               )}>
                 {formatTime(isOnBreak ? breakSeconds : elapsedSeconds)}
               </span>

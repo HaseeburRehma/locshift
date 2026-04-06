@@ -64,8 +64,8 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Platform Command</span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
-            Operational Overview
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-none">
+            Operational <span className="italic font-serif text-blue-600">Overview</span>
           </h2>
         </div>
         <div className="flex gap-3">
@@ -80,7 +80,7 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Active Personnel" value={stats.activeEmployees?.toString() || '0'} icon={Users} color="blue" />
+        <StatCard title="Active Employees" value={stats.activeEmployees?.toString() || '0'} icon={Users} color="blue" />
         <StatCard title="Open Missions" value={stats.openPlans?.toString() || '0'} icon={NavIcon} color="orange" />
         <StatCard title="Tracked Hours" value={`${stats.totalHours}h`} icon={Clock} color="emerald" />
         <StatCard title="Notifications" value={stats.unreadChats?.toString() || '0'} icon={Bell} color="primary" />
@@ -88,6 +88,9 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
+          {/* TIME SHIFT MODULE (ADMIN & DISPATCHER) */}
+          <ClockInOutCard />
+
           {/* LIVE OPERATIONS MONITOR */}
           <ActiveShiftsDashboard />
 
@@ -142,16 +145,19 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
                 <Calendar className="w-4 h-4" />
               </h3>
               <div className="space-y-6">
-                 {(stats.upcomingEvents || []).length > 0 ? (
-                   stats.upcomingEvents.map((event: any) => (
-                     <div key={event.id} className="flex gap-4 group cursor-pointer">
-                       <div className="w-10 h-10 rounded-xl bg-slate-50 flex flex-col items-center justify-center shrink-0 border border-slate-100">
-                         <span className="text-[14px] font-black leading-none">{new Date(event.start_time).getDate()}</span>
-                         <span className="text-[8px] font-black uppercase opacity-40">{format(new Date(event.start_time), 'MMM')}</span>
+                 {(stats.upcomingEvents?.length > 0 || stats.upcomingShifts?.length > 0) ? (
+                   [...(stats.upcomingEvents || []), ...(stats.upcomingShifts || [])]
+                     .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+                     .slice(0, 3)
+                     .map((event: any) => (
+                     <div key={event.id} className="flex gap-4 group cursor-pointer bg-white hover:bg-blue-50 p-2 -mx-2 rounded-xl transition-all">
+                       <div className="w-10 h-10 rounded-xl bg-slate-50 flex flex-col items-center justify-center shrink-0 border border-slate-100 group-hover:border-blue-200 group-hover:bg-blue-100 transition-colors">
+                         <span className="text-[14px] font-black leading-none group-hover:text-blue-700">{new Date(event.start_time).getDate()}</span>
+                         <span className="text-[8px] font-black uppercase opacity-40 group-hover:text-blue-700">{format(new Date(event.start_time), 'MMM')}</span>
                        </div>
-                       <div className="space-y-0.5">
-                         <p className="text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">{event.title}</p>
-                         <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase">
+                       <div className="space-y-0.5 mt-0.5">
+                         <p className="text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-blue-700 transition-colors">{event.title || event.route || 'Scheduled Mission'}</p>
+                         <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase group-hover:text-blue-500 transition-colors">
                            <Clock className="w-3 h-3" />
                            {format(new Date(event.start_time), 'HH:mm')}
                          </div>
@@ -159,9 +165,9 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
                      </div>
                    ))
                  ) : (
-                   <div className="py-6 text-center text-[10px] text-slate-300 font-black uppercase tracking-widest border border-dashed border-slate-100 rounded-xl">Clear Schedule</div>
+                   <div className="py-6 text-center text-[10px] text-slate-500 font-black uppercase tracking-widest border border-dashed border-slate-200 rounded-xl bg-slate-50/50">No Upcoming Events</div>
                  )}
-                 <Button variant="outline" onClick={() => window.location.href = '/dashboard/calendar'} className="w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 border-slate-200 mt-4">
+                 <Button variant="outline" onClick={() => window.location.href = '/dashboard/calendar'} className="w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-black hover:bg-slate-100 border-slate-200 mt-4 transition-colors">
                     Open Calendar
                  </Button>
               </div>
@@ -224,9 +230,12 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
         <div className="px-4 md:px-0 flex flex-col md:flex-row md:items-end justify-between gap-4">
            <div className="space-y-1">
               <span className="text-[10px] font-black uppercase text-blue-600 tracking-[0.2em]">MISSION DASHBOARD</span>
-              <h2 className="text-3xl font-black text-slate-900 leading-none">
-                {locale === 'en' ? `Welcome, ${profile.full_name?.split(' ')[0]}` : `Willkommen, ${profile.full_name?.split(' ')[0]}`}
-              </h2>
+               <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-none">
+                 {locale === 'en' ? 'Welcome, ' : 'Willkommen, '}
+                 <span className="italic font-serif text-blue-600">
+                    {profile.full_name?.split(' ')[0]}
+                 </span>
+               </h2>
            </div>
            <Badge variant="outline" className="w-fit bg-white border-slate-200 text-slate-400 font-bold text-[9px] uppercase tracking-[0.2em] px-4 py-1.5 rounded-full">
              Level 1 Specialist
@@ -287,7 +296,7 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
                     </div>
                     <div className="space-y-3">
                        <div className="flex items-baseline gap-2">
-                          <span className="text-3xl font-black text-slate-900 tabular-nums leading-none">{stats.weeklyHours.toFixed(1)}h</span>
+                          <span className="text-4xl font-serif italic text-blue-600 tabular-nums leading-none tracking-tight">{stats.weeklyHours.toFixed(1)}h</span>
                           <span className="text-xs font-bold text-slate-400">/ {stats.targetWeeklyHours}h Goal</span>
                        </div>
                        <Progress value={weeklyProgress} className="h-1.5 rounded-full bg-slate-100" indicatorClassName="bg-emerald-500" />
@@ -366,7 +375,7 @@ function StatCard({ title, value, icon: Icon, color = "primary" }: any) {
         </div>
         <div>
           <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">{title}</p>
-          <p className="text-2xl font-black text-slate-900 tracking-tighter leading-none tabular-nums">{value}</p>
+          <p className="text-3xl font-serif italic tracking-tight leading-none tabular-nums text-slate-900">{value}</p>
         </div>
       </div>
     </Card>
@@ -380,7 +389,7 @@ function StatCardSmall({ icon, label, value, color = "blue" }: any) {
         {icon}
       </div>
       <div>
-        <p className="text-[20px] font-black text-slate-900 tracking-tighter leading-none tabular-nums mb-1">{value}</p>
+        <p className="text-2xl font-serif italic text-slate-900 tracking-tight leading-none tabular-nums mb-1">{value}</p>
         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
       </div>
     </Card>

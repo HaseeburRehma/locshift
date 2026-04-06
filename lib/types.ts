@@ -157,7 +157,15 @@ export interface PerDiem {
   id: string
   organization_id: string
   employee_id: string
+  plan_id?: string | null          // Linked mission plan
   date: string
+  task: string | null
+  start_date: string | null
+  end_date: string | null
+  num_days: number
+  rate: number
+  hourly_rate?: number             // New: hourly charge rate
+  working_hours?: number           // New: hours worked
   departure_time: string | null
   return_time: string | null
   country: string
@@ -166,6 +174,8 @@ export interface PerDiem {
   notes: string | null
   created_at: string
   updated_at: string
+  // Joined fields
+  plan?: Plan
 }
 
 export interface HolidayBonus {

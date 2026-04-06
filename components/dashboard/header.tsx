@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Bell, Settings, LogOut, User, Globe, Menu, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { NotificationPanel } from '@/components/notifications/NotificationPanel'
 import {
@@ -122,6 +122,7 @@ export function DashboardHeader() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-3 p-1 rounded-2xl md:rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 group">
                   <Avatar className="h-10 w-10 rounded-xl shadow-sm transition-transform active:scale-95 group-hover:scale-105 border border-white">
+                    <AvatarImage src={profile?.avatar_url || ''} />
                     <AvatarFallback className="bg-blue-600 text-white text-xs font-black">
                       {initials}
                     </AvatarFallback>
@@ -138,8 +139,12 @@ export function DashboardHeader() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 rounded-[1.5rem] border-slate-100 shadow-2xl p-2 animate-in fade-in slide-in-from-top-2 duration-300">
                 <DropdownMenuLabel className="flex items-center gap-4 p-4">
-                  <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center shadow-inner">
-                    <User className="h-5 w-5 text-blue-600" />
+                  <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center shadow-inner overflow-hidden border border-blue-100">
+                    {profile?.avatar_url ? (
+                       <Image src={profile.avatar_url} alt="Profile" width={44} height={44} className="w-full h-full object-cover" />
+                    ) : (
+                       <User className="h-5 w-5 text-blue-600" />
+                    )}
                   </div>
                   <div className="flex flex-col">
                     <span className="font-bold text-slate-900 leading-none mb-1">{profile?.full_name ?? 'User'}</span>
