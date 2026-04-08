@@ -71,84 +71,55 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // 6. Role Discovery & Security Hardening
-  let role = (user.user_metadata?.role || '').toLowerCase()
-  // Always fetch onboarding_completed from the DB (source of truth).
-  // Auth metadata may not have this field set if the user registered before
-  // the flag was introduced, causing a redirect loop to /onboarding.
-  let onboardingCompleted = false
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, onboarding_completed')
-    .eq('id', user.id)
-    .single()
-
-  if (profile) {
-    // Standardize DB Role as primary authoritative source (SoT)
-    const dbRole = (profile.role || '').toLowerCase()
-    
-    if (dbRole === 'administrator' || dbRole === 'admin') role = 'admin'
-    else if (dbRole === 'dispatcher' || dbRole === 'disponent') role = 'dispatcher'
-    else if (dbRole === 'employee') role = 'employee'
-    else role = 'employee' // default fallback
-
-    onboardingCompleted = profile.onboarding_completed ?? false
-  } else if (!role) {
-    role = 'employee' // Fallback for new/unprovisioned users
-  }
-
-  // Standardize roles ('admin', 'dispatcher', 'employee')
-  if (role === 'administrator' || role === 'admin') role = 'admin'
-  if (role === 'disponent') role = 'dispatcher'
-  if (!role) role = 'employee'
-
-  // A. Onboarding Guard (Force ONLY Employees to complete - Section 4.3)
-  const isOnboardingRoute = pathname === '/onboarding'
-  // Admins and dispatchers NEVER need onboarding, regardless of the DB flag.
-  // Employees need it only if it hasn't been completed yet.
-  const needsOnboarding = role === 'employee' && onboardingCompleted === false
-  
-  if (needsOnboarding && !isOnboardingRoute && !pathname.startsWith('/auth/')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/onboarding'
-    const redirectResponse = NextResponse.redirect(url)
-    // IMPORTANT: Pass along the cookies from the Supabase client response
-    response.cookies.getAll().forEach(cookie => {
-      redirectResponse.cookies.set(cookie.name, cookie.value)
-    })
-    return redirectResponse
-  }
-
-  // B. Case: Non-employees on onboarding page should go to dashboard
-  if (isOnboardingRoute && role !== 'employee') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    const redirectResponse = NextResponse.redirect(url)
-    response.cookies.getAll().forEach(cookie => {
-      redirectResponse.cookies.set(cookie.name, cookie.value)
-    })
-    return redirectResponse
-  }
-
-  // C. Case: Onboarding completed employees on onboarding page should go to dashboard
-  if (isOnboardingRoute && role === 'employee' && onboardingCompleted) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    const redirectResponse = NextResponse.redirect(url)
-    response.cookies.getAll().forEach(cookie => {
-      redirectResponse.cookies.set(cookie.name, cookie.value)
-    })
-    return redirectResponse
-  }
-
-  // D. Strict RBAC Enforcement (Dashboard Routes)
+  // 6. RBAC & Onboarding Guard (Only for Dashboard/Onboarding routes)
   const isDashboardRoute = pathname.startsWith('/dashboard')
-  if (isDashboardRoute) {
-    for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
-      if (pathname.startsWith(route)) {
-        if (!allowedRoles.includes(role)) {
-          console.warn(`[Middleware] Unauthorized access attempt: ${role} -> ${pathname}`)
+  const isOnboardingRoute = pathname === '/onboarding'
+
+  if (isDashboardRoute || isOnboardingRoute) {
+    // Optimization: Only fetch profile if we are in the dashboard/onboarding silo
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, onboarding_completed')
+      .eq('id', user.id)
+      .single()
+
+    // Default role logic
+    let role = (profile?.role || user.user_metadata?.role || 'employee').toLowerCase()
+    if (role === 'administrator') role = 'admin'
+    if (role === 'disponent') role = 'dispatcher'
+    if (!['admin', 'dispatcher', 'employee'].includes(role)) role = 'employee'
+
+    const onboardingCompleted = profile?.onboarding_completed ?? false
+    
+    // A. Onboarding Guard (Force ONLY Employees to complete)
+    const needsOnboarding = role === 'employee' && !onboardingCompleted
+    
+    if (needsOnboarding && !isOnboardingRoute && !pathname.startsWith('/auth/')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding'
+      const redirectResponse = NextResponse.redirect(url)
+      response.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      })
+      return redirectResponse
+    }
+
+    // B. Case: Non-employees or completed employees on onboarding page -> Dashboard
+    if (isOnboardingRoute && (role !== 'employee' || onboardingCompleted)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      const redirectResponse = NextResponse.redirect(url)
+      response.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      })
+      return redirectResponse
+    }
+
+    // C. Strict RBAC Enforcement
+    if (isDashboardRoute) {
+      for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
+        if (pathname.startsWith(route) && !allowedRoles.includes(role)) {
+          console.warn(`[Middleware] Unauthorized: ${role} -> ${pathname}`)
           const url = request.nextUrl.clone()
           url.pathname = '/dashboard'
           return NextResponse.redirect(url)

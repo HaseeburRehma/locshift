@@ -99,6 +99,26 @@ export function useTimeTracking() {
   const clockIn = async (planId?: string, location?: string) => {
     if (!user || !profile?.organization_id) return
 
+    let latitude: number | null = null
+    let longitude: number | null = null
+
+    // Try to get geolocation
+    try {
+      if (typeof window !== 'undefined' && navigator.geolocation) {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+          })
+        })
+        latitude = position.coords.latitude
+        longitude = position.coords.longitude
+      }
+    } catch (err) {
+      console.warn('[useTimeTracking] Geolocation error or denied:', err)
+    }
+
     const now = new Date().toISOString()
     const { data, error } = await supabase
       .from('time_entries')
@@ -107,6 +127,8 @@ export function useTimeTracking() {
         employee_id: user.id,
         plan_id: planId || null,
         location: location || null,
+        latitude,
+        longitude,
         start_time: now,
         date: now.split('T')[0],
         is_on_break: false,
@@ -118,6 +140,18 @@ export function useTimeTracking() {
     if (error) {
       toast.error('Failed to start shift')
       return null
+    }
+
+    // Update profile last known location
+    if (latitude && longitude) {
+      await supabase
+        .from('profiles')
+        .update({
+          last_lat: latitude,
+          last_lng: longitude,
+          last_location_update: now
+        })
+        .eq('id', user.id)
     }
 
     setActiveEntry(data)

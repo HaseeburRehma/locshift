@@ -15,17 +15,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
 
   useEffect(() => {
+    // Top-level Auth Guarding is handled by middleware.ts (Server-side).
+    // Client-side redirection here can cause infinite loops during initial state sync.
+    // We only handle the functional onboarding transition for employees.
     if (!isLoading && user && profile) {
-      // Synchronize with middleware: Only 'employee' role is forced through onboarding walkthrough.
-      // Admins and Dispatchers bypass directly to the Operations Console.
       const isEmployee = profile.role === 'employee'
       const needsOnboarding = profile.onboarding_completed === false && isEmployee
       
       if (needsOnboarding) {
         router.replace('/onboarding')
       }
-    } else if (!isLoading && !user) {
-      router.replace('/login')
     }
   }, [user, profile, isLoading, router])
 

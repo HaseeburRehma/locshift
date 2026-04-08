@@ -45,50 +45,39 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
 
   return (
     <div className={cn(
-      "relative overflow-hidden transition-all duration-500",
-      "border border-slate-200/60 bg-white shadow-sm rounded-2xl p-4 md:px-8",
-      activeEntry && (isOnBreak ? "bg-amber-500 border-amber-400 shadow-xl shadow-amber-200/50" : "bg-blue-600 border-blue-500 shadow-xl shadow-blue-200/50"),
+      "relative overflow-hidden transition-all duration-700 rounded-2xl",
+      activeEntry 
+        ? "bg-[#2563EB] shadow-lg p-4 md:py-4 md:px-6 text-white border-none" 
+        : "bg-white border border-slate-100 shadow-sm p-4 md:p-5",
       className
     )}>
-      {/* Real-time Indicator Dot */}
-      {activeEntry && (
-        <div className="absolute top-2 right-2 flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full backdrop-blur-sm">
-           <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isOnBreak ? "bg-amber-100" : "bg-emerald-300")} />
-           <span className="text-[9px] font-black text-white uppercase tracking-widest leading-none">LIVE SYNC</span>
-        </div>
-      )}
-
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        {/* Status indicator & Time */}
-        <div className="flex items-center gap-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
           <div className={cn(
-            "w-12 h-12 rounded-xl flex items-center justify-center transition-all",
-            activeEntry ? "bg-white/20" : "bg-blue-50 text-blue-600"
+            "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+            activeEntry ? "bg-white/10" : "bg-blue-50 text-blue-600"
           )}>
-            {isOnBreak ? <Coffee className="w-6 h-6 animate-pulse" /> : <Clock className={cn("w-6 h-6", isWorking && "animate-pulse")} />}
+            <Clock className={cn("w-5 h-5", activeEntry && !activeEntry.is_on_break && "animate-pulse")} />
           </div>
           
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col">
             <span className={cn(
-              "text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-80",
+              "text-[9px] font-black uppercase tracking-[0.2em] leading-none opacity-60 mb-1",
               activeEntry ? "text-white" : "text-slate-400"
             )}>
-              {isOnBreak ? 'Pause session active' : (isWorking ? 'Current mission mission' : 'Operations Ready')}
+              {activeEntry ? 'Mission Active' : 'System Ready'}
             </span>
-            <div className="flex items-baseline gap-3">
+            <div className="flex items-center gap-3">
               <span className={cn(
-                "font-serif italic tracking-tight tabular-nums leading-none text-4xl md:text-5xl drop-shadow-sm",
+                "font-bold tracking-tight tabular-nums leading-none text-2xl md:text-3xl italic",
                 activeEntry ? "text-white" : "text-blue-600"
               )}>
                 {formatTime(isOnBreak ? breakSeconds : elapsedSeconds)}
               </span>
               {activeEntry && (
-                <div className="flex flex-col">
-                   <span className="text-[10px] font-black uppercase tracking-widest text-white/60 leading-none mb-1">
+                <div className="hidden lg:flex flex-col border-l border-white/20 pl-3 py-1">
+                   <span className="text-[10px] font-black uppercase tracking-widest leading-none text-white whitespace-nowrap">
                       {activePlan?.route || 'Standard Protocol'}
-                   </span>
-                   <span className="text-[8px] font-black text-white/40 uppercase tracking-tighter flex items-center gap-1">
-                      <Zap className="w-2.5 h-2.5" /> Synchronized
                    </span>
                 </div>
               )}
@@ -97,48 +86,51 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
            {!activeEntry ? (
-              <div className="flex flex-1 md:flex-none items-center gap-2">
-                 {todayPlans.length > 0 && (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                 {todayPlans.length > 0 && !compact && (
                     <Select onValueChange={setSelectedPlanId} value={selectedPlanId}>
-                      <SelectTrigger className="h-11 w-48 rounded-xl border-slate-100 bg-slate-50 font-bold text-[11px] uppercase tracking-wider hidden md:flex">
-                        <SelectValue placeholder="Daily Assignment" />
+                      <SelectTrigger className="h-10 w-40 rounded-xl border-slate-100 bg-slate-50 font-bold text-[10px] uppercase tracking-wider hidden md:flex">
+                        <SelectValue placeholder="Protocol" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
                         {todayPlans.map(plan => (
-                          <SelectItem key={plan.id} value={plan.id} className="font-bold py-2">
-                            {plan.route || 'Mission Protocol'}
+                          <SelectItem key={plan.id} value={plan.id} className="font-bold py-2 text-xs">
+                            {plan.route || 'General Mission'}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                  )}
                  <Button 
-                    onClick={() => clockIn(selectedPlanId)}
-                    className="h-12 flex-1 md:flex-none px-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[11px] tracking-widest transition-all active:scale-95 shadow-md shadow-blue-100"
+                    onClick={() => clockIn(selectedPlanId || todayPlans[0]?.id)}
+                    className="h-10 px-6 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 shadow-md flex-1 sm:flex-none"
                  >
-                    <Play className="w-4 h-4 mr-2" />
+                    <Play className="w-3.5 h-3.5 mr-2 fill-current" />
                     Begin Shift
                  </Button>
               </div>
            ) : (
-              <div className="flex flex-1 md:flex-none items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                  <Button 
                     onClick={isOnBreak ? endBreak : startBreak}
+                    variant="outline"
                     className={cn(
-                      "h-12 flex-1 md:px-8 rounded-xl font-black uppercase text-[11px] tracking-widest transition-all shadow-sm",
-                      isOnBreak ? "bg-white text-amber-600 hover:bg-slate-50" : "bg-white/20 text-white hover:bg-white/30"
+                      "h-10 flex-1 sm:px-6 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border-none",
+                      isOnBreak 
+                        ? "bg-white text-blue-600 hover:bg-slate-50" 
+                        : "bg-white/10 text-white hover:bg-white/20"
                     )}
                  >
-                    {isOnBreak ? <Play className="w-4 h-4 mr-2" /> : <Coffee className="w-4 h-4 mr-2" />}
+                    {isOnBreak ? <Play className="w-3.5 h-3.5 mr-2" /> : <Coffee className="w-3.5 h-3.5 mr-2" />}
                     {isOnBreak ? 'Resume' : 'Pause'}
                  </Button>
                  <Button 
                     onClick={() => clockOut()}
-                    className="h-12 flex-1 md:px-8 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black uppercase text-[11px] tracking-widest transition-all shadow-md active:scale-95"
+                    className="h-10 flex-1 sm:px-6 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 border-none"
                  >
-                    <Square className="w-4 h-4 mr-2" />
+                    <Square className="w-3.5 h-3.5 mr-2 fill-current" />
                     End
                  </Button>
               </div>

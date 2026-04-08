@@ -69,12 +69,27 @@ export function TimeEntryDetails({ entry, onBack, onEdit }: TimeEntryDetailsProp
             <DetailItem 
               icon={<User className="w-5 h-5 text-blue-600" />} 
               label="Customer / Project" 
-              value={entry.customer?.name || 'Base Operation'} 
+              value={entry.customer?.name || entry.plan?.customer?.name || 'Base Operation'} 
             />
             <DetailItem 
               icon={<MapPin className="w-5 h-5 text-blue-600" />} 
               label="Assigned Location" 
-              value={entry.location || 'Fleet Default'} 
+              value={
+                <div>
+                  <span className="block">{entry.location || entry.plan?.location || 'Fleet Default'}</span>
+                  {entry.latitude && entry.longitude && (
+                    <a 
+                      href={`https://www.google.com/maps?q=${entry.latitude},${entry.longitude}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline flex items-center gap-1 mt-1 font-bold"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <MapPin className="w-3 h-3" /> Mission Coordinates
+                    </a>
+                  )}
+                </div> as any
+              } 
             />
             {entry.is_verified && (
               <DetailItem 
@@ -105,16 +120,16 @@ export function TimeEntryDetails({ entry, onBack, onEdit }: TimeEntryDetailsProp
   )
 }
 
-function DetailItem({ icon, label, value }: { icon: React.ReactNode, label: string, value: string }) {
+function DetailItem({ icon, label, value }: { icon: React.ReactNode, label: string, value: string | React.ReactNode }) {
   return (
     <div className="flex items-center justify-between p-4 rounded-3xl bg-white border border-gray-50 shadow-sm">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center min-w-[40px]">
           {icon}
         </div>
         <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{label}</span>
       </div>
-      <span className="text-sm font-black text-gray-900">{value}</span>
+      <div className="text-sm font-black text-gray-900 text-right">{value}</div>
     </div>
   )
 }

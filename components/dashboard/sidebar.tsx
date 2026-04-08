@@ -79,15 +79,15 @@ export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?:
                             <Button
                                 variant="ghost"
                                 className={cn(
-                                    'w-full justify-start gap-4 h-12 mb-1 rounded-xl transition-all duration-300 font-bold border border-transparent',
-                                    isActive ? 'bg-blue-50 text-blue-600 border-blue-100 shadow-sm' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900',
+                                    'w-full justify-start gap-4 h-12 mb-1.5 rounded-xl transition-all duration-300 font-bold border border-transparent px-4',
+                                    isActive ? 'bg-[#F0F7FF] text-blue-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900',
                                     collapsed && 'px-0 justify-center'
                                 )}
                             >
                                 <Icon className={cn('h-5 w-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110', isActive ? 'text-blue-600' : 'text-slate-400')} />
                                 {!collapsed && <span className="text-[13px] tracking-tight">{item.label}</span>}
                                 {isActive && !collapsed && (
-                                    <div className="ml-auto h-1.5 w-1.5 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
+                                    <div className="ml-auto h-2 w-2 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]" />
                                 )}
                             </Button>
                         </Link>

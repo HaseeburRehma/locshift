@@ -104,6 +104,18 @@ export function DashboardHeader() {
               priority 
             />
           </div>
+
+          {/* Desktop Search Bar */}
+          <div className="hidden md:flex flex-1 max-w-md ml-4 lg:ml-8 relative group">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
+            <input 
+              type="text"
+              placeholder="Search here..."
+              className="w-full h-11 bg-slate-50 border-none rounded-xl pl-11 pr-4 text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-100/50 transition-all outline-none"
+            />
+          </div>
         </div>
 
         <div className="flex items-center gap-4">

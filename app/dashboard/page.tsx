@@ -18,8 +18,10 @@ import {
   MapPin,
   Navigation as NavIcon,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  Play
 } from 'lucide-react'
+import { useTimeTracking } from '@/hooks/useTimeTracking'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useUser } from '@/lib/user-context'
 import Link from 'next/link'
@@ -32,6 +34,7 @@ import { ActiveShiftsDashboard } from '@/components/time/ActiveShiftsDashboard'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { Progress } from '@/components/ui/progress'
+import LiveOperationsMap from '@/components/dashboard/LiveOperationsMap'
 
 export default function DashboardPage() {
   const { profile, isAdmin, isDispatcher } = useUser()
@@ -50,311 +53,398 @@ export default function DashboardPage() {
 function AdminDashboard({ profile, locale, stats, loading }: { profile: any, locale: string, stats: any, loading: boolean }) {
   if (loading || !stats) {
     return (
-      <div className="space-y-8 animate-pulse p-4 md:p-8">
+      <div className="space-y-8 animate-pulse p-6">
         <div className="h-10 w-64 bg-slate-100 rounded-xl" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-slate-50 rounded-2xl" />)}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-slate-50 rounded-2xl" />)}
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 p-4 md:p-8 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Platform Command</span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-none">
-            Operational <span className="italic font-serif text-blue-600">Overview</span>
-          </h2>
-        </div>
-        <div className="flex gap-3">
-          <Button
-            className="h-11 rounded-xl px-6 font-black uppercase text-[11px] tracking-widest shadow-md shadow-blue-100 bg-blue-600 hover:bg-blue-700 gap-2"
-            onClick={() => window.location.href = '/dashboard/plans/new'}
-          >
-            <Plus className="w-4 h-4" />
-            Create Plan
-          </Button>
+    <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-700">
+      {/* Header Section */}
+      <div className="space-y-1">
+        <h1 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none">Dashboard</h1>
+        <p className="text-slate-400 text-sm font-medium">Welcome back, {profile.full_name?.split(' ')[0]}! Here&apos;s your overview for today.</p>
+      </div>
+
+      {/* Operations Bar (Unified Clock) */}
+      <ClockInOutCard />
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatItem label="Active Employees" value={stats.activeEmployees || 0} />
+        <StatItem label="Pending Plans" value={stats.openPlans || 0} />
+        <StatItem label="Hours This Week" value={`${stats.totalHours || 0}h`} />
+        <StatItem label="Today's Shifts" value={stats.activeShiftsCount || 0} />
+      </div>
+
+      {/* Quick Actions */}
+      <div className="space-y-6">
+        <h3 className="text-sm font-bold text-slate-900 tracking-tight">Quick Actions</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          <QuickActionItem 
+            icon={<Clock className="w-8 h-8" />} 
+            label="Add Time Entry" 
+            href="/dashboard/times"
+            color="bg-blue-50 text-blue-600"
+          />
+          <QuickActionItem 
+            icon={<Calendar className="w-8 h-8" />} 
+            label="Create Plan" 
+            href="/dashboard/plans/new"
+            color="bg-indigo-50 text-indigo-600"
+          />
+          <QuickActionItem 
+            icon={<ArrowUpRight className="w-8 h-8" />} 
+            label="Generate Report" 
+            href="/dashboard/reports"
+            color="bg-sky-50 text-sky-600"
+          />
+          <QuickActionItem 
+            icon={<Users className="w-8 h-8" />} 
+            label="Add User" 
+            href="/dashboard/users"
+            color="bg-cyan-50 text-cyan-600"
+          />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Active Employees" value={stats.activeEmployees?.toString() || '0'} icon={Users} color="blue" />
-        <StatCard title="Open Missions" value={stats.openPlans?.toString() || '0'} icon={NavIcon} color="orange" />
-        <StatCard title="Tracked Hours" value={`${stats.totalHours}h`} icon={Clock} color="emerald" />
-        <StatCard title="Notifications" value={stats.unreadChats?.toString() || '0'} icon={Bell} color="primary" />
+      {/* Live Operations Map */}
+      <LiveOperationsMap 
+        upcomingShifts={stats.upcomingShifts || []} 
+        activeShifts={stats.activeShifts || []} 
+        className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300"
+      />
+
+      {/* Recent Time Entries & Tables */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900 tracking-tight">Recent Time Entries</h3>
+          <Link href="/dashboard/times" className="text-xs font-bold text-blue-600 hover:underline">View All</Link>
+        </div>
+        
+        <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[800px] lg:min-w-full">
+              <thead>
+                <tr className="bg-slate-50/50 border-b border-slate-50">
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Employee</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Customer</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Hours</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {(stats.recentEntries || []).slice(0, 5).map((entry: any) => (
+                  <tr key={entry.id} className="hover:bg-slate-50/30 transition-colors group">
+                    <td className="px-6 py-4 text-[13px] font-medium text-slate-600">
+                      {format(new Date(entry.date), 'MMM d, yyyy')}
+                    </td>
+                    <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
+                      {entry.employee?.full_name}
+                    </td>
+                    <td className="px-6 py-4 text-[13px] font-medium text-slate-500">
+                      {entry.customer?.name || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
+                      {entry.net_hours}h
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-lg border-none", 
+                        entry.is_verified ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+                        {entry.is_verified ? 'Approved' : 'Pending'}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button className="p-2 text-slate-300 hover:text-blue-600 transition-colors hover:bg-blue-50 rounded-lg">
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {(!stats.recentEntries || stats.recentEntries.length === 0) && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-300 font-medium text-sm italic">
+                      No recent time entries found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-8 space-y-8">
-          {/* TIME SHIFT MODULE (ADMIN & DISPATCHER) */}
-          <ClockInOutCard />
-
-          {/* LIVE OPERATIONS MONITOR */}
-          <ActiveShiftsDashboard />
-
-          <Card className="border-slate-200/60 rounded-2xl shadow-sm overflow-hidden bg-white">
-            <CardHeader className="p-6 pb-4 border-b border-slate-50">
-              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center justify-between">
-                Upcoming Assignments
-                <Link href="/dashboard/plans" className="text-[10px] text-blue-600 hover:underline">View All</Link>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-               <div className="divide-y divide-slate-50">
-                  {(stats.upcomingShifts || []).length > 0 ? (
-                    stats.upcomingShifts.map((plan: any) => (
-                      <div key={plan.id} className="flex items-center justify-between p-4 hover:bg-slate-50/50 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200/40">
-                            {plan.employee?.avatar_url ? (
-                              <img src={plan.employee.avatar_url} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="font-black text-slate-400 text-xs">{plan.employee?.full_name?.charAt(0)}</span>
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-900 text-sm leading-none mb-1">{plan.employee?.full_name || 'Unassigned'}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{plan.route || 'General Mission'}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-black text-slate-900 text-sm leading-none mb-1">
-                            {format(new Date(plan.start_time), 'HH:mm')}
-                          </p>
-                          <Badge variant="outline" className={cn("text-[9px] font-black uppercase tracking-widest px-2 py-0 border-none", 
-                            plan.status === 'confirmed' ? "text-emerald-600 bg-emerald-50" : "text-blue-600 bg-blue-50")}>
-                            {plan.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-20 text-center text-slate-300 font-bold uppercase text-[10px] tracking-[0.2em] italic">No missions found</div>
-                  )}
-               </div>
-            </CardContent>
-          </Card>
+      {/* Upcoming Shifts */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900 tracking-tight">Upcoming Shifts</h3>
+          <Link href="/dashboard/plans" className="text-xs font-bold text-blue-600 hover:underline">View All</Link>
         </div>
-
-        <div className="lg:col-span-4 space-y-6">
-           <Card className="border-slate-200/60 rounded-2xl shadow-sm bg-white p-6">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center justify-between">
-                CALENDAR EVENTS
-                <Calendar className="w-4 h-4" />
-              </h3>
-              <div className="space-y-6">
-                 {(stats.upcomingEvents?.length > 0 || stats.upcomingShifts?.length > 0) ? (
-                   [...(stats.upcomingEvents || []), ...(stats.upcomingShifts || [])]
-                     .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-                     .slice(0, 3)
-                     .map((event: any) => (
-                     <div key={event.id} className="flex gap-4 group cursor-pointer bg-white hover:bg-blue-50 p-2 -mx-2 rounded-xl transition-all">
-                       <div className="w-10 h-10 rounded-xl bg-slate-50 flex flex-col items-center justify-center shrink-0 border border-slate-100 group-hover:border-blue-200 group-hover:bg-blue-100 transition-colors">
-                         <span className="text-[14px] font-black leading-none group-hover:text-blue-700">{new Date(event.start_time).getDate()}</span>
-                         <span className="text-[8px] font-black uppercase opacity-40 group-hover:text-blue-700">{format(new Date(event.start_time), 'MMM')}</span>
-                       </div>
-                       <div className="space-y-0.5 mt-0.5">
-                         <p className="text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-blue-700 transition-colors">{event.title || event.route || 'Scheduled Mission'}</p>
-                         <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase group-hover:text-blue-500 transition-colors">
-                           <Clock className="w-3 h-3" />
-                           {format(new Date(event.start_time), 'HH:mm')}
-                         </div>
-                       </div>
-                     </div>
-                   ))
-                 ) : (
-                   <div className="py-6 text-center text-[10px] text-slate-500 font-black uppercase tracking-widest border border-dashed border-slate-200 rounded-xl bg-slate-50/50">No Upcoming Events</div>
-                 )}
-                 <Button variant="outline" onClick={() => window.location.href = '/dashboard/calendar'} className="w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-black hover:bg-slate-100 border-slate-200 mt-4 transition-colors">
-                    Open Calendar
-                 </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(stats.upcomingShifts || []).slice(0, 3).map((shift: any) => (
+            <div key={shift.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm border-l-4 border-l-blue-600 flex flex-col gap-4">
+              <div className="space-y-1">
+                <p className="text-[13px] font-bold text-slate-900">
+                  {format(new Date(shift.start_time), 'EEEE - MMM d')}
+                </p>
+                <p className="text-[11px] font-medium text-slate-400">
+                  {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                </p>
               </div>
-           </Card>
-
-           <Card className="bg-slate-900 text-white border-none rounded-2xl p-6 shadow-xl relative overflow-hidden group">
-              <TrendingUp className="absolute bottom-0 right-0 w-24 h-24 text-blue-500/10 -mb-6 -mr-6 group-hover:translate-x-2 transition-transform duration-700" />
-              <div className="relative z-10 space-y-4">
-                 <h3 className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">ANALYTICS</h3>
-                 <p className="text-xs text-slate-400 font-bold leading-relaxed">Organizational performance metrics.</p>
-                 <Button variant="secondary" onClick={() => window.location.href = '/dashboard/reports'} className="w-full h-10 rounded-xl bg-white/5 text-white hover:bg-white/10 border-white/10 font-black text-[10px] uppercase tracking-widest">
-                    Live Reports
-                 </Button>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">
+                {shift.customer?.name || 'Mission Site'} • {shift.location || 'Ops Base'}
               </div>
-           </Card>
+            </div>
+          ))}
+          {(!stats.upcomingShifts || stats.upcomingShifts.length === 0) && (
+            <div className="col-span-full py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl text-slate-300 font-medium">
+              No upcoming shifts scheduled.
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, locale: string, stats: any, loading: boolean }) {
-  const [notifications, setNotifications] = useState<any[]>([])
-  const supabase = createClient()
+function StatItem({ label, value }: { label: string, value: string | number }) {
+  return (
+    <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+      <div className="space-y-1">
+        <p className="text-3xl font-bold text-blue-600 tracking-tight">{value}</p>
+        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+      </div>
+    </div>
+  )
+}
 
-  useEffect(() => {
-    async function fetchNotifications() {
-      const { data } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false })
-        .limit(3)
-      setNotifications(data || [])
-    }
-    fetchNotifications()
-  }, [profile.id, supabase])
+function QuickActionItem({ icon, label, href, color }: { icon: React.ReactNode, label: string, href: string, color: string }) {
+  return (
+    <Link href={href} className="group">
+      <div className="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center gap-6 group-hover:border-blue-200 group-hover:shadow-md transition-all h-full">
+        <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110", color)}>
+          {icon}
+        </div>
+        <span className="text-sm font-bold text-slate-900 tracking-tight">{label}</span>
+      </div>
+    </Link>
+  )
+}
+
+function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, locale: string, stats: any, loading: boolean }) {
+  const { clockIn, activeEntry } = useTimeTracking()
 
   if (loading || !stats) {
     return (
-      <div className="space-y-6 animate-pulse p-6 max-w-7xl mx-auto">
-        <div className="h-8 w-48 bg-slate-50 rounded-lg" />
-        <div className="h-20 bg-slate-50 rounded-2xl" />
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-           <div className="lg:col-span-8 space-y-6"><div className="h-64 bg-slate-50 rounded-2xl" /></div>
-           <div className="lg:col-span-4 space-y-6"><div className="h-64 bg-slate-50 rounded-2xl" /></div>
+      <div className="space-y-8 animate-pulse p-6">
+        <div className="h-10 w-64 bg-slate-100 rounded-xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-slate-50 rounded-2xl" />)}
         </div>
       </div>
     )
   }
 
-  const nextShift = stats.nextShifts?.[0]
-  const weeklyProgress = (stats.weeklyHours / (stats.targetWeeklyHours || 40)) * 100
-
   return (
-    <div className="h-full bg-slate-50/40 md:bg-transparent min-h-screen">
-      <div className="max-w-7xl mx-auto md:px-8 md:py-10 pb-32 space-y-8 animate-in fade-in duration-700">
+    <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-700">
+      {/* Header Section */}
+      <div className="space-y-1">
+        <h1 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none">Personal Dashboard</h1>
+        <p className="text-slate-400 text-sm font-medium">Welcome back, {profile.full_name?.split(' ')[0]}! Here&apos;s your personal overview.</p>
+      </div>
+
+      {/* Operations Bar (Unified Clock) */}
+      <ClockInOutCard />
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatItem label="Hours This Week" value={`${stats.weeklyHours || 0}h`} />
+        <StatItem label="Balance" value={`${stats.hoursBalance || 0}h`} />
+        <StatItem label="Monthly Per Diem" value={`${stats.monthlyPerDiem || 0}€`} />
+        <StatItem label="Active Mission" value={stats.activeShiftsCount > 0 ? 'Active' : 'None'} />
+      </div>
+
+      {/* Quick Actions */}
+      <div className="space-y-6">
+        <h3 className="text-sm font-bold text-slate-900 tracking-tight">Personal Tools</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          <QuickActionItem 
+            icon={<Clock className="w-8 h-8" />} 
+            label="My Time Entries" 
+            href="/dashboard/times"
+            color="bg-blue-50 text-blue-600"
+          />
+          <QuickActionItem 
+            icon={<Calendar className="w-8 h-8" />} 
+            label="My Calendar" 
+            href="/dashboard/calendar"
+            color="bg-indigo-50 text-indigo-600"
+          />
+          <QuickActionItem 
+            icon={<TrendingUp className="w-8 h-8" />} 
+            label="Time Account" 
+            href="/dashboard/times"
+            color="bg-sky-50 text-sky-600"
+          />
+          <QuickActionItem 
+            icon={<MessageSquare className="w-8 h-8" />} 
+            label="Team Chat" 
+            href="/dashboard/chat"
+            color="bg-cyan-50 text-cyan-600"
+          />
+        </div>
+      </div>
+
+      {/* Recent Time Entries & Tables */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900 tracking-tight">Recent Shifts</h3>
+          <Link href="/dashboard/times" className="text-xs font-bold text-blue-600 hover:underline">View All History</Link>
+        </div>
         
-        {/* Welcome Section */}
-        <div className="px-4 md:px-0 flex flex-col md:flex-row md:items-end justify-between gap-4">
-           <div className="space-y-1">
-              <span className="text-[10px] font-black uppercase text-blue-600 tracking-[0.2em]">MISSION DASHBOARD</span>
-               <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-none">
-                 {locale === 'en' ? 'Welcome, ' : 'Willkommen, '}
-                 <span className="italic font-serif text-blue-600">
-                    {profile.full_name?.split(' ')[0]}
-                 </span>
-               </h2>
-           </div>
-           <Badge variant="outline" className="w-fit bg-white border-slate-200 text-slate-400 font-bold text-[9px] uppercase tracking-[0.2em] px-4 py-1.5 rounded-full">
-             Level 1 Specialist
-           </Badge>
+        <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[800px] lg:min-w-full">
+              <thead>
+                <tr className="bg-slate-50/50 border-b border-slate-50">
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Customer / Route</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Hours Worked</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Verification</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {(stats.recentEntries || []).slice(0, 5).map((entry: any) => (
+                  <tr key={entry.id} className="hover:bg-slate-50/30 transition-colors group">
+                    <td className="px-6 py-4 text-[13px] font-medium text-slate-600">
+                      {format(new Date(entry.date), 'MMM d, yyyy')}
+                    </td>
+                    <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
+                      {entry.customer?.name || 'Standard Protocol'}
+                    </td>
+                    <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
+                      {entry.net_hours}h
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-lg border-none", 
+                        entry.is_verified ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+                        {entry.is_verified ? 'Verified' : 'Pending Verification'}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button className="p-2 text-slate-300 hover:text-blue-600 transition-colors hover:bg-blue-50 rounded-lg">
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {(!stats.recentEntries || stats.recentEntries.length === 0) && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-slate-300 font-medium text-sm italic border-dashed border-2 m-4 rounded-xl">
+                      No recent recorded shifts found in your history.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
 
-        {/* OPERATIONS BAR (MINIMIZED) */}
-        <div className="px-4 md:px-0">
-           <ClockInOutCard />
+      {/* Today's Confirmed Shifts */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900 tracking-tight">Today's Confirmed Shifts</h3>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 px-4 md:px-0">
-           {/* Unified Main Console */}
-           <div className="lg:col-span-8 flex flex-col gap-8">
-              
-              {/* Timeline/Mission Row View */}
-              <div className="space-y-4">
-                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-                    <NavIcon className="w-4 h-4" /> TODAY&apos;S MISSION
-                 </h3>
-                 <Card className="border-slate-200/60 rounded-2xl shadow-sm bg-white overflow-hidden p-0">
-                    {nextShift ? (
-                       <div className="flex flex-col md:flex-row md:items-center">
-                          <div className="flex-1 p-6 border-b md:border-b-0 md:border-r border-slate-50 flex items-center gap-5">
-                             <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                                <NavIcon className="w-6 h-6 text-orange-500" />
-                             </div>
-                             <div>
-                                <h4 className="font-black text-slate-900 leading-none mb-1.5 text-lg">{nextShift.route || 'Mission Site'}</h4>
-                                <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                   <MapPin className="w-3.5 h-3.5" /> {nextShift.location || 'Ops Base'}
-                                </div>
-                             </div>
-                          </div>
-                          <div className="p-6 md:px-8 bg-slate-50/30 flex items-center justify-between md:justify-end gap-10">
-                             <div className="text-right">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Time Window</p>
-                                <p className="text-sm font-black text-slate-900 leading-none">
-                                   {format(new Date(nextShift.start_time), 'HH:mm')} - {format(new Date(nextShift.end_time), 'HH:mm')}
-                                </p>
-                             </div>
-                             <ChevronRight className="w-5 h-5 text-slate-300" />
-                          </div>
-                       </div>
-                    ) : (
-                       <div className="py-10 text-center italic text-slate-300 font-bold uppercase text-[10px] tracking-widest">No assigned missions for today</div>
-                    )}
-                 </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(stats.upcomingShifts || [])
+            .filter((s: any) => {
+              const today = new Date().toISOString().split('T')[0]
+              return s.start_time.startsWith(today) && s.status === 'confirmed'
+            })
+            .map((shift: any) => (
+            <div key={shift.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm border-l-4 border-l-emerald-500 flex flex-col gap-4 group hover:shadow-md transition-all">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] font-bold text-slate-900">
+                    {format(new Date(shift.start_time), 'EEEE - MMM d')}
+                  </p>
+                  <Badge className="bg-emerald-50 text-emerald-600 border-none text-[10px] font-bold">CONFIRMED</Badge>
+                </div>
+                <p className="text-[11px] font-medium text-slate-400">
+                  {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                </p>
               </div>
-
-              {/* Progress & Stats Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {/* WEEKLY TRACKER */}
-                 <Card className="border-slate-200/60 rounded-2xl shadow-sm bg-white p-6 space-y-5">
-                    <div className="flex items-center justify-between">
-                       <span className="text-[10px] font-black uppercase text-emerald-500 tracking-[0.2em]">WEEKLY PROGRESS</span>
-                       <span className="text-[10px] font-black text-slate-400">{weeklyProgress.toFixed(0)}% Complete</span>
-                    </div>
-                    <div className="space-y-3">
-                       <div className="flex items-baseline gap-2">
-                          <span className="text-4xl font-serif italic text-blue-600 tabular-nums leading-none tracking-tight">{stats.weeklyHours.toFixed(1)}h</span>
-                          <span className="text-xs font-bold text-slate-400">/ {stats.targetWeeklyHours}h Goal</span>
-                       </div>
-                       <Progress value={weeklyProgress} className="h-1.5 rounded-full bg-slate-100" indicatorClassName="bg-emerald-500" />
-                    </div>
-                 </Card>
-
-                 {/* OPS SUMMARY (Consolidated Stats) */}
-                 <div className="grid grid-cols-2 gap-4">
-                    <StatCardSmall icon={<Clock className="w-4 h-4" />} label="BALANCE" value={`${stats.hoursBalance}h`} />
-                    <StatCardSmall icon={<Wallet className="w-4 h-4" />} label="NET BANK" value={`${stats.monthlyPerDiem || 0}€`} color="emerald" />
-                 </div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-2">
+                <MapPin className="w-3 h-3 text-emerald-500" />
+                {shift.customer?.name || 'Mission Site'}
               </div>
-           </div>
-
-           {/* Console Sidebar */}
-           <div className="lg:col-span-4 space-y-6">
-              {/* Event Logs View */}
-              <Card className="border-slate-200/60 rounded-2xl shadow-sm bg-white p-0 overflow-hidden">
-                 <div className="p-4 border-b border-slate-50 flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-                       <Bell className="w-3.5 h-3.5" /> RECENT LOGS
-                    </span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                 </div>
-                 <div className="divide-y divide-slate-50">
-                    {notifications.length > 0 ? (
-                      notifications.map((notif) => (
-                        <div key={notif.id} className="p-4 flex gap-4 hover:bg-slate-50/50 transition-colors cursor-pointer group">
-                          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                             <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <div className="space-y-0.5">
-                            <p className="text-[13px] font-bold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors uppercase tracking-tight">{notif.title}</p>
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                               {format(new Date(notif.created_at), 'MMM d, HH:mm')}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="py-12 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">All systems clear</div>
-                    )}
-                 </div>
-                 <div className="p-4 bg-slate-50/50 border-t border-slate-50">
-                    <Button variant="ghost" className="w-full h-8 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-200 rounded-xl">
-                       History Center
-                    </Button>
-                 </div>
-              </Card>
-
-              {/* Quick Links */}
-              <div className="grid grid-cols-2 gap-3">
-                 <QuickLink label="Calendar" icon={Calendar} href="/dashboard/calendar" />
-                 <QuickLink label="Time Cards" icon={Clock} href="/dashboard/times" />
-              </div>
-           </div>
+              {!activeEntry && (
+                <Button 
+                  onClick={() => clockIn(shift.id)}
+                  className="mt-2 w-full h-10 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 shrink-0"
+                >
+                  <Play className="w-3.5 h-3.5 mr-2 fill-current" />
+                  Begin Shift
+                </Button>
+              )}
+            </div>
+          ))}
+          {((stats.upcomingShifts || []).filter((s: any) => {
+              const today = new Date().toISOString().split('T')[0]
+              return s.start_time.startsWith(today) && s.status === 'confirmed'
+            }).length === 0) && (
+            <div className="col-span-full py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl text-slate-300 font-medium tracking-tight">
+              No confirmed shifts for today.
+            </div>
+          )}
         </div>
+      </div>
 
+      {/* Upcoming Shifts */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900 tracking-tight">Your Upcoming Assignments</h3>
+          <Link href="/dashboard/calendar" className="text-xs font-bold text-blue-600 hover:underline">View Calendar</Link>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(stats.upcomingShifts || [])
+            .filter((s: any) => {
+              const today = new Date().toISOString().split('T')[0]
+              return !(s.start_time.startsWith(today) && s.status === 'confirmed')
+            })
+            .slice(0, 3).map((shift: any) => (
+            <div key={shift.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm border-l-4 border-l-blue-600 flex flex-col gap-4 group hover:shadow-md transition-all">
+              <div className="space-y-1">
+                <p className="text-[13px] font-bold text-slate-900">
+                  {format(new Date(shift.start_time), 'EEEE - MMM d')}
+                </p>
+                <p className="text-[11px] font-medium text-slate-400">
+                  {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                </p>
+              </div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-2">
+                <MapPin className="w-3 h-3 text-blue-500" />
+                {shift.customer?.name || 'Mission Site'}
+              </div>
+            </div>
+          ))}
+          {((stats.upcomingShifts || []).filter((s: any) => {
+              const today = new Date().toISOString().split('T')[0]
+              return !(s.start_time.startsWith(today) && s.status === 'confirmed')
+            }).length === 0) && (
+            <div className="col-span-full py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl text-slate-300 font-medium tracking-tight">
+              No additional upcoming shifts assigned to you.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

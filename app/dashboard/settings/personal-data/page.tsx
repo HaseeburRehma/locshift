@@ -130,7 +130,7 @@ export default function PersonalDataPage() {
   }
 
   return (
-    <div className="bg-white min-h-screen pb-24 md:hidden flex flex-col relative -mx-4 -mt-8 px-4 py-6">
+    <div className="bg-white md:bg-transparent flex flex-col relative -mx-4 -mt-8 px-4 py-6">
       
       {/* Header */}
       <div className="flex items-center justify-center relative mb-8">

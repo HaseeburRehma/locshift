@@ -2,7 +2,12 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Calendar, Clock, MapPin, Users, FileText, Check, ChevronLeft, Pencil } from 'lucide-react'
+import { 
+  Check, 
+  Pencil,
+  Map as MapIcon,
+  Search
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -18,6 +23,7 @@ import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import { toast } from 'sonner'
 import { sendNotification } from '@/lib/notifications/service'
+import LocationPickerModal from './LocationPickerModal'
 
 interface PlanFormProps {
   onSuccess?: () => void
@@ -57,6 +63,11 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
   const [route, setRoute] = useState(initialPlan?.route ?? '')
   const [location, setLocation] = useState(initialPlan?.location ?? '')
   const [notes, setNotes] = useState(initialPlan?.notes ?? '')
+  const [isMapOpen, setIsMapOpen] = useState(false)
+
+  const handleLocationSelect = (data: { address: string }) => {
+    setLocation(data.address)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,9 +75,24 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
     
     const isBulk = !isEditing && isBulkEmployees
     const targetEmployees = isBulk ? selectedEmployees : [employeeId]
-    
+
     if (targetEmployees.length === 0 || !targetEmployees[0]) {
-      toast.error(locale === 'en' ? 'Please select an employee' : 'Bitte wählen Sie einen Mitarbeiter aus')
+      toast.error(locale === 'en' ? 'Personnel selection is required' : 'Personalwahl ist erforderlich')
+      return
+    }
+
+    if (!customerId || customerId === 'null') {
+      toast.error(locale === 'en' ? 'Customer/Project is required' : 'Kunde/Projekt ist erforderlich')
+      return
+    }
+
+    if (!route.trim()) {
+      toast.error(locale === 'en' ? 'Route designation is required' : 'Routenbezeichnung ist erforderlich')
+      return
+    }
+
+    if (!location.trim()) {
+      toast.error(locale === 'en' ? 'Physical location is required' : 'Physischer Standort ist erforderlich')
       return
     }
 
@@ -82,7 +108,7 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
         return
       }
 
-      const resolvedCustomerId = (customerId === 'null' || !customerId) ? null : customerId
+      const resolvedCustomerId = customerId
       const repeatCount = (!isEditing && parseInt(repeatDays, 10)) || 0
 
       if (isEditing && initialPlan) {
@@ -176,53 +202,53 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
   }
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <Card className="border-none rounded-[3rem] shadow-2xl bg-white overflow-hidden">
+    <div className="animate-in fade-in slide-in-from-bottom-6 duration-1000">
+      <Card className="border border-slate-100 rounded-[2.5rem] shadow-2xl shadow-gray-200/50 bg-white overflow-hidden">
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-x divide-gray-100">
-            {/* Left Column: Context (Assignment & Logistics) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-slate-50">
+            {/* Left Column - Core Logistics */}
             <div className="p-10 space-y-12">
               {/* Assignment Section */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100">
-                    <Users className="w-6 h-6 text-[#0064E0]" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900 leading-none">Assignment</h3>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Personnel & Clients</p>
-                  </div>
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 leading-none">Assignment</h3>
+                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">Personnel & Clients</p>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between pl-1">
-                      <Label className="text-[10px] font-bold uppercase text-gray-400 tracking-widest">Target Employee(s)</Label>
+                    <div className="flex items-center justify-between px-1">
+                      <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest">Target Employee(s)</Label>
                       {!isEditing && (
-                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-500">
-                          <input type="checkbox" checked={isBulkEmployees} onChange={e => setIsBulkEmployees(e.target.checked)} className="rounded text-[#0064E0] border-gray-200 focus:ring-[#0064E0]" />
-                          Assign Multiple
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                          <input 
+                            type="checkbox" 
+                            checked={isBulkEmployees} 
+                            onChange={e => setIsBulkEmployees(e.target.checked)} 
+                            className="w-4 h-4 rounded text-[#0064E0] border-gray-200 focus:ring-[#0064E0] transition-all" 
+                          />
+                          <span className="text-[11px] font-semibold text-gray-500 group-hover:text-gray-900 transition-colors">Assign Multiple</span>
                         </label>
                       )}
                     </div>
 
                     {!isBulkEmployees ? (
                       <Select value={employeeId} onValueChange={setEmployeeId}>
-                        <SelectTrigger className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 font-bold px-6 focus:ring-[#0064E0]/10 transition-all shadow-sm">
+                        <SelectTrigger className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 hover:shadow-sm transition-all text-sm">
                           <SelectValue placeholder="Identify Personnel" />
                         </SelectTrigger>
-                        <SelectContent className="rounded-2xl border-gray-100 shadow-xl max-h-64">
+                        <SelectContent className="rounded-2xl border-gray-100 shadow-2xl p-2">
                           {profiles.map(p => (
-                            <SelectItem key={p.id} value={p.id} className="font-bold py-3">
-                              {p.full_name} <span className="text-xs opacity-50 ml-2">({p.role})</span>
+                            <SelectItem key={p.id} value={p.id} className="font-semibold py-3 rounded-xl">
+                              {p.full_name} <span className="text-[9px] font-medium uppercase opacity-40 ml-2">({p.role})</span>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <div className="max-h-56 overflow-y-auto rounded-2xl border border-gray-100 bg-gray-50/50 p-4 space-y-2">
+                      <div className="max-h-60 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/20 p-4 space-y-1">
                         {profiles.map(p => (
-                          <label key={p.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white transition-colors cursor-pointer border border-transparent hover:border-gray-100 shadow-sm">
+                          <label key={p.id} className="flex items-center gap-4 p-2.5 rounded-xl hover:bg-white hover:shadow-sm transition-all cursor-pointer group border border-transparent">
                             <input 
                               type="checkbox" 
                               checked={selectedEmployees.includes(p.id)}
@@ -230,11 +256,11 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                                 if (e.target.checked) setSelectedEmployees(s => [...s, p.id])
                                 else setSelectedEmployees(s => s.filter(id => id !== p.id))
                               }}
-                              className="rounded w-4 h-4 text-[#0064E0] border-gray-200 focus:ring-[#0064E0]" 
+                              className="w-4 h-4 rounded text-[#0064E0] border-gray-200 focus:ring-[#0064E0]" 
                             />
                             <div>
-                              <p className="font-bold text-sm text-gray-900 leading-none">{p.full_name}</p>
-                              <p className="text-[10px] font-black uppercase tracking-tight text-gray-400 mt-0.5">{p.role}</p>
+                              <p className="font-bold text-sm text-gray-900 group-hover:text-[#0064E0] transition-colors">{p.full_name}</p>
+                              <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-400">{p.role}</p>
                             </div>
                           </label>
                         ))}
@@ -242,16 +268,16 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase text-gray-400 tracking-widest pl-1">Customer / Project</Label>
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest px-1">Customer / Project</Label>
                     <Select value={customerId} onValueChange={setCustomerId}>
-                      <SelectTrigger className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 font-bold px-6 shadow-sm">
+                      <SelectTrigger className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 hover:shadow-sm transition-all text-sm">
                         <SelectValue placeholder="Optional Client Selection" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-gray-100 shadow-xl">
-                        <SelectItem value="null" className="font-bold py-3 text-gray-400 italic">No specific client</SelectItem>
+                      <SelectContent className="rounded-2xl border-gray-100 shadow-2xl p-2">
+                        <SelectItem value="null" className="font-semibold py-3 rounded-xl text-gray-400 italic">No specific client</SelectItem>
                         {customers.map(c => (
-                          <SelectItem key={c.id} value={c.id} className="font-bold py-3">{c.name}</SelectItem>
+                          <SelectItem key={c.id} value={c.id} className="font-semibold py-3 rounded-xl">{c.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -260,110 +286,115 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
               </div>
 
               {/* Logistics Section */}
-              <div className="space-y-6 pt-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center border border-orange-100">
-                    <MapPin className="w-6 h-6 text-orange-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900 leading-none">Logistics</h3>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Routes & Coordinates</p>
-                  </div>
+              <div className="pt-8 border-t border-slate-50 space-y-8">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 leading-none">Logistics</h3>
+                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">Routes & Coordinates</p>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Route Designation</Label>
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest px-1">Route Designation</Label>
                     <Input 
                       placeholder="e.g. Frankfurt Main Hub - Night Shift" 
                       value={route}
                       onChange={(e) => setRoute(e.target.value)}
-                      className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 font-black px-6 focus:ring-orange-500/10 transition-all border-none"
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white focus:shadow-md transition-all text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Physical Location</Label>
-                    <Input 
-                      placeholder="Specific Terminal or Street Address" 
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 font-black px-6 border-none"
-                    />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest">Physical Location</Label>
+                      <button 
+                        type="button"
+                        onClick={() => setIsMapOpen(true)}
+                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#0064E0] hover:text-blue-800 transition-colors"
+                      >
+                        <MapIcon className="w-3.5 h-3.5" />
+                        Pick on Map
+                      </button>
+                    </div>
+                    <div className="relative group">
+                      <Input 
+                        placeholder="Street Address or GPS Coordinates" 
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="h-14 pr-12 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                         <Search className="w-4 h-4 text-slate-300 group-focus-within:text-[#0064E0] transition-colors" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Execution (Timeline & Notes) */}
-            <div className="p-10 space-y-12 bg-gray-50/30">
+            {/* Right Column - Operational Detail */}
+            <div className="p-10 space-y-12 bg-white">
               {/* Timeline Section */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
-                    <Clock className="w-6 h-6 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900 leading-none">Timeline</h3>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Operational Window</p>
-                  </div>
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 leading-none">Timeline</h3>
+                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">Operational Window</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Start Date</Label>
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest pl-1">Start Date</Label>
                     <Input 
                       type="date" 
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="h-14 rounded-2xl border-none bg-white font-black px-6 shadow-sm"
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Start Time</Label>
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest pl-1">Start Time</Label>
                     <Input 
                       type="time" 
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="h-14 rounded-2xl border-none bg-white font-black px-6 shadow-sm"
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">End Date</Label>
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest pl-1">End Date</Label>
                     <Input 
                       type="date" 
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="h-14 rounded-2xl border-none bg-white font-black px-6 shadow-sm"
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">End Time</Label>
+                  <div className="space-y-3">
+                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest pl-1">End Time</Label>
                     <Input 
                       type="time" 
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
-                      className="h-14 rounded-2xl border-none bg-white font-black px-6 shadow-sm"
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
                     />
                   </div>
                 </div>
 
                 {!isEditing && (
                   <div className="pt-2">
-                    <div className="bg-white/50 border border-emerald-100/50 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-bold text-emerald-900">Repeat Daily</p>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600/60">Copy to next consecutive days</p>
+                    <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-6 flex items-center justify-between group transition-all hover:bg-slate-50">
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-gray-900">Repeat Daily</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-none">Copy to next consecutive days</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <Input 
                           type="number"
                           min="0"
                           max="30" 
                           value={repeatDays}
                           onChange={(e) => setRepeatDays(e.target.value)}
-                          className="w-20 h-10 rounded-xl bg-white border-emerald-100 font-bold px-3 text-center"
+                          className="w-16 h-10 rounded-lg bg-white border-slate-200 font-bold px-3 text-center text-slate-900 shadow-sm"
                         />
-                        <span className="text-xs font-bold text-emerald-600/80">Days</span>
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Days</span>
                       </div>
                     </div>
                   </div>
@@ -371,33 +402,28 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
               </div>
 
               {/* Notes Section */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center border border-purple-100">
-                    <FileText className="w-6 h-6 text-purple-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900 leading-none">Mission Notes</h3>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Operational Directives</p>
-                  </div>
+              <div className="pt-8 border-t border-slate-50 space-y-8">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 leading-none">Mission Notes</h3>
+                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">Operational Directives</p>
                 </div>
 
                 <Textarea 
                   placeholder="Detailed deployment instructions, safety protocols, or internal reminders..." 
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="min-h-[180px] rounded-[2rem] border-none bg-white font-black p-6 focus:ring-purple-500/10 shadow-sm"
+                  className="min-h-[220px] rounded-2xl border-slate-100 bg-slate-50/30 font-semibold p-6 focus:bg-white focus:shadow-md transition-all text-sm leading-relaxed"
                 />
               </div>
             </div>
           </div>
 
-          {/* Master Footer Action Bar */}
-          <div className="p-10 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+          {/* Action Bar */}
+          <div className="p-10 border-t border-slate-50 bg-slate-50/20 flex items-center justify-between">
             <Button
               type="button"
               variant="ghost"
-              className="h-14 rounded-2xl px-10 font-black text-gray-400 hover:text-gray-900 hover:bg-white"
+              className="h-14 rounded-2xl px-10 font-bold text-gray-400 hover:text-gray-900 hover:bg-white transition-all uppercase tracking-widest text-[10px]"
               onClick={() => router.back()}
             >
               Discard Changes
@@ -405,20 +431,30 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
             <Button
               type="submit"
               disabled={loading}
-              className="h-14 px-20 rounded-2xl bg-gray-900 hover:bg-black text-white font-bold text-lg shadow-2xl transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 gap-3"
+              className="h-14 px-16 rounded-2xl bg-slate-900 hover:bg-black text-white font-bold text-sm shadow-xl shadow-slate-100 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 gap-3"
             >
               {loading ? (
-                <>{isEditing ? 'Saving...' : 'Deploying...'}</>
+                <div className="flex items-center gap-2">
+                   <div className="w-4 h-4 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                   <span>{isEditing ? 'Saving...' : 'Deploying...'}</span>
+                </div>
               ) : (
                 <>
-                  {isEditing ? <Pencil className="w-5 h-5" /> : <Check className="w-6 h-6" />}
-                  {isEditing ? 'Save Changes' : 'Create'}
+                  {isEditing ? <Pencil className="w-5 h-5 ml-[-4px]" /> : <Check className="w-6 h-6" />}
+                  {isEditing ? 'Save Changes' : 'Create Mission'}
                 </>
               )}
             </Button>
           </div>
         </form>
       </Card>
+
+      <LocationPickerModal 
+        isOpen={isMapOpen}
+        onClose={() => setIsMapOpen(false)}
+        onSelect={handleLocationSelect}
+        initialAddress={location}
+      />
     </div>
   )
 }

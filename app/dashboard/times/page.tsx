@@ -11,6 +11,8 @@ import { TimeEntry, TimeEntryFormData } from '@/lib/types'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
+import { updateTimeEntryStatus } from '@/app/actions/time-entries'
+
 export default function TimesPage() {
   const [view, setView] = useState<'list' | 'add' | 'details' | 'edit'>('list')
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
@@ -24,6 +26,25 @@ export default function TimesPage() {
 
   const canAddManually = isAdmin || isDispatcher
 
+  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    if (!profile?.organization_id || !user) return
+    const newStatus = !currentStatus
+
+    // Optimistic UI update
+    setEntries(prev => prev.map(e => e.id === id ? { ...e, is_verified: newStatus } : e))
+
+    const result = await updateTimeEntryStatus(id, newStatus, newStatus ? user.id : null)
+
+    if (!result.success) {
+      console.error('Update status failed:', result.error)
+      toast.error('Failed to update status on server')
+      // Revert on failure
+      fetchData()
+    } else {
+      toast.success(newStatus ? 'Time entry approved' : 'Time entry marked pending')
+    }
+  }
+
   const fetchData = async () => {
     if (!user || !profile?.organization_id) return
     setFetching(true)
@@ -31,7 +52,7 @@ export default function TimesPage() {
     // Fetch entries
     const { data: entriesData, error: entriesError } = await supabase
       .from('time_entries')
-      .select('*, customer:customers(id, name), verifier:profiles!verified_by(id, full_name)')
+      .select('*, customer:customers(id, name), verifier:profiles!verified_by(id, full_name), plan:plans(location, customer:customers(id, name))')
       .eq('organization_id', profile.organization_id)
       .order('date', { ascending: false })
       .order('start_time', { ascending: false })
@@ -156,6 +177,7 @@ export default function TimesPage() {
               if (canAddManually) setView('add')
               else toast.error('Only administrators can add time manually')
             }}
+            onToggleStatus={canAddManually ? handleToggleStatus : undefined}
           />
         )}
 
