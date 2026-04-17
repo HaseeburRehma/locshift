@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { ChatConversation, Profile } from '@/lib/types'
 import { Search, Plus } from 'lucide-react'
 import { ChatListItem } from './ChatListItem'
+import { useTranslation } from '@/lib/i18n'
 
 interface ChatSidebarProps {
   conversations: ChatConversation[]
@@ -20,6 +21,7 @@ export function ChatSidebar({
   onNewChat,
   onlineUsers
 }: ChatSidebarProps) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
 
   const filteredConversations = conversations.filter(conv => {
@@ -36,7 +38,7 @@ export function ChatSidebar({
       {/* Header */}
       <div className="p-6 pb-2">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-[24px] font-extrabold text-gray-900 tracking-tight">Chats</h2>
+          <h2 className="text-[24px] font-extrabold text-gray-900 tracking-tight">{t('chat.title')}</h2>
           <button 
             onClick={onNewChat}
             className="p-2 bg-[#0064E0] text-white rounded-full hover:bg-[#0050B3] transition-all shadow-lg shadow-blue-500/20 active:scale-95"
@@ -50,7 +52,7 @@ export function ChatSidebar({
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
           <input
             type="text"
-            placeholder="Search here..."
+            placeholder={t('chat.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-12 pl-10 pr-4 bg-gray-50 border border-gray-100 rounded-xl text-[14px] outline-none focus:bg-white focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all placeholder:text-gray-400 font-medium"
@@ -83,7 +85,7 @@ export function ChatSidebar({
               <Search className="w-6 h-6 text-gray-300" />
             </div>
             <p className="text-[14px] text-gray-400 font-medium leading-relaxed">
-              {search ? 'No conversations found' : 'Start a conversation with your team'}
+              {search ? t('chat.noConversations') : t('chat.startConversation')}
             </p>
           </div>
         )}

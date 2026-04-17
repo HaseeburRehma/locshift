@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ChevronLeft, Clock, Timer, Briefcase, Zap, Calendar, MapPin } from 'lucide-react'
+import { ChevronLeft, Clock, Timer, Briefcase, Zap, Calendar, MapPin, Info } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/lib/user-context'
 import { cn } from '@/lib/utils'

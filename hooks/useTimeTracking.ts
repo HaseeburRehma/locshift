@@ -55,7 +55,7 @@ export function useTimeTracking() {
         schema: 'public',
         table: 'time_entries',
         filter: `employee_id=eq.${user.id}`
-      }, (payload) => {
+      }, (payload: any) => {
         console.log('[useTimeTracking] Real-time update:', payload)
         fetchActiveEntry()
       })

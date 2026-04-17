@@ -26,17 +26,17 @@ export function usePresence(conversationId: string | null, currentUser: Profile 
         })
         setOnlineUsers(online)
       })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+      .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
         setOnlineUsers((prev) => ({ ...prev, [key]: true }))
       })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+      .on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
         setOnlineUsers((prev) => {
           const next = { ...prev }
           delete next[key]
           return next
         })
       })
-      .subscribe(async (status) => {
+      .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           await channel.track({
             user_id: currentUser.id,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useTranslation } from '@/lib/i18n'
 
 /**
  * Monitors Supabase Realtime connection status.
@@ -31,12 +32,13 @@ export function useRealtimeConnection() {
  */
 export function RealtimeConnectionBanner() {
   const connected = useRealtimeConnection()
+  const { t } = useTranslation()
 
   if (connected) return null
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[200] bg-amber-500 text-white text-center text-sm py-2 font-bold animate-in slide-in-from-top duration-300 shadow-lg">
-      ⚠️ Reconnecting to live updates...
+    <div className="w-full bg-amber-500 text-white text-center text-sm py-1.5 font-semibold animate-in slide-in-from-top duration-300 shadow-sm flex-shrink-0">
+      {t('realtime.reconnecting')}
     </div>
   )
 }

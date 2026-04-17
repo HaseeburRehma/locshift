@@ -1,44 +1,65 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import {
   FileText,
   Download,
-  Filter,
-  Search,
+  Clock,
+  Wallet,
+  Gift,
+  ChevronRight,
   BarChart3,
-  PieChart,
-  TrendingUp,
   Calendar,
-  ArrowRight,
-  ChevronDown
+  Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import { usePerDiem } from '@/hooks/usePerDiem'
 import { useHolidayBonus } from '@/hooks/useHolidayBonus'
 import { useTimeEntries } from '@/hooks/times/useTimeEntries'
+import { useOrganizationTimeAccounts } from '@/hooks/times/useOrgTimeAccounts'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { format, isWithinInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns'
 
+// ─── Types ──────────────────────────────────────────────────
+interface RecentReport {
+  id: string
+  title: string
+  generatedAt: string
+  scope: string
+  format: 'csv' | 'pdf'
+}
+
+type ReportTypeId = 'working-time' | 'time-accounts' | 'per-diem' | 'holiday-bonus'
+
+// ─── Page Component ─────────────────────────────────────────
 export default function ReportsPage() {
   const { isAdmin, isDispatcher } = useUser()
   const { locale } = useTranslation()
+
+  // Date range state
   const [dateRange, setDateRange] = useState({
     start: startOfMonth(new Date()),
-    end: endOfMonth(new Date())
+    end: endOfMonth(new Date()),
   })
 
-  // 1. Mission-Critical Data Hooks (Operational Dashboard)
+  // Active report panel
+  const [activeReport, setActiveReport] = useState<ReportTypeId | null>(null)
+
+  // Recent reports tracking (in-memory)
+  const [recentReports, setRecentReports] = useState<RecentReport[]>([])
+
+  // ─── Data Hooks ─────────────────────────────────────────
   const { entries, loading: loadingTimes } = useTimeEntries()
   const { perDiems, loading: loadingPerDiem } = usePerDiem()
   const { bonuses, loading: loadingBonuses } = useHolidayBonus()
+  const { accounts, loading: loadingAccounts } = useOrganizationTimeAccounts()
 
-  const loading = loadingTimes || loadingPerDiem || loadingBonuses
+  const loading = loadingTimes || loadingPerDiem || loadingBonuses || loadingAccounts
 
+  // ─── Filtered Data ──────────────────────────────────────
   const filteredData = useMemo(() => {
     const filterByDate = (dateStr: string) => {
       const d = new Date(dateStr)
@@ -48,13 +69,17 @@ export default function ReportsPage() {
     return {
       times: entries.filter(e => filterByDate(e.date)),
       perDiems: perDiems.filter(pd => filterByDate(pd.date)),
-      bonuses: bonuses.filter(b => filterByDate(b.created_at))
+      bonuses: bonuses.filter(b => filterByDate(b.created_at)),
+      accounts, // Time accounts are a snapshot, not date-filtered
     }
-  }, [entries, perDiems, bonuses, dateRange])
+  }, [entries, perDiems, bonuses, accounts, dateRange])
 
-  const downloadCSV = (data: any[], filename: string) => {
+  // ─── CSV Download ───────────────────────────────────────
+  const downloadCSV = useCallback((data: any[], filename: string, reportTitle: string) => {
     if (data.length === 0) {
-      toast.error('No operational data found for the selected period.')
+      toast.error(locale === 'de'
+        ? 'Keine Daten für den ausgewählten Zeitraum gefunden.'
+        : 'No data found for the selected period.')
       return
     }
 
@@ -80,152 +105,313 @@ export default function ReportsPage() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-  }
 
-  const reportTypes = [
+    // Track this as a recent report
+    const newReport: RecentReport = {
+      id: crypto.randomUUID(),
+      title: `${reportTitle} - ${format(dateRange.start, 'MMMM yyyy')}`,
+      generatedAt: new Date().toISOString(),
+      scope: 'All Employees',
+      format: 'csv',
+    }
+    setRecentReports(prev => [newReport, ...prev].slice(0, 10))
+    toast.success(locale === 'de' ? 'Bericht wurde heruntergeladen.' : 'Report downloaded successfully.')
+  }, [dateRange, locale])
+
+  // ─── Report type definitions ─────────────────────────────
+  const reportTypes: {
+    id: ReportTypeId
+    title: string
+    subtitle: string
+    icon: React.ElementType
+    onExportCSV: () => void
+  }[] = [
     {
-      id: 'times',
-      title: 'Working Times',
-      description: 'Monthly summary of mission durations per employee.',
-      icon: FileText,
-      color: 'bg-blue-600 text-white shadow-blue-100',
-      dataCount: filteredData.times.length,
-      onExportCSV: () => downloadCSV(filteredData.times.map(e => ({
-        date: e.date,
-        employee: e.employee?.full_name,
-        start: e.start_time,
-        end: e.end_time,
-        net_hours: e.net_hours,
-        verified: e.is_verified,
-        notes: e.notes || ''
-      })), 'working_times')
+      id: 'working-time',
+      title: locale === 'de' ? 'Arbeitszeitbericht' : 'Working Time Report',
+      subtitle: locale === 'de' ? 'Stunden pro Mitarbeiter & Zeitraum' : 'Hours per employee & period',
+      icon: Clock,
+      onExportCSV: () => downloadCSV(
+        filteredData.times.map(e => ({
+          date: e.date,
+          employee: e.employee?.full_name || '',
+          start: e.start_time,
+          end: e.end_time,
+          net_hours: e.net_hours,
+          verified: e.is_verified ? 'Yes' : 'No',
+          notes: e.notes || '',
+        })),
+        'working_times',
+        locale === 'de' ? 'Arbeitszeitbericht' : 'Working Time Report'
+      ),
+    },
+    {
+      id: 'time-accounts',
+      title: locale === 'de' ? 'Zeitkonto-Salden' : 'Time Account Balances',
+      subtitle: locale === 'de' ? 'Überstunden & Kontostatus' : 'Overtime & account status',
+      icon: BarChart3,
+      onExportCSV: () => downloadCSV(
+        filteredData.accounts.map(acc => ({
+          employee: acc.full_name,
+          target_hours: acc.target_hours,
+          actual_hours: Number(acc.actual_hours.toFixed(2)),
+          balance: Number(acc.balance.toFixed(2)),
+          status: acc.balance >= 0 ? 'Positive' : 'Deficit',
+        })),
+        'time_account_balances',
+        locale === 'de' ? 'Zeitkonto-Salden' : 'Time Account Balances'
+      ),
     },
     {
       id: 'per-diem',
-      title: 'Per Diem Claims',
-      description: 'Travel allowance totals for personnel accounting.',
-      icon: TrendingUp,
-      color: 'bg-emerald-600 text-white shadow-emerald-100',
-      dataCount: filteredData.perDiems.length,
-      onExportCSV: () => downloadCSV(filteredData.perDiems.map(pd => ({
-        date: pd.date,
-        employee_id: pd.employee_id,
-        country: pd.country,
-        amount: pd.amount,
-        status: pd.status,
-      })), 'per_diem_claims')
+      title: locale === 'de' ? 'Spesenbericht' : 'Per Diem Report',
+      subtitle: locale === 'de' ? 'Reisekostenpauschalen nach Zeitraum' : 'Travel allowances by period',
+      icon: Wallet,
+      onExportCSV: () => downloadCSV(
+        filteredData.perDiems.map(pd => ({
+          date: pd.date,
+          employee_id: pd.employee_id,
+          country: pd.country,
+          days: pd.num_days,
+          rate: pd.rate,
+          amount: pd.amount,
+          status: pd.status,
+        })),
+        'per_diem_claims',
+        locale === 'de' ? 'Spesenbericht' : 'Per Diem Report'
+      ),
     },
     {
-      id: 'bonuses',
-      title: 'Holiday Bonuses',
-      description: 'Summary of all bonus distributions in the selected period.',
-      icon: PieChart,
-      color: 'bg-slate-900 text-white shadow-slate-200',
-      dataCount: filteredData.bonuses.length,
-      onExportCSV: () => downloadCSV(filteredData.bonuses.map(b => ({
-        date_paid: b.created_at,
-        employee_id: b.employee_id,
-        amount: b.amount,
-        notes: b.notes || '',
-      })), 'holiday_bonuses')
-    }
+      id: 'holiday-bonus',
+      title: locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report',
+      subtitle: locale === 'de' ? 'Zusammenfassung der Bonuszahlungen' : 'Bonus payments summary',
+      icon: Gift,
+      onExportCSV: () => downloadCSV(
+        filteredData.bonuses.map(b => ({
+          date_paid: b.created_at,
+          employee_id: b.employee_id,
+          amount: b.amount,
+          period_start: b.period_start || '',
+          period_end: b.period_end || '',
+          notes: b.notes || '',
+        })),
+        'holiday_bonuses',
+        locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report'
+      ),
+    },
   ]
 
+  // ─── Employee fallback ───────────────────────────────────
   if (!isAdmin && !isDispatcher) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="h-20 w-20 rounded-[2.5rem] bg-slate-50 flex items-center justify-center text-slate-300 border border-slate-100 shadow-sm">
-          <BarChart3 className="w-10 h-10" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="h-16 w-16 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-300 border border-gray-100">
+          <BarChart3 className="w-8 h-8" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl font-black text-slate-900 leading-tight tracking-tight uppercase">Personal Analytics</h2>
-          <p className="text-slate-500 font-medium max-w-sm">Personnel can only generate certified year-to-date summaries in PDF format.</p>
+          <h2 className="text-xl font-semibold text-gray-900">
+            {locale === 'de' ? 'Persönliche Berichte' : 'Personal Reports'}
+          </h2>
+          <p className="text-gray-500 text-sm max-w-sm">
+            {locale === 'de'
+              ? 'Mitarbeiter können nur ihre persönlichen Jahresberichte im PDF-Format erstellen.'
+              : 'Employees can only generate personal year-to-date summaries in PDF format.'}
+          </p>
         </div>
-        <Button className="h-14 rounded-2xl px-10 font-black uppercase tracking-widest text-xs bg-slate-900 hover:bg-black text-white shadow-xl gap-3">
-          <Download className="w-4 h-4" /> Download My PDF
+        <Button
+          className="h-11 rounded-xl px-6 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium gap-2"
+          onClick={() => toast.info(locale === 'de' ? 'PDF wird erstellt...' : 'Generating PDF...')}
+        >
+          <Download className="w-4 h-4" />
+          {locale === 'de' ? 'Mein PDF herunterladen' : 'Download My PDF'}
         </Button>
       </div>
     )
   }
 
+  // ─── Admin / Dispatcher view ─────────────────────────────
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-24">
-      {/* Dynamic Header with Period Selector */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-black tracking-tighter flex items-center gap-4 text-slate-900 leading-none">
-            <div className="h-12 w-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-xl">
-              <FileText className="h-6 w-6" />
-            </div>
-            Reporting Center
-          </h1>
-          <p className="text-muted-foreground font-medium max-w-2xl">
-            Generate and export high-fidelity organizational data for accounting.
-          </p>
-        </div>
+    <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
 
-        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 shadow-inner">
-          <Button
-            variant="ghost"
-            className={cn("rounded-xl h-10 font-black uppercase tracking-widest text-[10px] px-4", format(dateRange.start, 'M') === format(new Date(), 'M') ? "bg-white shadow-sm text-blue-600" : "text-slate-400")}
-            onClick={() => setDateRange({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) })}
-          >
-            Current Month
-          </Button>
-          <Button
-            variant="ghost"
-            className={cn("rounded-xl h-10 font-black uppercase tracking-widest text-[10px] px-4", format(dateRange.start, 'M') === format(subMonths(new Date(), 1), 'M') ? "bg-white shadow-sm text-blue-600" : "text-slate-400")}
-            onClick={() => setDateRange({ start: startOfMonth(subMonths(new Date(), 1)), end: endOfMonth(subMonths(new Date(), 1)) })}
-          >
-            Preview Month
-          </Button>
-        </div>
+      {/* ── Header ───────────────────────────────────────── */}
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          {locale === 'de' ? 'Berichte' : 'Reports'}
+        </h1>
+        <p className="text-sm text-gray-500">
+          {locale === 'de' ? 'Berichte erstellen und exportieren' : 'Generate and export reports'}
+        </p>
       </div>
 
-      {/* Report Types Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {reportTypes.map(report => (
-          <Card key={report.id} className="border-slate-100/60 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:shadow-slate-100 transition-all bg-white relative overflow-hidden group border border-solid">
-            <CardContent className="p-8 space-y-8">
-              <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center border border-solid group-hover:scale-110 transition-transform shadow-lg", report.color)}>
-                <report.icon className="w-7 h-7" />
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">{report.title}</h3>
-                  <span className="text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-3 py-1 rounded-full">{report.dataCount} Entries</span>
-                </div>
-                <p className="text-sm font-semibold text-slate-500 leading-relaxed h-12 line-clamp-2">{report.description}</p>
-
-                <div className="flex gap-3 pt-6 border-t border-slate-50">
-                  <Button className="flex-1 h-12 rounded-xl bg-slate-900 hover:bg-black text-white font-black text-[10px] uppercase tracking-widest" onClick={() => toast.info('PDF export being initialized.')}>
-                    <Download className="w-3.5 h-3.5 mr-2" /> PDF
-                  </Button>
-                  <Button variant="outline" className="flex-1 h-12 rounded-xl border-slate-200 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 text-slate-600" onClick={report.onExportCSV}>
-                    <FileText className="w-3.5 h-3.5 mr-2" /> CSV
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Advanced Builder Placeholder */}
-      <Card className="rounded-[3rem] border-none bg-slate-900 text-white shadow-[0_32px_64px_-16px_rgba(0,0,0,0.15)] overflow-hidden p-12 relative flex flex-col md:flex-row md:items-center justify-between gap-10">
-        <div className="absolute top-0 right-0 p-12 opacity-10 group-hover:rotate-12 transition-transform duration-700 pointer-events-none">
-          <BarChart3 className="w-64 h-64" />
-        </div>
-        <div className="relative z-10 max-w-2xl space-y-6">
-          <h3 className="text-3xl font-black tracking-tight uppercase">Operational Personnel Audit</h3>
-          <p className="text-slate-400 font-medium leading-relaxed italic">
-            "Select specific employees, customers, and extended date ranges to build certified mission audits for organizational compliance."
-          </p>
-        </div>
-        <Button className="h-16 rounded-[2rem] bg-blue-600 hover:bg-blue-700 text-white font-black px-10 shadow-2xl shadow-blue-500/20 uppercase tracking-widest text-xs relative z-10" onClick={() => toast.info('Advanced Audit Builder is being processed.')}>
-          Initialize Audit <ArrowRight className="ml-3 w-5 h-5 text-blue-200" />
+      {/* ── Date Range Selector ──────────────────────────── */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant={format(dateRange.start, 'M') === format(new Date(), 'M') ? 'default' : 'outline'}
+          size="sm"
+          className={cn(
+            'rounded-lg text-xs font-medium h-8',
+            format(dateRange.start, 'M') === format(new Date(), 'M')
+              ? 'bg-gray-900 text-white hover:bg-gray-800'
+              : 'text-gray-600'
+          )}
+          onClick={() => setDateRange({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) })}
+        >
+          <Calendar className="w-3.5 h-3.5 mr-1.5" />
+          {locale === 'de' ? 'Aktueller Monat' : 'Current Month'}
         </Button>
-      </Card>
+        <Button
+          variant={format(dateRange.start, 'M') === format(subMonths(new Date(), 1), 'M') ? 'default' : 'outline'}
+          size="sm"
+          className={cn(
+            'rounded-lg text-xs font-medium h-8',
+            format(dateRange.start, 'M') === format(subMonths(new Date(), 1), 'M')
+              ? 'bg-gray-900 text-white hover:bg-gray-800'
+              : 'text-gray-600'
+          )}
+          onClick={() => setDateRange({ start: startOfMonth(subMonths(new Date(), 1)), end: endOfMonth(subMonths(new Date(), 1)) })}
+        >
+          <Calendar className="w-3.5 h-3.5 mr-1.5" />
+          {locale === 'de' ? 'Vormonat' : 'Previous Month'}
+        </Button>
+      </div>
+
+      {/* ── Select Report Type ────────────────────────────── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'de' ? 'Berichtstyp auswählen' : 'Select Report Type'}
+        </h2>
+
+        <div className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-sm">
+          {reportTypes.map((report) => {
+            const isActive = activeReport === report.id
+
+            return (
+              <div key={report.id}>
+                {/* Report row */}
+                <button
+                  onClick={() => setActiveReport(isActive ? null : report.id)}
+                  className={cn(
+                    'w-full flex items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus:outline-none',
+                    isActive && 'bg-gray-50'
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{report.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{report.subtitle}</p>
+                  </div>
+                  <ChevronRight
+                    className={cn(
+                      'w-4 h-4 text-gray-400 transition-transform flex-shrink-0',
+                      isActive && 'rotate-90'
+                    )}
+                  />
+                </button>
+
+                {/* Expanded actions panel */}
+                {isActive && (
+                  <div className="px-5 pb-4 pt-1 bg-gray-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center gap-3 ml-0">
+                      <span className="text-xs text-gray-500 font-medium">
+                        {locale === 'de' ? 'Exportieren als:' : 'Export as:'}
+                      </span>
+                      <Button
+                        size="sm"
+                        className="h-8 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium gap-1.5"
+                        onClick={() => {
+                          report.onExportCSV()
+                          setActiveReport(null)
+                        }}
+                      >
+                        <FileText className="w-3 h-3" />
+                        CSV
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-lg text-xs font-medium gap-1.5 text-gray-600"
+                        onClick={() => {
+                          toast.info(locale === 'de' ? 'PDF-Export wird vorbereitet...' : 'Preparing PDF export...')
+                          // Track as recent report even for PDF stub
+                          const newReport: RecentReport = {
+                            id: crypto.randomUUID(),
+                            title: `${report.title} - ${format(dateRange.start, 'MMMM yyyy')}`,
+                            generatedAt: new Date().toISOString(),
+                            scope: 'All Employees',
+                            format: 'pdf',
+                          }
+                          setRecentReports(prev => [newReport, ...prev].slice(0, 10))
+                          setActiveReport(null)
+                        }}
+                      >
+                        <Download className="w-3 h-3" />
+                        PDF
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Recent Reports ─────────────────────────────────── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'de' ? 'Letzte Berichte' : 'Recent Reports'}
+        </h2>
+
+        {recentReports.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center shadow-sm">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-gray-300" />
+              </div>
+              <p className="text-sm text-gray-400">
+                {locale === 'de'
+                  ? 'Noch keine Berichte erstellt. Wählen Sie oben einen Berichtstyp aus.'
+                  : 'No reports generated yet. Select a report type above to get started.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden shadow-sm">
+            {recentReports.map((report) => (
+              <div key={report.id} className="flex items-center gap-4 px-5 py-3.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{report.title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {locale === 'de' ? 'Erstellt am' : 'Generated on'}{' '}
+                    {format(new Date(report.generatedAt), 'MMM d, yyyy')}
+                    {' · '}
+                    {report.scope}
+                  </p>
+                </div>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
+                  {report.format}
+                </span>
+                <button
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                  onClick={() => toast.info(locale === 'de' ? 'Bericht wird erneut heruntergeladen...' : 'Re-downloading report...')}
+                  title={locale === 'de' ? 'Erneut herunterladen' : 'Re-download'}
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                  onClick={() => {
+                    setRecentReports(prev => prev.filter(r => r.id !== report.id))
+                    toast.success(locale === 'de' ? 'Bericht entfernt.' : 'Report removed.')
+                  }}
+                  title={locale === 'de' ? 'Bericht löschen' : 'Delete report'}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

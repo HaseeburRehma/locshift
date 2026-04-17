@@ -13,6 +13,8 @@ const moduleIcons: Record<string, React.ReactNode> = {
   customers: <Users className="w-4 h-4 text-emerald-600" />,
   shifts:    <Zap className="w-4 h-4 text-amber-600" />,
   system:    <Zap className="w-4 h-4 text-gray-500" />,
+  new_lead:  <Users className="w-4 h-4 text-blue-600" />, // Added missing types
+  job_assigned: <Zap className="w-4 h-4 text-amber-600" />,
 }
 
 const moduleBg: Record<string, string> = {
@@ -47,7 +49,7 @@ export function NotificationPanel() {
   const [prevCount, setPrevCount] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
-  const { notifications, unreadCount, markAllRead, markRead, loading } = useNotifications()
+  const { notifications, unreadCount, markAllAsRead, markAsRead, loading } = useNotifications()
 
   // Bell ring animation when count increases
   useEffect(() => {
@@ -65,11 +67,11 @@ export function NotificationPanel() {
     const age = Date.now() - new Date(latest.created_at).getTime()
     if (age < 5000) { // only show toast if notification arrived recently
       toast(latest.title, {
-        description: latest.message,
+        description: latest.body,
         duration: 5000,
         action: {
           label: 'View',
-          onClick: () => router.push(moduleRoutes[latest.module_type] || '/dashboard')
+          onClick: () => router.push(moduleRoutes[latest.type as string] || '/dashboard')
         }
       })
     }
@@ -120,7 +122,7 @@ export function NotificationPanel() {
             <div className="flex items-center gap-1">
               {unreadCount > 0 && (
                 <button
-                  onClick={markAllRead}
+                  onClick={markAllAsRead}
                   className="flex items-center gap-1.5 text-xs font-bold text-[#0064E0] px-3 py-1.5 rounded-xl hover:bg-blue-50 transition-all"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
@@ -152,8 +154,8 @@ export function NotificationPanel() {
                 <button
                   key={n.id}
                   onClick={() => {
-                    markRead(n.id)
-                    router.push(moduleRoutes[n.module_type] || '/dashboard')
+                    markAsRead(n.id)
+                    router.push(moduleRoutes[n.type] || '/dashboard')
                     setOpen(false)
                   }}
                   className={cn(
@@ -161,8 +163,8 @@ export function NotificationPanel() {
                     !n.is_read && "bg-blue-50/40"
                   )}
                 >
-                  <div className={cn("w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 mt-0.5", moduleBg[n.module_type] || 'bg-gray-50')}>
-                    {moduleIcons[n.module_type] || <Zap className="w-4 h-4 text-gray-400" />}
+                  <div className={cn("w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 mt-0.5", moduleBg[n.type] || 'bg-gray-50')}>
+                    {moduleIcons[n.type] || <Zap className="w-4 h-4 text-gray-400" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
@@ -171,7 +173,7 @@ export function NotificationPanel() {
                       </p>
                       {!n.is_read && <div className="w-2 h-2 rounded-full bg-[#0064E0] flex-shrink-0 mt-1.5" />}
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
                     <p className="text-[10px] font-bold text-gray-400 mt-1.5 uppercase tracking-wide">{timeAgo(n.created_at)}</p>
                   </div>
                 </button>

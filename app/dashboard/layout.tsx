@@ -59,32 +59,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null
 
   return (
-    <>
-      {/* Realtime disconnection banner — auto-shows when WebSocket drops */}
-      <RealtimeConnectionBanner />
+    <div className="flex h-screen bg-slate-50/50 overflow-hidden font-sans">
+      {/* Sidebar: Desktop Only */}
+      <Sidebar />
 
-      <div className="flex h-screen bg-slate-50/50 overflow-hidden font-sans">
-        {/* Sidebar: Desktop Only */}
-        <Sidebar />
+      <div className="flex flex-col flex-1 overflow-hidden relative">
+        {/* Subtle background glow for Ops Center feel */}
+        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-50/20 blur-[120px] pointer-events-none rounded-full" />
 
-        <div className="flex flex-col flex-1 overflow-hidden relative">
-          {/* Subtle background glow for Ops Center feel */}
-          <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-50/20 blur-[120px] pointer-events-none rounded-full" />
-          
-          {/* Header: All Sizes */}
-          <DashboardHeader />
+        {/* Realtime disconnection banner — sits above header in flow */}
+        <RealtimeConnectionBanner />
 
-          {/* Main Content */}
-          <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8 md:py-12 pb-32 md:pb-12 scroll-smooth">
-            <div className="max-w-[1700px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-              {children}
-            </div>
-          </main>
-        </div>
+        {/* Header: All Sizes */}
+        <DashboardHeader />
 
-        {/* Bottom Nav: Mobile Only */}
-        <BottomNav />
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto px-4 md:px-10 py-8 md:py-12 pb-32 md:pb-12 scroll-smooth">
+          <div className="max-w-[1700px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {children}
+          </div>
+        </main>
       </div>
-    </>
+
+      {/* Bottom Nav: Mobile Only */}
+      <BottomNav />
+    </div>
   )
 }

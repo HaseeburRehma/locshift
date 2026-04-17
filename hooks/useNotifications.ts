@@ -4,21 +4,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 
-export interface Notification {
-  id: string
-  user_id: string
-  title: string
-  message: string
-  module_type: string
-  module_id?: string
-  is_read: boolean
-  created_at: string
-}
+import { Notification } from '@/lib/types'
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
-  const { user } = useUser()
+  const { profile: user } = useUser()
   const supabase = createClient()
 
   const fetchNotifications = useCallback(async () => {
@@ -32,7 +23,7 @@ export function useNotifications() {
 
     if (!error) setNotifications(data || [])
     setLoading(false)
-  }, [user?.id])
+  }, [user?.id, supabase])
 
   useEffect(() => {
     if (!user?.id) return
@@ -52,7 +43,7 @@ export function useNotifications() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [user?.id, fetchNotifications])
+  }, [user?.id, fetchNotifications, supabase])
 
   const markAllRead = async () => {
     if (!user?.id) return
@@ -61,7 +52,7 @@ export function useNotifications() {
       .update({ is_read: true })
       .eq('user_id', user.id)
       .eq('is_read', false)
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true } as Notification)))
   }
 
   const markRead = async (id: string) => {
@@ -69,10 +60,16 @@ export function useNotifications() {
       .from('notifications')
       .update({ is_read: true })
       .eq('id', id)
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+    setNotifications(prev => prev.map(n => n.id === id ? ({ ...n, is_read: true } as Notification) : n))
   }
 
   const unreadCount = notifications.filter(n => !n.is_read).length
 
-  return { notifications, loading, unreadCount, markAllRead, markRead }
+  return { 
+    notifications, 
+    loading, 
+    unreadCount, 
+    markAllAsRead: markAllRead, 
+    markAsRead: markRead 
+  }
 }

@@ -120,16 +120,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Priority Mapping: Always prefer DB Profile role as the Source of Truth
   // Sync logic with middleware.ts
-  const rawRole = (profile?.role || "employee").toLowerCase();
-  let role: UserRole = "employee";
+  const rawRole = (profile?.role || "technician").toLowerCase();
+  let role: UserRole = "technician";
 
   if (rawRole === "administrator" || rawRole === "admin") role = "admin";
   else if (rawRole === "dispatcher" || rawRole === "disponent") role = "dispatcher";
-  else role = "employee";
+  else if (rawRole === "technician") role = "technician";
+  else if (rawRole === "manager") role = "manager";
+  else if (rawRole === "viewer") role = "viewer";
+  else role = "technician"; // Fallback to technician for unknown roles
 
   const isAdmin = role === "admin";
   const isDispatcher = role === "dispatcher";
-  const isEmployee = role === "employee";
+  const isEmployee = role === "technician";
 
   return (
     <UserContext.Provider

@@ -4,16 +4,7 @@ import { ChatConversation, Profile } from '@/lib/types'
 const supabase = createClient()
 
 export async function getOrCreateDirectConversation(senderId: string, receiverId: string, orgId: string): Promise<string> {
-  // 1. Check if a 1:1 conversation already exists between these two users
-  const { data: existing, error: checkError } = await supabase
-    .from('chat_members')
-    .select('conversation_id')
-    .eq('user_id', senderId)
-    .filter('conversation_id', 'in', 
-      supabase.from('chat_members').select('conversation_id').eq('user_id', receiverId)
-    )
-
-  // Use a more robust check: Find conversations where both are members and is_group is false
+  // 1. Find conversations where both are members and is_group is false
   const { data: convs, error: convError } = await supabase
     .from('chat_conversations')
     .select(`
@@ -23,11 +14,14 @@ export async function getOrCreateDirectConversation(senderId: string, receiverId
     .eq('is_group', false)
     .eq('organization_id', orgId)
 
-  const directConv = convs?.find(c => 
-    c.members.length === 2 && 
-    c.members.some(m => m.user_id === senderId) && 
-    c.members.some(m => m.user_id === receiverId)
-  )
+  if (convError) throw convError
+
+  const directConv = convs?.find((c: any) => {
+    const members = c.members as any[]
+    return members.length === 2 && 
+           members.some(m => m.user_id === senderId) && 
+           members.some(m => m.user_id === receiverId)
+  })
 
   if (directConv) {
     return directConv.id

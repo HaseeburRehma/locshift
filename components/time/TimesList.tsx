@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { Eye, Plus, Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin } from 'lucide-react'
+import { Eye, Plus, Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, ChevronDown, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { TimeEntry, UserRole } from '@/lib/types'
+import { TimeEntry, UserRole, Profile } from '@/lib/types'
 import { format, isThisWeek, isThisMonth, parseISO } from 'date-fns'
 
 interface TimesListProps {
@@ -13,15 +13,38 @@ interface TimesListProps {
   onEntryClick: (id: string) => void
   onAddClick: () => void
   onToggleStatus?: (id: string, currentStatus: boolean) => void
+  employees?: Profile[]
 }
 
 type FilterStatus = 'All' | 'Pending' | 'Approved' | 'Rejected' | 'This Week' | 'This Month'
 
-export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus }: TimesListProps) {
+export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, employees }: TimesListProps) {
   const canAdd = userRole === 'admin' || userRole === 'dispatcher'
+  const isAdminView = userRole === 'admin' || userRole === 'dispatcher'
   const [filter, setFilter] = useState<FilterStatus>('All')
+  const [employeeFilter, setEmployeeFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
+
+  // Build employee options from the entries + passed employees list
+  const employeeOptions = useMemo(() => {
+    const empMap = new Map<string, string>()
+    // Use provided profiles first
+    if (employees) {
+      employees.forEach(p => {
+        if (p.full_name) empMap.set(p.id, p.full_name)
+      })
+    }
+    // Also include any employee from entries
+    entries.forEach(e => {
+      if (e.employee_id && e.employee?.full_name && !empMap.has(e.employee_id)) {
+        empMap.set(e.employee_id, e.employee.full_name)
+      }
+    })
+    return Array.from(empMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [entries, employees])
 
   // Filter logic
   const filteredEntries = useMemo(() => {
@@ -32,8 +55,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
     } else if (filter === 'Approved') {
       result = result.filter(e => e.is_verified)
     } else if (filter === 'Rejected') {
-      // Assuming empty as there's no explicitly rejected state yet
-      result = result.filter(() => false) 
+      result = result.filter(() => false)
     } else if (filter === 'This Week') {
       result = result.filter(e => {
         try {
@@ -48,11 +70,26 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
       })
     }
 
+    // Employee filter (admin/dispatcher only)
+    if (isAdminView && employeeFilter !== 'all') {
+      result = result.filter(e => e.employee_id === employeeFilter)
+    }
+
     return result;
-  }, [entries, filter])
+  }, [entries, filter, employeeFilter, isAdminView])
 
   const totalPages = Math.ceil(filteredEntries.length / itemsPerPage)
   const paginatedEntries = filteredEntries.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
+  // Reset page on filter change
+  const handleFilterChange = (f: FilterStatus) => {
+    setFilter(f)
+    setCurrentPage(1)
+  }
+  const handleEmployeeChange = (id: string) => {
+    setEmployeeFilter(id)
+    setCurrentPage(1)
+  }
 
   return (
     <div className="flex flex-col h-full bg-slate-50/40 md:bg-transparent animate-in fade-in duration-300">
@@ -70,7 +107,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
             {canAdd && (
-              <Button 
+              <Button
                 onClick={onAddClick}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md min-w-[140px] px-6"
               >
@@ -81,22 +118,47 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
           </div>
         </div>
 
-        {/* Filter Pills */}
-        <div className="px-6 py-2 flex flex-wrap items-center gap-2 mb-4">
-          {(['All', 'Pending', 'Approved', 'Rejected', 'This Week', 'This Month'] as FilterStatus[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => { setFilter(f); setCurrentPage(1); }}
-              className={cn(
-                "px-5 py-2 rounded-full text-xs font-bold transition-all border",
-                filter === f 
-                  ? "bg-blue-600 text-white border-blue-600 shadow-sm" 
-                  : "bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-              )}
-            >
-              {f}
-            </button>
-          ))}
+        {/* Filter Pills + Employee Dropdown */}
+        <div className="px-6 py-2 flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {(['All', 'Pending', 'Approved', 'Rejected', 'This Week', 'This Month'] as FilterStatus[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => handleFilterChange(f)}
+                className={cn(
+                  "px-5 py-2 rounded-full text-xs font-bold transition-all border",
+                  filter === f
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                )}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {/* Employee filter — admin/dispatcher only */}
+          {isAdminView && employeeOptions.length > 0 && (
+            <div className="relative w-full sm:w-52 flex-shrink-0">
+              <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <select
+                value={employeeFilter}
+                onChange={e => handleEmployeeChange(e.target.value)}
+                className={cn(
+                  "w-full h-10 pl-9 pr-9 rounded-xl border bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/5 transition-all font-semibold text-xs appearance-none cursor-pointer",
+                  employeeFilter !== 'all'
+                    ? 'border-blue-300 bg-blue-50 text-blue-700'
+                    : 'border-slate-200 text-slate-600'
+                )}
+              >
+                <option value="all">All Employees</option>
+                {employeeOptions.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          )}
         </div>
 
         {/* Table Area */}
@@ -105,6 +167,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
             <thead>
               <tr className="bg-slate-50/50 text-slate-800 text-[11px] uppercase tracking-wider border-y border-slate-100">
                 <th className="px-6 py-4 font-black whitespace-nowrap">Date</th>
+                {isAdminView && <th className="px-6 py-4 font-black whitespace-nowrap">Employee</th>}
                 <th className="px-6 py-4 font-black whitespace-nowrap">Start Time</th>
                 <th className="px-6 py-4 font-black whitespace-nowrap">End Time</th>
                 <th className="px-6 py-4 font-black whitespace-nowrap">Break</th>
@@ -122,6 +185,20 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                     <td className="px-6 py-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
                       {format(parseISO(entry.date), 'MMM dd, yyyy')}
                     </td>
+                    {isAdminView && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={entry.employee?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.employee?.full_name || 'U')}&background=0064E0&color=fff&size=32`}
+                            alt=""
+                            className="w-7 h-7 rounded-lg object-cover border border-slate-100"
+                          />
+                          <span className="text-sm font-bold text-slate-800 truncate max-w-[120px]">
+                            {entry.employee?.full_name || 'Unknown'}
+                          </span>
+                        </div>
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
                       {format(new Date(entry.start_time), 'HH:mm')}
                     </td>
@@ -141,7 +218,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                       <div className="flex flex-col">
                         <span>{entry.location || entry.plan?.location || '-'}</span>
                         {entry.latitude && entry.longitude && (
-                          <a 
+                          <a
                             href={`https://www.google.com/maps?q=${entry.latitude},${entry.longitude}`}
                             target="_blank"
                             rel="noreferrer"
@@ -169,8 +246,8 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                             size="icon"
                             className={cn(
                               "h-8 w-8 rounded-lg",
-                              entry.is_verified 
-                                ? "bg-orange-50 text-orange-500 hover:bg-orange-100 hover:text-orange-600" 
+                              entry.is_verified
+                                ? "bg-orange-50 text-orange-500 hover:bg-orange-100 hover:text-orange-600"
                                 : "bg-emerald-50 text-emerald-500 hover:bg-emerald-100 hover:text-emerald-600"
                             )}
                             title={entry.is_verified ? "Mark as Pending" : "Approve Log"}
@@ -196,7 +273,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">
+                  <td colSpan={isAdminView ? 10 : 9} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">
                     No time entries found
                   </td>
                 </tr>
@@ -228,8 +305,8 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                     onClick={() => setCurrentPage(i + 1)}
                     className={cn(
                       "w-8 h-8 rounded-lg text-xs font-bold transition-colors",
-                      currentPage === i + 1 
-                        ? "bg-slate-900 text-white" 
+                      currentPage === i + 1
+                        ? "bg-slate-900 text-white"
                         : "text-slate-600 hover:bg-slate-100 bg-transparent"
                     )}
                   >

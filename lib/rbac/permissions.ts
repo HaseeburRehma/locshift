@@ -1,4 +1,4 @@
-import { UserRole } from "@/lib/types/database.types";
+import { UserRole } from "@/lib/types";
 
 const PERMISSIONS = {
   // Leads
@@ -55,11 +55,17 @@ const PERMISSIONS = {
 
 export type Permission = keyof typeof PERMISSIONS;
 
-export function hasPermission(role: UserRole, permission: Permission): boolean {
+export function hasPermission(role: UserRole | null | undefined, permission: Permission): boolean {
+  if (!role) return false;
   const allowedRoles = PERMISSIONS[permission] as readonly string[];
-  return allowedRoles.includes(role);
+  // Include 'dispatcher' as an implicit 'disponent' if it's not explicitly listed
+  const rolesToCheck = [role];
+  if (role === 'dispatcher') rolesToCheck.push('disponent' as UserRole);
+  
+  return allowedRoles.some(r => rolesToCheck.includes(r as UserRole));
 }
 
-export function canAccess(role: UserRole, permissions: Permission[]): boolean {
+export function canAccess(role: UserRole | null | undefined, permissions: Permission[]): boolean {
+  if (!role) return false;
   return permissions.some(p => hasPermission(role, p));
 }

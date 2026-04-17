@@ -38,11 +38,11 @@ export function useCustomers() {
         schema: 'public', 
         table: 'customers', 
         filter: `organization_id=eq.${profile.organization_id}` 
-      }, (payload) => {
+      }, (payload: any) => {
         console.log('[useCustomers] Real-time operational change:', payload)
         fetchCustomers(true) // Silent refetch to sync potential changes from other users
       })
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
           console.log('[useCustomers] Successfully connected to HUD stream')
         }
@@ -124,7 +124,7 @@ export function useCustomers() {
       .eq('customer_id', id)
 
     const totalShifts = plans?.length || 0
-    const totalHours = times?.reduce((sum, t) => sum + (t.net_hours || 0), 0) || 0
+    const totalHours = times?.reduce((sum: number, t: any) => sum + (t.net_hours || 0), 0) || 0
 
     return { totalShifts, totalHours }
   }

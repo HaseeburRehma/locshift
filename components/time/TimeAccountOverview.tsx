@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { MonthlyTimeData } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,8 @@ interface TimeAccountOverviewProps {
   employeeName?: string
 }
 
+const ITEMS_PER_PAGE = 6
+
 export function TimeAccountOverview({
   onBack,
   onMonthClick,
@@ -22,11 +24,27 @@ export function TimeAccountOverview({
   totalOvertimePaid,
   employeeName,
 }: TimeAccountOverviewProps) {
-  return (
-    <div className="flex flex-col min-h-full bg-white animate-in fade-in slide-in-from-right duration-300">
+  const [currentPage, setCurrentPage] = useState(1)
 
-      {/* ── iOS-style centred navigation header ── */}
-      <div className="relative flex items-center justify-center px-4 py-4 border-b border-slate-100 bg-white sticky top-0 z-50">
+  const totalPages = Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE))
+  const paginatedData = data.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+
+  // Stats derived from most-recent month
+  const latestMonth = data[0] ?? null
+  const totalHours = latestMonth?.actualHours ?? 0
+  const latestMonthLabel = latestMonth
+    ? new Date(latestMonth.year, latestMonth.month - 1).toLocaleDateString('en-US', { month: 'short' })
+    : 'N/A'
+  const workingDays = latestMonth?.workingDays ?? 0
+
+  return (
+    <div className="flex flex-col min-h-full bg-white animate-in fade-in duration-300">
+
+      {/* ── Mobile-only back nav bar ── */}
+      <div className="md:hidden relative flex items-center justify-center px-4 py-4 border-b border-slate-100 bg-white sticky top-0 z-50">
         <button
           onClick={onBack}
           aria-label="Back"
@@ -35,87 +53,181 @@ export function TimeAccountOverview({
           <ArrowLeft className="w-4 h-4" />
         </button>
         <h1 className="text-[17px] font-bold text-slate-900 tracking-tight">
-          {employeeName ? `${employeeName}` : 'Times Account'}
+          {employeeName ?? 'Time Accounts'}
         </h1>
       </div>
 
-      {/* ── Content ── */}
-      <div className="flex-1 px-4 md:px-10 pt-8 pb-32 space-y-8">
+      {/* ── Main Content ── */}
+      <div className="flex-1 px-5 md:px-8 pt-6 pb-16 space-y-7 max-w-5xl w-full mx-auto">
 
-        {/* ── Top two balance cards ── */}
-        <div className="grid grid-cols-2 gap-4 md:gap-6">
+        {/* Desktop back button (admin drilling into employee) */}
+        {employeeName && (
+          <button
+            onClick={onBack}
+            className="hidden md:flex items-center gap-2 text-[13px] font-semibold text-slate-500 hover:text-blue-600 transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            Back to Personnel
+          </button>
+        )}
+
+        {/* ── Page Title ── */}
+        <div className="space-y-1">
+          <h1 className="text-[26px] md:text-[30px] font-bold text-slate-900 tracking-tight leading-none">
+            {employeeName ? `${employeeName}'s Account` : 'Time Accounts'}
+          </h1>
+          <p className="text-[13px] text-slate-500 font-normal">
+            Track overtime and account balances
+          </p>
+        </div>
+
+        {/* ── 4 Stats Cards ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
           {/* Hours Balance */}
-          <div className={cn(
-            'rounded-[2.5rem] border-[3px] p-6 md:p-8 flex flex-col items-center justify-center text-center space-y-1 md:space-y-2 transition-all shadow-xl',
-            totalBalance >= 0 ? 'border-blue-400 bg-white shadow-blue-100/50' : 'border-red-400 bg-white shadow-red-100/50'
-          )}>
-            <span className={cn(
-              'text-[32px] md:text-[48px] font-black tracking-tighter tabular-nums leading-none',
-              totalBalance >= 0 ? 'text-blue-600' : 'text-red-500'
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all">
+            <div className={cn(
+              'text-[28px] md:text-[32px] font-bold tabular-nums leading-none tracking-tight',
+              totalBalance >= 0 ? 'text-emerald-500' : 'text-red-500'
             )}>
               {totalBalance > 0
-                ? `+${totalBalance.toFixed(1)}`
-                : totalBalance.toFixed(1)}
-            </span>
-            <p className="text-[11px] md:text-[13px] text-slate-400 font-bold uppercase tracking-[0.2em]">Hours Balance</p>
+                ? `+${totalBalance.toFixed(1)}h`
+                : `${totalBalance.toFixed(1)}h`}
+            </div>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">
+              Hours Balance (YTD)
+            </p>
           </div>
 
           {/* Overtime Paid */}
-          <div className="rounded-[2.5rem] border-[3px] border-emerald-400 bg-white p-6 md:p-8 flex flex-col items-center justify-center text-center space-y-1 md:space-y-2 transition-all shadow-xl shadow-emerald-100/50">
-            <span className="text-[32px] md:text-[48px] font-black tracking-tighter tabular-nums text-emerald-500 leading-none">
-              {totalOvertimePaid.toFixed(1)}
-            </span>
-            <p className="text-[11px] md:text-[13px] text-slate-400 font-bold uppercase tracking-[0.2em]">Overtime Paid</p>
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all">
+            <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-blue-600 leading-none tracking-tight">
+              {totalOvertimePaid.toFixed(1)}h
+            </div>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">
+              Overtime Paid
+            </p>
+          </div>
+
+          {/* Total Hours */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all">
+            <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-blue-600 leading-none tracking-tight">
+              {totalHours.toFixed(1)}h
+            </div>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">
+              Total Hours ({latestMonthLabel})
+            </p>
+          </div>
+
+          {/* Working Days */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all">
+            <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-blue-600 leading-none tracking-tight">
+              {workingDays}
+            </div>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">
+              Working Days
+            </p>
           </div>
         </div>
 
-        {/* ── Monthly Histoy Section ── */}
-        <div className="space-y-4 pt-4">
-          <h2 className="text-[14px] font-black text-slate-400 uppercase tracking-[0.3em] pl-2">
-             Operational History
-          </h2>
+        {/* ── Monthly Breakdown ── */}
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+
+          {/* Section header */}
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-[16px] font-semibold text-slate-900">
+              Monthly Breakdown
+            </h2>
+            {data.length > ITEMS_PER_PAGE && (
+              <span className="text-[12px] text-slate-400 font-medium">
+                {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, data.length)} of {data.length}
+              </span>
+            )}
+          </div>
+
+          {/* Empty state */}
           {data.length === 0 && (
-            <div className="rounded-3xl bg-slate-50/50 border-2 border-dashed border-slate-200 p-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-              No Time Records Detected
+            <div className="px-6 py-16 text-center">
+              <p className="text-[13px] text-slate-400 font-medium">No time records found.</p>
             </div>
           )}
 
-          {data.map((month) => {
-            const label = new Date(month.year, month.month - 1).toLocaleDateString('en-US', {
-              month: 'long',
-              year: 'numeric',
-            })
+          {/* Month rows */}
+          <div className="divide-y divide-slate-100">
+            {paginatedData.map((month) => {
+              const label = new Date(month.year, month.month - 1).toLocaleDateString('en-US', {
+                month: 'long',
+                year: 'numeric',
+              })
 
-            return (
+              return (
+                <button
+                  key={month.key}
+                  onClick={() => onMonthClick(month.key)}
+                  className="w-full text-left group flex items-center justify-between px-6 py-4 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                >
+                  <div className="space-y-0.5">
+                    <h4 className="text-[15px] font-semibold text-slate-900 leading-none group-hover:text-blue-600 transition-colors">
+                      {label}
+                    </h4>
+                    <p className="text-[12px] text-slate-400 font-normal">
+                      {month.workingDays} working days
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={cn(
+                      'text-[15px] font-semibold tabular-nums',
+                      month.difference >= 0 ? 'text-emerald-500' : 'text-red-500'
+                    )}>
+                      {month.difference >= 0
+                        ? `+${month.difference.toFixed(1)}h`
+                        : `${month.difference.toFixed(1)}h`}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400 transition-colors" />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Pagination footer */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
               <button
-                key={month.key}
-                onClick={() => onMonthClick(month.key)}
-                className="w-full text-left group bg-[#F2F4F8] rounded-2xl px-5 py-4.5 flex items-center justify-between hover:bg-blue-50 transition-all active:scale-[0.98] border border-transparent hover:border-blue-100"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+                className="text-[13px] font-medium text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 active:scale-95"
               >
-                <div className="space-y-1">
-                  <h4 className="text-[16px] font-bold text-slate-900 tracking-tight leading-none group-hover:text-blue-700 transition-colors">
-                    {label}
-                  </h4>
-                  <p className="text-[12px] font-semibold text-slate-500">
-                    {month.workingDays} working days
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={cn(
-                    "text-[14px] font-black tabular-nums tracking-tight",
-                    month.difference >= 0 ? "text-blue-600" : "text-red-500"
-                  )}>
-                    {month.difference >= 0
-                      ? `+${month.difference.toFixed(1)}hrs`
-                      : `${month.difference.toFixed(1)}hrs`}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                </div>
+                ← Previous
               </button>
-            )
-          })}
+
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={cn(
+                      'w-7 h-7 rounded-lg text-[12px] font-semibold transition-all active:scale-95',
+                      page === currentPage
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:border-slate-200 border border-transparent'
+                    )}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="text-[13px] font-medium text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 active:scale-95"
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

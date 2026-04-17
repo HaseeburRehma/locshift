@@ -1,31 +1,38 @@
 import React from 'react'
-import Image from 'next/image'
+import { MessageCircle } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 
 interface ChatEmptyStateProps {
   title?: string
   description?: string
 }
 
-export function ChatEmptyState({ 
-  title = 'No messages yet', 
-  description = 'Your chat history will be displayed here' 
+export function ChatEmptyState({
+  title,
+  description,
 }: ChatEmptyStateProps) {
+  const { t } = useTranslation()
+  const displayTitle = title || t('chat.title')
+  const displayDesc = description || t('chat.selectConversation')
   return (
-    <div className="flex flex-col items-center justify-center p-8 h-full bg-white text-center">
-      <div className="relative w-64 h-64 mb-6 animate-in fade-in zoom-in duration-500">
-        <img 
-          src="/assets/illustrations/illustration 2.png" 
+    <div className="flex flex-col items-center justify-center p-8 h-full bg-[#FAFBFC] text-center">
+      <div className="relative w-48 h-48 mb-6 animate-in fade-in zoom-in duration-500">
+        <img
+          src="/assets/illustrations/chat_empty.svg"
           alt="No messages"
           className="w-full h-full object-contain"
-          // Add a fallback in case the image is missing during development
           onError={(e) => {
-            (e.target as any).src = 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Thought%20Balloon.png'
+            // Hide the image on error and show fallback icon
+            (e.target as HTMLImageElement).style.display = 'none'
           }}
         />
       </div>
-      <h3 className="text-[22px] font-extrabold text-gray-900 mb-2">Chats</h3>
-      <p className="text-[15px] text-gray-500 max-w-xs mx-auto leading-relaxed font-medium">
-        {description}
+      <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+        <MessageCircle className="w-7 h-7 text-blue-500" />
+      </div>
+      <h3 className="text-xl font-bold text-gray-900 mb-2">{displayTitle}</h3>
+      <p className="text-sm text-gray-500 max-w-xs mx-auto leading-relaxed font-medium">
+        {displayDesc}
       </p>
     </div>
   )

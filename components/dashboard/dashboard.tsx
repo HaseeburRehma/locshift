@@ -4,10 +4,9 @@ import { useState, useCallback } from 'react'
 import useSWR from 'swr'
 import { DashboardHeader } from './header'
 import { StatsCards } from './stats-cards'
-import { LeadsTable as NewLeadsTable } from '@/components/leads/LeadsTable'
-import { CreateLeadButton } from '@/components/leads/CreateLeadButton'
-import { LeadsTable as OldLeadsTable } from './leads-table'
-import { JobsPanel } from './jobs-panel'
+import { LeadsTable as NewLeadsTable } from './leads-table'
+import { JobsTable } from './JobsTable'
+import { CreateLeadButton } from './CreateLeadButton'
 import { TechniciansPanel } from './technicians-panel'
 import { ReviewsPanel } from './reviews-panel'
 import { AutomationsPanel } from './automations-panel'
@@ -16,7 +15,7 @@ import { PartnerConfigPanel } from './partner-config-panel'
 import { AgentActivity } from './agent-activity'
 import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { JobsTable } from '@/components/jobs/JobsTable'
+import { JobsPanel } from './jobs-panel'
 import { useUser } from '@/lib/user-context'
 import type { Lead, Job, Technician } from '@/lib/types'
 import { Sidebar, ViewType } from './sidebar'
@@ -35,7 +34,7 @@ interface Activity {
 }
 
 export function Dashboard() {
-  const { permissions, isLoading: userLoading, role } = useUser()
+  const { isLoading: userLoading, role } = useUser()
   const [activities, setActivities] = useState<Activity[]>([])
   const [activeView, setActiveView] = useState<ViewType>('dashboard')
   const { locale } = useTranslation()
@@ -127,8 +126,8 @@ export function Dashboard() {
         body: JSON.stringify({ id: jobId, status })
       })
       const desc = locale === 'en'
-        ? `Job "${job?.lead?.name}" set to "${status}"`
-        : `Auftrag "${job?.lead?.name}" auf "${status}" gesetzt`
+        ? `Job "${job?.notes || 'Unknown'}" set to "${status}"`
+        : `Auftrag "${job?.notes || 'Unbekannt'}" auf "${status}" gesetzt`
       addActivity('message', desc)
       mutateJobs()
       mutateLeads()
@@ -152,8 +151,8 @@ export function Dashboard() {
         review_request: locale === 'en' ? 'Review Request' : 'Bewertungsanfrage'
       }
       const desc = locale === 'en'
-        ? `${templateNames[template]} sent to "${job?.lead?.name}"`
-        : `${templateNames[template]} an "${job?.lead?.name}" gesendet`
+        ? `${templateNames[template]} sent`
+        : `${templateNames[template]} gesendet`
       addActivity('message', desc)
       mutateJobs()
     } catch (error) {
@@ -204,8 +203,8 @@ export function Dashboard() {
         return (
           <div className="space-y-6">
             <StatsCards
-              leads={leads}
-              jobs={jobs}
+              leads={leads || []}
+              jobs={jobs || []}
               notificationsSentToday={messages?.filter(m => {
                 if (!m.sent_at) return false
                 return new Date(m.sent_at).toDateString() === new Date().toDateString()
@@ -261,7 +260,7 @@ export function Dashboard() {
               </div>
               <div className="space-y-6">
                 {/* AI Highlights Card */}
-                {leads?.some(l => (l as any).ai_score >= 80) && (
+                {leads?.some(l => (l.ai_score ?? 0) >= 80) && (
                   <Card className="border-none shadow-md bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
                     <CardHeader className="pb-2">
                       <div className="flex items-center gap-2">
@@ -271,17 +270,17 @@ export function Dashboard() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {leads
-                        .filter(l => (l as any).ai_score >= 80)
+                        .filter(l => (l.ai_score ?? 0) >= 80)
                         .slice(0, 2)
                         .map(lead => (
                           <div key={lead.id} className="p-3 bg-white/10 backdrop-blur-md rounded-lg border border-white/10 group cursor-pointer hover:bg-white/20 transition-colors">
                             <div className="flex justify-between items-start mb-1">
                               <p className="text-xs font-bold text-blue-100 uppercase tracking-wider">{lead.name}</p>
-                              <Badge variant="outline" className="text-[10px] bg-white/10 text-white border-white/20">Score: {(lead as any).ai_score}</Badge>
+                              <Badge variant="outline" className="text-[10px] bg-white/10 text-white border-white/20">Score: {lead.ai_score}</Badge>
                             </div>
-                            <p className="text-xs text-blue-50 line-clamp-1 italic">{(lead as any).ai_summary}</p>
+                            <p className="text-xs text-blue-50 line-clamp-1 italic">{lead.ai_summary}</p>
                             <div className="flex items-center gap-1 mt-2 text-[10px] text-blue-200 font-semibold group-hover:text-white transition-colors">
-                              <span>Action: {(lead as any).ai_recommended_action?.replace(/_/g, ' ')}</span>
+                              <span>Action: {lead.ai_recommended_action?.replace(/_/g, ' ')}</span>
                             </div>
                           </div>
                         ))}

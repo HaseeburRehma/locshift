@@ -3,35 +3,31 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { 
-  Home, 
-  Activity, 
-  Send, 
-  Calendar, 
+import {
+  Home,
+  Activity,
+  Send,
+  Calendar,
   Settings,
-  FileText,
-  Clock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUser } from '@/lib/user-context'
+import { useTranslation } from '@/lib/i18n'
+import { useSidebarBadges } from '@/hooks/useSidebarBadges'
 
 export function BottomNav() {
   const pathname = usePathname()
-  const { role, isEmployee, isAdmin, isDispatcher } = useUser()
-  
-  // Real-time notification checks would go here
-  const unreadChatCount = 0 
+  const { role } = useUser()
+  const { t } = useTranslation()
+  const badges = useSidebarBadges()
 
   const navItems = [
-    { href: '/dashboard',          icon: Home,     label: 'Home' },
-    { href: '/dashboard/live',     icon: Activity, label: 'Live' },
-    { href: '/dashboard/chat',     icon: Send,     label: 'Chat' },
-    { href: '/dashboard/calendar', icon: Calendar, label: 'Calender' },
-    { href: '/dashboard/settings', icon: Settings, label: 'Setting' },
+    { href: '/dashboard',          icon: Home,     label: t('nav.home'),     badgeKey: null },
+    { href: '/dashboard/live',     icon: Activity, label: t('nav.live'),     badgeKey: null },
+    { href: '/dashboard/chat',     icon: Send,     label: t('nav.chat'),     badgeKey: 'chat' as const },
+    { href: '/dashboard/calendar', icon: Calendar, label: t('nav.calendar'), badgeKey: 'calendar' as const },
+    { href: '/dashboard/settings', icon: Settings, label: t('nav.settings'), badgeKey: null },
   ]
-
-  // Filter out 'Plans' or others if needed, but usually employees need them most on mobile
-  const filteredTabs = navItems
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard'
@@ -39,19 +35,19 @@ export function BottomNav() {
   }
 
   return (
-    <nav 
+    <nav
       className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden bg-white/80 backdrop-blur-xl border-t border-slate-100 h-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      {filteredTabs.map(({ href, icon: Icon, label }) => {
+      {navItems.map(({ href, icon: Icon, label, badgeKey }) => {
         const active = isActive(href)
+        const badgeCount = badgeKey ? badges[badgeKey] : 0
         return (
           <Link
             key={href}
             href={href}
             className="relative flex flex-1 flex-col items-center justify-center gap-1 transition-all active:scale-95"
           >
-            {/* Soft glow behind active tab */}
             {active && (
               <div className="absolute inset-0 bg-blue-50/50 animate-in fade-in duration-500" />
             )}
@@ -63,11 +59,10 @@ export function BottomNav() {
                   active ? "text-blue-600 stroke-[2.5px] scale-110" : "text-slate-400"
                 )}
               />
-              
-              {/* Notification Badge for Chat */}
-              {label === 'Chat' && unreadChatCount > 0 && (
+
+              {badgeCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-black shadow-lg ring-2 ring-white">
-                  {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                  {badgeCount > 9 ? '9+' : badgeCount}
                 </span>
               )}
             </div>

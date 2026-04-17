@@ -31,14 +31,14 @@ import { useState } from 'react'
 
 export function DashboardHeader() {
   const { user, profile, role, signOut, isLoading } = useUser()
-  const { locale, setLocale } = useTranslation()
+  const { locale, setLocale, t } = useTranslation()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const router = useRouter()
 
   const roleLabels: Record<string, string> = {
-    admin: locale === 'en' ? 'Administrator' : 'Administrator',
-    dispatcher: locale === 'en' ? 'Dispatcher' : 'Disponent',
-    employee: locale === 'en' ? 'Employee' : 'Mitarbeiter',
+    admin: t('role.admin'),
+    dispatcher: t('role.dispatcher'),
+    employee: t('role.employee'),
   }
 
   const roleColors: Record<string, string> = {
@@ -63,7 +63,7 @@ export function DashboardHeader() {
     : user?.email?.slice(0, 2).toUpperCase() ?? 'U'
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-50 bg-white/80 backdrop-blur-xl">
+    <header className="z-50 border-b border-slate-100 bg-white backdrop-blur-xl flex-shrink-0">
       <div className="flex h-20 items-center justify-between px-6">
         <div className="flex-1 flex items-center gap-4">
           {/* Mobile: Hamburger */}
@@ -112,7 +112,7 @@ export function DashboardHeader() {
             </div>
             <input 
               type="text"
-              placeholder="Search here..."
+              placeholder={t('nav.search')}
               className="w-full h-11 bg-slate-50 border-none rounded-xl pl-11 pr-4 text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-100/50 transition-all outline-none"
             />
           </div>
@@ -166,7 +166,7 @@ export function DashboardHeader() {
                 <DropdownMenuSeparator className="bg-slate-50 mx-2" />
                 <DropdownMenuItem className="flex items-center gap-3 p-3.5 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors group" onClick={() => router.push('/dashboard/settings')}>
                   <Settings className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
-                  <span className="font-bold text-xs uppercase tracking-widest text-slate-600 group-hover:text-slate-900">{locale === 'en' ? 'Settings' : 'Einstellungen'}</span>
+                  <span className="font-bold text-xs uppercase tracking-widest text-slate-600 group-hover:text-slate-900">{t('header.settings')}</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-slate-50 mx-2" />
                 <DropdownMenuItem
@@ -174,7 +174,7 @@ export function DashboardHeader() {
                   className="flex items-center gap-3 p-3.5 rounded-xl cursor-pointer text-red-500 focus:text-red-600 focus:bg-red-50 group transition-all"
                 >
                   <LogOut className="h-4 w-4 text-red-400 group-hover:translate-x-1 transition-transform" />
-                  <span className="font-black text-xs uppercase tracking-widest">{locale === 'en' ? 'Sign out' : 'Abmelden'}</span>
+                  <span className="font-black text-xs uppercase tracking-widest">{t('header.signOut')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

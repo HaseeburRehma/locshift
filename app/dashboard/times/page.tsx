@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { TimeEntry, TimeEntryFormData } from '@/lib/types'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { useProfiles } from '@/hooks/useProfiles'
 
 import { updateTimeEntryStatus } from '@/app/actions/time-entries'
 
@@ -22,6 +23,7 @@ export default function TimesPage() {
   
   const { user, profile, isAdmin, isDispatcher } = useUser()
   const { clockIn, clockOut } = useTimeTracking()
+  const { profiles: employeeProfiles } = useProfiles()
   const supabase = createClient()
 
   const canAddManually = isAdmin || isDispatcher
@@ -52,7 +54,7 @@ export default function TimesPage() {
     // Fetch entries
     const { data: entriesData, error: entriesError } = await supabase
       .from('time_entries')
-      .select('*, customer:customers(id, name), verifier:profiles!verified_by(id, full_name), plan:plans(location, customer:customers(id, name))')
+      .select('*, employee:profiles!employee_id(id, full_name, avatar_url, role), customer:customers(id, name), verifier:profiles!verified_by(id, full_name), plan:plans(location, customer:customers(id, name))')
       .eq('organization_id', profile.organization_id)
       .order('date', { ascending: false })
       .order('start_time', { ascending: false })
@@ -166,9 +168,10 @@ export default function TimesPage() {
     <div className="h-full bg-white md:bg-transparent min-h-screen">
       <div className="max-w-[1600px] mx-auto md:px-6 md:py-8 lg:px-8">
         {view === 'list' && (
-          <TimesList 
-            entries={entries} 
+          <TimesList
+            entries={entries}
             userRole={profile?.role}
+            employees={employeeProfiles}
             onEntryClick={(id) => {
               setSelectedEntryId(id)
               setView('details')

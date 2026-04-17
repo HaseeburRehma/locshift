@@ -7,13 +7,21 @@ import {
   TechnicianRow, 
   JobRow, 
   MatchResult as MatchResultDB, 
-  QualificationResult as QualificationResultDB 
+  QualificationResult as QualificationResultDB,
+  UserRole as DBUserRole
 } from './types/database.types'
 
-export type UserRole = 'admin' | 'dispatcher' | 'employee'
-export type Lead = LeadRow
-export type Technician = TechnicianRow
-export type Job = JobRow
+export type UserRole = DBUserRole | 'employee' | 'administrator'
+export type Lead = LeadRow & {
+  technician?: TechnicianRow;
+}
+export type Technician = TechnicianRow & {
+  jobs?: JobRow[];
+}
+export type Job = JobRow & {
+  lead?: LeadRow;
+  technician?: TechnicianRow;
+}
 export type MatchResult = MatchResultDB
 export type QualificationResult = QualificationResultDB
 
@@ -201,6 +209,7 @@ export interface ChatConversation {
   id: string
   organization_id: string
   name: string | null
+  avatar_url?: string | null
   is_group: boolean
   created_by: string
   created_at: string
@@ -227,6 +236,9 @@ export interface ChatMessage {
   sender_id: string
   content: string | null
   attachment_url: string | null
+  attachment_type?: 'image' | 'file' | null
+  attachment_name?: string | null
+  is_deleted?: boolean
   created_at: string
   // Joined fields
   sender?: Profile
@@ -238,16 +250,10 @@ export interface UserWithProfile {
   profile: Profile | null
 }
 
-export interface Notification {
-  id: string
-  user_id: string
-  title: string
-  message: string
-  module_type: string
-  module_id?: string
-  is_read: boolean
-  created_at: string
-}
+import { NotificationRow, MessageRow } from './types/database.types'
+
+export type Notification = NotificationRow
+export type Message = MessageRow
 
 export type CalendarEventType = 'event' | 'shift' | 'birthday' | 'meeting' | 'sick_leave' | 'holiday' | 'other'
 

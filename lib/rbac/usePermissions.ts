@@ -13,9 +13,9 @@ export function usePermissions() {
     loading,
     isAdmin: role === 'admin',
     isManager: role === 'manager',
-    isDisponent: role === 'disponent',
+    isDisponent: role === 'disponent' || (role as string) === 'dispatcher',
     isTechnician: role === 'technician',
-    isPartner: ['partner_admin', 'partner_agent'].includes(role),
-    isViewer: role === 'viewer',
+    isPartner: role === 'partner_admin' || role === 'partner_agent',
+    isViewer: (role as string) === 'viewer',
   }
 }

@@ -15,6 +15,7 @@ import { useTranslation } from '@/lib/i18n'
 import { Plan } from '@/lib/types'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { usePlans } from '@/hooks/plans/usePlans'
+import { useProfiles } from '@/hooks/useProfiles'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { sendNotification } from '@/lib/notifications/service'
@@ -71,13 +72,14 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-400 border-gray-200',
 }
 
-function StatusBadge({ status, isUpdating }: { status: string; isUpdating?: boolean }) {
+function StatusBadge({ status, isUpdating, hideIcon = false }: { status: string; isUpdating?: boolean; hideIcon?: boolean }) {
   return (
     <span className={cn(
       'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-300',
       STATUS_STYLES[status] ?? STATUS_STYLES.draft
     )}>
-      {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin" /> Updating...</> : status}
+      {isUpdating && !hideIcon && <Loader2 className="w-3 h-3 animate-spin" />}
+      {isUpdating ? 'Updating...' : status}
     </span>
   )
 }
@@ -208,7 +210,7 @@ type StatusFilter = typeof ALL_STATUSES[number]
 
 function FilterPills({ active, onChange }: { active: StatusFilter; onChange: (s: StatusFilter) => void }) {
   const colors: Record<StatusFilter, string> = {
-    all:       'bg-slate-900 text-white border-slate-900',
+    all:       'bg-[#0064E0] text-white border-[#0064E0] shadow-lg shadow-blue-200',
     draft:     'bg-gray-100 text-gray-700 border-gray-200',
     assigned:  'bg-blue-100 text-blue-700 border-blue-200',
     confirmed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -266,9 +268,11 @@ export default function PlansPage() {
   const { isAdmin, isDispatcher, profile } = useUser()
   const { locale } = useTranslation()
   const { plans, loading, updatePlanStatus, deletePlan } = usePlans()
+  const { profiles } = useProfiles()
 
   const [searchTerm, setSearchTerm]         = useState('')
   const [statusFilter, setStatusFilter]     = useState<StatusFilter>('all')
+  const [employeeFilter, setEmployeeFilter] = useState<string>('all')
   const [sortKey, setSortKey]               = useState<SortKey>('date')
   const [sortDir, setSortDir]               = useState<'asc' | 'desc'>('desc')
   const [confirmingId, setConfirmingId]     = useState<string | null>(null)
@@ -290,6 +294,26 @@ export default function PlansPage() {
     else { setSortKey(key); setSortDir('asc') }
   }
 
+  // Build employee list for dropdown (only employees that appear in plans)
+  const employeeOptions = useMemo(() => {
+    const empMap = new Map<string, string>()
+    // Use profiles first for complete list
+    profiles.forEach(p => {
+      if (p.role === 'employee' && p.full_name) {
+        empMap.set(p.id, p.full_name)
+      }
+    })
+    // Also include any employee from plans that might be missing
+    plans.forEach(p => {
+      if (p.employee_id && p.employee?.full_name && !empMap.has(p.employee_id)) {
+        empMap.set(p.employee_id, p.employee.full_name)
+      }
+    })
+    return Array.from(empMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [plans, profiles])
+
   const filteredPlans = useMemo(() => {
     let result = plans.filter(p => {
       const q = searchTerm.toLowerCase()
@@ -307,7 +331,8 @@ export default function PlansPage() {
         const end = endOfWeek(now, { weekStartsOn: 1 })
         matchStatus = planDate >= start && planDate <= end
       }
-      return matchText && matchStatus
+      const matchEmployee = employeeFilter === 'all' || p.employee_id === employeeFilter
+      return matchText && matchStatus && matchEmployee
     })
 
     result = [...result].sort((a, b) => {
@@ -321,7 +346,7 @@ export default function PlansPage() {
     })
 
     return result
-  }, [plans, searchTerm, statusFilter, sortKey, sortDir])
+  }, [plans, searchTerm, statusFilter, employeeFilter, sortKey, sortDir])
 
   const totalPages = Math.ceil(filteredPlans.length / itemsPerPage)
   const paginatedPlans = useMemo(() => {
@@ -331,7 +356,7 @@ export default function PlansPage() {
   // Reset to page 1 on filter/search
   useMemo(() => {
     setCurrentPage(1)
-  }, [searchTerm, statusFilter])
+  }, [searchTerm, statusFilter, employeeFilter])
 
   // ── Admin / Dispatcher View ─────────────────────────────────────────────────
   if (isAdmin || isDispatcher) {
@@ -367,8 +392,8 @@ export default function PlansPage() {
                     onClick={() => setStatusFilter(s as any)}
                     className={cn(
                       'px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-300',
-                      statusFilter === s 
-                        ? 'bg-[#0064E0] text-white shadow-lg shadow-blue-200' 
+                      statusFilter === s
+                        ? 'bg-[#0064E0] text-white shadow-lg shadow-blue-200'
                         : 'text-gray-400 hover:text-gray-600 hover:bg-white'
                     )}
                   >
@@ -377,16 +402,36 @@ export default function PlansPage() {
                 ))}
               </div>
 
-              {/* Search */}
-              <div className="relative w-full lg:max-w-md group">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#0064E0] transition-colors" />
-                <input
-                  type="text"
-                  placeholder={locale === 'en' ? 'Search here...' : 'Hier suchen...'}
-                  className="w-full h-12 pl-12 pr-6 rounded-2xl border border-gray-100 bg-gray-50/30 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white transition-all font-medium text-sm"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
+              <div className="flex items-center gap-3 w-full lg:w-auto">
+                {/* Employee filter */}
+                <div className="relative w-full lg:w-52">
+                  <select
+                    value={employeeFilter}
+                    onChange={e => setEmployeeFilter(e.target.value)}
+                    className={cn(
+                      "w-full h-12 pl-4 pr-10 rounded-2xl border bg-gray-50/30 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white transition-all font-medium text-sm appearance-none cursor-pointer",
+                      employeeFilter !== 'all' ? 'border-blue-200 bg-blue-50/30 text-blue-700' : 'border-gray-100 text-gray-600'
+                    )}
+                  >
+                    <option value="all">{locale === 'en' ? 'All Employees' : 'Alle Mitarbeiter'}</option>
+                    {employeeOptions.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
+
+                {/* Search */}
+                <div className="relative w-full lg:max-w-md group">
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#0064E0] transition-colors" />
+                  <input
+                    type="text"
+                    placeholder={locale === 'en' ? 'Search here...' : 'Hier suchen...'}
+                    className="w-full h-12 pl-12 pr-6 rounded-2xl border border-gray-100 bg-gray-50/30 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white transition-all font-medium text-sm"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -641,7 +686,7 @@ export default function PlansPage() {
         <div className="px-4 pt-4 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">My Schedule</span>
-            <h2 className="text-3xl font-black tracking-tight text-gray-900">
+            <h2 className="text-3xl font-black tracking-tight text-[#001D3D] font-sans">
               {locale === 'en' ? 'My Plans' : 'Meine Pläne'}
             </h2>
           </div>
@@ -669,93 +714,99 @@ export default function PlansPage() {
               </div>
             )
             : Object.entries(groupedByDate).map(([dateLabel, dayPlans]) => (
-              <div key={dateLabel} className="space-y-3">
+              <div key={dateLabel} className="space-y-4">
                 {/* Date group header */}
                 <div className="flex items-center gap-3">
                   <div className="h-px flex-1 bg-gray-100" />
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">
-                    {dateLabel} · <span className="text-blue-600">KW {getISOWeek(new Date(dayPlans[0].start_time))}</span>
+                    {dateLabel} · <span className="text-blue-600 font-black">KW {getISOWeek(new Date(dayPlans[0].start_time))}</span>
                   </span>
                   <div className="h-px flex-1 bg-gray-100" />
                 </div>
 
-                {/* Cards for this date */}
-                {dayPlans.map((plan, index) => (
-                  <Card
-                    key={plan.id}
-                    className={cn(
-                      'border-gray-100 shadow-sm rounded-3xl overflow-hidden bg-white transition-all duration-300 animate-in fade-in slide-in-from-bottom-2',
-                      (plan as any)._loading && 'opacity-50'
-                    )}
-                    style={{ animationDelay: `${index * 40}ms` }}
-                  >
-                    <CardContent className="p-5">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="space-y-1.5">
-                          <StatusBadge status={plan.status} isUpdating={(plan as any)._updating || updatingId === plan.id} />
-                          {plan.location && (
-                            <div className="flex items-center gap-1.5 text-sm font-bold text-gray-800">
-                              <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                              {plan.location}
+                {/* Cards Grid — Responsive 1 col on mobile, 2 on md/lg, 3 on xl */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {dayPlans.map((plan, index) => (
+                    <Card
+                      key={plan.id}
+                      className={cn(
+                        'border-gray-100 shadow-sm rounded-3xl overflow-hidden bg-white transition-all duration-500 animate-in fade-in slide-in-from-bottom-2 flex flex-col group hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-200/50',
+                        (plan as any)._loading && 'opacity-50'
+                      )}
+                      style={{ animationDelay: `${index * 40}ms` }}
+                    >
+                      <CardContent className="p-5 flex flex-col flex-1">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="space-y-1">
+                            <StatusBadge 
+                              status={plan.status} 
+                              isUpdating={(plan as any)._updating || updatingId === plan.id} 
+                              hideIcon={true}
+                            />
+                            {plan.location && (
+                              <div className="text-sm font-bold text-gray-800 leading-tight">
+                                {plan.location}
+                              </div>
+                            )}
+                            {(plan as any).customer?.name && (
+                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{(plan as any).customer.name}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-black text-[#001D3D] tabular-nums leading-none mb-1">{calcHours(plan.start_time, plan.end_time)}</p>
+                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">
+                              {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex-1">
+                          {plan.notes && (
+                            <div className="bg-gray-50/50 rounded-2xl p-3 mb-4 border border-gray-100">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Notes</p>
+                              <p className="text-xs text-gray-600 font-medium line-clamp-2">{plan.notes}</p>
                             </div>
                           )}
-                          {(plan as any).customer?.name && (
-                            <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">{(plan as any).customer.name}</p>
+                        </div>
+
+                        {/* Actions — All in one row for widened cards */}
+                        <div className="flex items-center gap-2 mt-auto min-w-0">
+                          {plan.status === 'assigned' && (
+                            <>
+                              <Button
+                                className="flex-1 min-w-[70px] h-10 rounded-xl bg-emerald-500 hover:bg-emerald-600 font-bold text-[10px] uppercase tracking-wider text-white shadow-sm transition-all active:scale-95"
+                                disabled={(plan as any)._updating || updatingId === plan.id}
+                                onClick={() => handleStatusUpdate(plan.id, 'confirmed')}
+                              >
+                                {updatingId === plan.id ? '...' : (locale === 'en' ? 'Confirm' : 'Ja')}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="flex-1 min-w-[70px] h-10 rounded-xl border-red-100 bg-red-50 text-red-600 font-bold text-[10px] uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all active:scale-95"
+                                disabled={(plan as any)._updating || updatingId === plan.id}
+                                onClick={() => handleStatusUpdate(plan.id, 'rejected')}
+                              >
+                                {locale === 'en' ? 'Reject' : 'Nein'}
+                              </Button>
+                            </>
                           )}
-                        </div>
-                        <div className="text-right space-y-1">
-                          <p className="text-xl font-black text-gray-900 tabular-nums">{calcHours(plan.start_time, plan.end_time)}</p>
-                          <p className="text-[10px] font-black text-gray-400 uppercase">
-                            {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {new Date(plan.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
 
-                      {plan.notes && (
-                        <div className="bg-gray-50 rounded-2xl p-3 mb-4 border border-gray-100">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">Notes</p>
-                          <p className="text-sm text-gray-600 font-medium">{plan.notes}</p>
-                        </div>
-                      )}
-
-                      {/* Actions */}
-                      <div className="flex gap-2 mt-2">
-                        {plan.status === 'assigned' && (
-                          <>
-                            <Button
-                              className="flex-1 h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-600 font-bold text-sm shadow-sm disabled:opacity-60 gap-1.5"
-                              disabled={(plan as any)._updating || updatingId === plan.id}
-                              onClick={() => handleStatusUpdate(plan.id, 'confirmed')}
+                          {/* Request Change */}
+                          <Button
+                            variant="ghost"
+                              className={cn(
+                                "flex-1 h-10 rounded-xl border border-gray-100 bg-gray-50/30 hover:bg-blue-50 hover:border-blue-200 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-blue-600 transition-all",
+                                plan.status !== 'assigned' && "flex-grow"
+                              )}
+                              onClick={() => setChangeRequestPlan(plan)}
                             >
-                              {updatingId === plan.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                              {locale === 'en' ? 'Confirm' : 'Bestätigen'}
+                              {locale === 'en' ? 'Modify' : 'Ändern'}
                             </Button>
-                            <Button
-                              variant="outline"
-                              className="flex-1 h-11 rounded-2xl border-gray-200 font-bold text-sm text-red-500 hover:bg-red-50 disabled:opacity-60 gap-1.5"
-                              disabled={(plan as any)._updating || updatingId === plan.id}
-                              onClick={() => handleStatusUpdate(plan.id, 'rejected')}
-                            >
-                              <XCircle className="w-4 h-4" />
-                              {locale === 'en' ? 'Reject' : 'Ablehnen'}
-                            </Button>
-                          </>
-                        )}
-
-                        {/* Request Change — always available */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-11 w-11 rounded-2xl border border-gray-200 hover:bg-blue-50 hover:border-blue-200 flex-shrink-0"
-                          onClick={() => setChangeRequestPlan(plan)}
-                          title="Request a change"
-                        >
-                          <MessageSquare className="w-4 h-4 text-gray-400" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
             ))
           }

@@ -14,7 +14,7 @@ export function useTyping(conversationId: string | null, currentUserId: string |
     channelRef.current = channel
 
     channel
-      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+      .on('broadcast', { event: 'typing' }, ({ payload }: { payload: any }) => {
         if (payload.user_id === currentUserId) return
 
         setTypingUsers(prev => {

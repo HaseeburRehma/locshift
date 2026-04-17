@@ -1,5 +1,6 @@
-// components/dashboard/sidebar.tsx
 'use client'
+
+export type ViewType = 'dashboard' | 'leads' | 'jobs' | 'technicians' | 'reviews' | 'automations' | 'settings' | 'live'
 
 import { cn } from '@/lib/utils'
 import {
@@ -23,32 +24,42 @@ import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 import { useTranslation } from '@/lib/i18n'
 import { useUser } from '@/lib/user-context'
+import { useSidebarBadges } from '@/hooks/useSidebarBadges'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
 
 export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?: boolean, onItemClick?: () => void }) {
-    const { locale } = useTranslation()
+    const { locale, t } = useTranslation()
     const { role, isAdmin, isDispatcher, isEmployee } = useUser()
     const pathname = usePathname()
+    const badges = useSidebarBadges()
+
+    // Map nav item IDs to badge counts
+    const badgeMap: Record<string, number> = {
+        chat: badges.chat,
+        plans: badges.plans,
+        times: badges.times,
+        calendar: badges.calendar,
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Nav Navigation Matrix (Derived from Client Sections 4.1-4.3)
     // ──────────────────────────────────────────────────────────────────────────
     const navItems = [
-        { id: 'dashboard', href: '/dashboard', label: locale === 'en' ? 'Dashboard' : 'Dashboard', icon: LayoutDashboard },
-        { id: 'live', href: '/dashboard/live', label: locale === 'en' ? 'Live Operations' : 'Live-Betrieb', icon: Activity, roles: ['admin', 'dispatcher'] },
-        { id: 'calendar', href: '/dashboard/calendar', label: locale === 'en' ? 'Calendar' : 'Kalender', icon: Calendar },
-        { id: 'plans', href: '/dashboard/plans', label: locale === 'en' ? 'Mission Plans' : 'Einsatzpläne', icon: FileText },
-        { id: 'times', href: '/dashboard/times', label: locale === 'en' ? 'Time Tracking' : 'Zeiterfassung', icon: Clock },
-        { id: 'time-account', href: '/dashboard/time-account', label: locale === 'en' ? 'Time Account' : 'Zeitkonto', icon: BarChart3 },
-        { id: 'per-diem', href: '/dashboard/per-diem', label: locale === 'en' ? 'Per Diem' : 'Verpflegung', icon: Wallet },
-        { id: 'holiday-bonus', href: '/dashboard/holiday-bonus', label: locale === 'en' ? 'Holiday Bonus' : 'Holiday Bonus', icon: Star },
-        { id: 'customers', href: '/dashboard/customers', label: locale === 'en' ? 'Customers' : 'Kunden', icon: Users, roles: ['admin', 'dispatcher'] },
-        { id: 'reports', href: '/dashboard/reports', label: locale === 'en' ? 'Reports' : 'Berichte', icon: BarChart3, roles: ['admin', 'dispatcher'] },
-        { id: 'chat', href: '/dashboard/chat', label: locale === 'en' ? 'Team Chat' : 'Team-Chat', icon: MessageSquare },
-        { id: 'users', href: '/dashboard/users', label: locale === 'en' ? 'User Management' : 'Benutzerverwaltung', icon: ShieldAlert, roles: ['admin'] },
-        { id: 'settings', href: '/dashboard/settings', label: locale === 'en' ? 'Settings' : 'Einstellungen', icon: Settings },
+        { id: 'dashboard', href: '/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+        { id: 'live', href: '/dashboard/live', label: t('nav.live'), icon: Activity, roles: ['admin', 'dispatcher'] },
+        { id: 'calendar', href: '/dashboard/calendar', label: t('nav.calendar'), icon: Calendar },
+        { id: 'plans', href: '/dashboard/plans', label: t('nav.plans'), icon: FileText },
+        { id: 'times', href: '/dashboard/times', label: t('nav.times'), icon: Clock },
+        { id: 'time-account', href: '/dashboard/time-account', label: t('nav.timeAccount'), icon: BarChart3 },
+        { id: 'per-diem', href: '/dashboard/per-diem', label: t('nav.perDiem'), icon: Wallet },
+        { id: 'holiday-bonus', href: '/dashboard/holiday-bonus', label: t('nav.holidayBonus'), icon: Star },
+        { id: 'customers', href: '/dashboard/customers', label: t('nav.customers'), icon: Users, roles: ['admin', 'dispatcher'] },
+        { id: 'reports', href: '/dashboard/reports', label: t('nav.reports'), icon: BarChart3, roles: ['admin', 'dispatcher'] },
+        { id: 'chat', href: '/dashboard/chat', label: t('nav.chat'), icon: MessageSquare },
+        { id: 'users', href: '/dashboard/users', label: t('nav.users'), icon: ShieldAlert, roles: ['admin'] },
+        { id: 'settings', href: '/dashboard/settings', label: t('nav.settings'), icon: Settings },
     ]
 
     const filteredItems = navItems.filter(item => {
@@ -60,16 +71,18 @@ export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?:
         admin: 'bg-blue-600 text-white border-blue-700 shadow-blue-100',
         dispatcher: 'bg-slate-800 text-white border-slate-900 shadow-slate-100',
         employee: 'bg-slate-100 text-slate-600 border-slate-200 shadow-none',
+        technician: 'bg-slate-100 text-slate-600 border-slate-200 shadow-none',
     }
 
     const roleLabels: Record<string, string> = {
-        admin: 'ADMINISTRATOR',
-        dispatcher: 'DISPATCHER',
-        employee: 'EMPLOYEE',
+        admin: t('role.admin').toUpperCase(),
+        dispatcher: t('role.dispatcher').toUpperCase(),
+        employee: t('role.employee').toUpperCase(),
+        technician: t('role.employee').toUpperCase(),
     }
 
     return (
-        <div className="flex flex-col h-full bg-white">
+        <div className="flex flex-col min-h-0 flex-1 bg-white">
             <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-hide">
                 {filteredItems.map((item) => {
                     const Icon = item.icon
@@ -79,14 +92,30 @@ export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?:
                             <Button
                                 variant="ghost"
                                 className={cn(
-                                    'w-full justify-start gap-4 h-12 mb-1.5 rounded-xl transition-all duration-300 font-bold border border-transparent px-4',
+                                    'w-full justify-start gap-4 h-12 mb-1.5 rounded-xl transition-all duration-300 font-bold border border-transparent px-4 relative',
                                     isActive ? 'bg-[#F0F7FF] text-blue-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900',
                                     collapsed && 'px-0 justify-center'
                                 )}
                             >
-                                <Icon className={cn('h-5 w-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110', isActive ? 'text-blue-600' : 'text-slate-400')} />
+                                <div className="relative">
+                                    <Icon className={cn('h-5 w-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110', isActive ? 'text-blue-600' : 'text-slate-400')} />
+                                    {/* Collapsed mode: show dot on icon */}
+                                    {collapsed && (badgeMap[item.id] || 0) > 0 && (
+                                        <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-white shadow-sm" />
+                                    )}
+                                </div>
                                 {!collapsed && <span className="text-[13px] tracking-tight">{item.label}</span>}
-                                {isActive && !collapsed && (
+                                {!collapsed && (badgeMap[item.id] || 0) > 0 && (
+                                    <span className={cn(
+                                        "ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center",
+                                        item.id === 'chat'
+                                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                            : 'bg-red-500 text-white shadow-sm shadow-red-200'
+                                    )}>
+                                        {(badgeMap[item.id] || 0) > 99 ? '99+' : badgeMap[item.id]}
+                                    </span>
+                                )}
+                                {isActive && !collapsed && !(badgeMap[item.id] || 0) && (
                                     <div className="ml-auto h-2 w-2 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]" />
                                 )}
                             </Button>
@@ -109,13 +138,13 @@ export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?:
     )
 }
 
-export function Sidebar() {
+export function Sidebar({ activeView, onViewChange }: { activeView?: ViewType, onViewChange?: (view: ViewType) => void }) {
     const [collapsed, setCollapsed] = useState(false)
 
     return (
         <aside
             className={cn(
-                'hidden md:flex flex-col border-r border-slate-100 bg-white transition-all duration-500 h-screen sticky top-0 ease-in-out z-40 shadow-sm',
+                'hidden md:flex flex-col border-r border-slate-100 bg-white transition-all duration-500 h-screen sticky top-0 overflow-hidden ease-in-out z-40 shadow-sm',
                 collapsed ? 'w-20' : 'w-72'
             )}
         >
