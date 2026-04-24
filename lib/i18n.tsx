@@ -706,7 +706,9 @@ const translations = {
 const I18nContext = createContext<I18nContextType | undefined>(undefined)
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-    const [locale, setLocaleState] = useState<Locale>('en')
+    // Rheinmaasrail requirement: German must be the default UI language.
+    // Users can still flip to English via the settings language switcher.
+    const [locale, setLocaleState] = useState<Locale>('de')
     const [mounted, setMounted] = useState(false)
 
     useEffect(() => {

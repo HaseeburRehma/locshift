@@ -11,6 +11,8 @@ import {
   BarChart3,
   Calendar,
   Trash2,
+  Users,
+  ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUser } from '@/lib/user-context'
@@ -21,7 +23,22 @@ import { useTimeEntries } from '@/hooks/times/useTimeEntries'
 import { useOrganizationTimeAccounts } from '@/hooks/times/useOrgTimeAccounts'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns'
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  isWithinInterval,
+  startOfYear,
+} from 'date-fns'
+import { de as deLocale } from 'date-fns/locale'
+import {
+  exportWorkingTimePdf,
+  exportTimeAccountsPdf,
+  exportPerDiemPdf,
+  exportHolidayBonusPdf,
+  slugify,
+} from '@/lib/pdf/exportPdf'
 
 // ─── Types ──────────────────────────────────────────────────
 interface RecentReport {
@@ -36,7 +53,7 @@ type ReportTypeId = 'working-time' | 'time-accounts' | 'per-diem' | 'holiday-bon
 
 // ─── Page Component ─────────────────────────────────────────
 export default function ReportsPage() {
-  const { isAdmin, isDispatcher } = useUser()
+  const { isAdmin, isDispatcher, profile } = useUser()
   const { locale } = useTranslation()
 
   // Date range state
@@ -47,6 +64,10 @@ export default function ReportsPage() {
 
   // Active report panel
   const [activeReport, setActiveReport] = useState<ReportTypeId | null>(null)
+
+  // Employee filter (admin/dispatcher only — powers change-request #6)
+  // 'all' means no filter; otherwise the employee_id to scope by.
+  const [employeeFilter, setEmployeeFilter] = useState<string>('all')
 
   // Recent reports tracking (in-memory)
   const [recentReports, setRecentReports] = useState<RecentReport[]>([])
@@ -59,29 +80,100 @@ export default function ReportsPage() {
 
   const loading = loadingTimes || loadingPerDiem || loadingBonuses || loadingAccounts
 
+  // ─── Employee options for the admin filter dropdown ─────
+  const employeeOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    entries.forEach(e => {
+      if (e.employee_id && e.employee?.full_name) {
+        map.set(e.employee_id, e.employee.full_name)
+      }
+    })
+    // Also include employees with time-accounts but no entries in the period.
+    accounts.forEach(a => {
+      if (!map.has(a.employee_id)) map.set(a.employee_id, a.full_name)
+    })
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [entries, accounts])
+
   // ─── Filtered Data ──────────────────────────────────────
   const filteredData = useMemo(() => {
     const filterByDate = (dateStr: string) => {
       const d = new Date(dateStr)
       return isWithinInterval(d, { start: dateRange.start, end: dateRange.end })
     }
+    const matchesEmployee = (employeeId: string | null | undefined) =>
+      employeeFilter === 'all' || employeeId === employeeFilter
 
     return {
-      times: entries.filter(e => filterByDate(e.date)),
-      perDiems: perDiems.filter(pd => filterByDate(pd.date)),
-      bonuses: bonuses.filter(b => filterByDate(b.created_at)),
-      accounts, // Time accounts are a snapshot, not date-filtered
+      times: entries.filter(e => filterByDate(e.date) && matchesEmployee(e.employee_id)),
+      perDiems: perDiems.filter(pd => filterByDate(pd.date) && matchesEmployee(pd.employee_id)),
+      bonuses: bonuses.filter(b => filterByDate(b.created_at) && matchesEmployee(b.employee_id)),
+      accounts: employeeFilter === 'all'
+        ? accounts
+        : accounts.filter(a => a.employee_id === employeeFilter),
     }
-  }, [entries, perDiems, bonuses, accounts, dateRange])
+  }, [entries, perDiems, bonuses, accounts, dateRange, employeeFilter])
 
-  // ─── CSV Download ───────────────────────────────────────
-  const downloadCSV = useCallback((data: any[], filename: string, reportTitle: string) => {
-    if (data.length === 0) {
+  // Human-readable label for the active employee filter — used in PDF subtitles
+  // and exported filenames.
+  const selectedEmployeeName = useMemo(() => {
+    if (employeeFilter === 'all') return null
+    return employeeOptions.find(e => e.id === employeeFilter)?.name ?? null
+  }, [employeeFilter, employeeOptions])
+
+  const periodLabel = useMemo(() => {
+    const dateLocale = locale === 'de' ? deLocale : undefined
+    return format(dateRange.start, 'MMMM yyyy', { locale: dateLocale })
+  }, [dateRange.start, locale])
+
+  const periodFilenameStamp = format(dateRange.start, 'yyyy-MM')
+
+  // ─── Shared helpers ─────────────────────────────────────
+
+  const makeSubtitle = useCallback((reportTitle: string): string => {
+    const parts = [reportTitle, periodLabel]
+    if (selectedEmployeeName) parts.push(selectedEmployeeName)
+    return parts.join(' · ')
+  }, [periodLabel, selectedEmployeeName])
+
+  const makeFilename = useCallback((baseSlug: string): string => {
+    const suffix = selectedEmployeeName
+      ? `_${slugify(selectedEmployeeName)}_${periodFilenameStamp}`
+      : `_${periodFilenameStamp}`
+    return `${baseSlug}${suffix}`
+  }, [selectedEmployeeName, periodFilenameStamp])
+
+  const trackReport = useCallback((title: string, fmt: 'csv' | 'pdf') => {
+    const scope = selectedEmployeeName
+      ? selectedEmployeeName
+      : (locale === 'de' ? 'Alle Mitarbeiter' : 'All Employees')
+    setRecentReports(prev => [
+      {
+        id: crypto.randomUUID(),
+        title: `${title} - ${periodLabel}`,
+        generatedAt: new Date().toISOString(),
+        scope,
+        format: fmt,
+      },
+      ...prev,
+    ].slice(0, 10))
+  }, [selectedEmployeeName, periodLabel, locale])
+
+  const warnIfEmpty = useCallback((count: number): boolean => {
+    if (count === 0) {
       toast.error(locale === 'de'
         ? 'Keine Daten für den ausgewählten Zeitraum gefunden.'
         : 'No data found for the selected period.')
-      return
+      return true
     }
+    return false
+  }, [locale])
+
+  // ─── CSV Download ───────────────────────────────────────
+  const downloadCSV = useCallback((data: any[], filename: string, reportTitle: string) => {
+    if (warnIfEmpty(data.length)) return
 
     const headers = Object.keys(data[0]).join(',')
     const rows = data.map(row =>
@@ -100,23 +192,15 @@ export default function ReportsPage() {
     const link = document.createElement('a')
     link.style.display = 'none'
     link.href = url
-    link.download = `${filename}_${format(dateRange.start, 'yyyy-MM')}.csv`
+    link.download = `${filename}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
 
-    // Track this as a recent report
-    const newReport: RecentReport = {
-      id: crypto.randomUUID(),
-      title: `${reportTitle} - ${format(dateRange.start, 'MMMM yyyy')}`,
-      generatedAt: new Date().toISOString(),
-      scope: 'All Employees',
-      format: 'csv',
-    }
-    setRecentReports(prev => [newReport, ...prev].slice(0, 10))
+    trackReport(reportTitle, 'csv')
     toast.success(locale === 'de' ? 'Bericht wurde heruntergeladen.' : 'Report downloaded successfully.')
-  }, [dateRange, locale])
+  }, [warnIfEmpty, trackReport, locale])
 
   // ─── Report type definitions ─────────────────────────────
   const reportTypes: {
@@ -125,6 +209,7 @@ export default function ReportsPage() {
     subtitle: string
     icon: React.ElementType
     onExportCSV: () => void
+    onExportPDF: () => void
   }[] = [
     {
       id: 'working-time',
@@ -141,9 +226,22 @@ export default function ReportsPage() {
           verified: e.is_verified ? 'Yes' : 'No',
           notes: e.notes || '',
         })),
-        'working_times',
+        makeFilename('arbeitszeitbericht'),
         locale === 'de' ? 'Arbeitszeitbericht' : 'Working Time Report'
       ),
+      onExportPDF: () => {
+        if (warnIfEmpty(filteredData.times.length)) return
+        const reportTitle = locale === 'de' ? 'Arbeitszeitbericht' : 'Working Time Report'
+        exportWorkingTimePdf(filteredData.times, {
+          title: reportTitle,
+          subtitle: makeSubtitle(reportTitle),
+          filename: makeFilename('arbeitszeitbericht'),
+          showEmployee: employeeFilter === 'all',
+          locale,
+        })
+        trackReport(reportTitle, 'pdf')
+        toast.success(locale === 'de' ? 'PDF heruntergeladen.' : 'PDF downloaded.')
+      },
     },
     {
       id: 'time-accounts',
@@ -158,9 +256,21 @@ export default function ReportsPage() {
           balance: Number(acc.balance.toFixed(2)),
           status: acc.balance >= 0 ? 'Positive' : 'Deficit',
         })),
-        'time_account_balances',
+        makeFilename('zeitkonto-salden'),
         locale === 'de' ? 'Zeitkonto-Salden' : 'Time Account Balances'
       ),
+      onExportPDF: () => {
+        if (warnIfEmpty(filteredData.accounts.length)) return
+        const reportTitle = locale === 'de' ? 'Zeitkonto-Salden' : 'Time Account Balances'
+        exportTimeAccountsPdf(filteredData.accounts, {
+          title: reportTitle,
+          subtitle: makeSubtitle(reportTitle),
+          filename: makeFilename('zeitkonto-salden'),
+          locale,
+        })
+        trackReport(reportTitle, 'pdf')
+        toast.success(locale === 'de' ? 'PDF heruntergeladen.' : 'PDF downloaded.')
+      },
     },
     {
       id: 'per-diem',
@@ -177,9 +287,21 @@ export default function ReportsPage() {
           amount: pd.amount,
           status: pd.status,
         })),
-        'per_diem_claims',
+        makeFilename('spesenbericht'),
         locale === 'de' ? 'Spesenbericht' : 'Per Diem Report'
       ),
+      onExportPDF: () => {
+        if (warnIfEmpty(filteredData.perDiems.length)) return
+        const reportTitle = locale === 'de' ? 'Spesenbericht' : 'Per Diem Report'
+        exportPerDiemPdf(filteredData.perDiems, {
+          title: reportTitle,
+          subtitle: makeSubtitle(reportTitle),
+          filename: makeFilename('spesenbericht'),
+          locale,
+        })
+        trackReport(reportTitle, 'pdf')
+        toast.success(locale === 'de' ? 'PDF heruntergeladen.' : 'PDF downloaded.')
+      },
     },
     {
       id: 'holiday-bonus',
@@ -195,11 +317,54 @@ export default function ReportsPage() {
           period_end: b.period_end || '',
           notes: b.notes || '',
         })),
-        'holiday_bonuses',
+        makeFilename('urlaubsgeld-bericht'),
         locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report'
       ),
+      onExportPDF: () => {
+        if (warnIfEmpty(filteredData.bonuses.length)) return
+        const reportTitle = locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report'
+        exportHolidayBonusPdf(filteredData.bonuses, {
+          title: reportTitle,
+          subtitle: makeSubtitle(reportTitle),
+          filename: makeFilename('urlaubsgeld-bericht'),
+          locale,
+        })
+        trackReport(reportTitle, 'pdf')
+        toast.success(locale === 'de' ? 'PDF heruntergeladen.' : 'PDF downloaded.')
+      },
     },
   ]
+
+  // ─── Employee view: own time-tracking export (change-request #5) ─────────
+  // Employees can download a YTD working-time PDF scoped to themselves.
+  // The useTimeEntries hook already filters to own entries for non-admin roles,
+  // so `entries` here is already pre-scoped.
+  const handleEmployeeSelfPdf = useCallback(() => {
+    const yearStart = startOfYear(new Date())
+    const mine = entries.filter(e => {
+      try {
+        return new Date(e.date) >= yearStart
+      } catch {
+        return false
+      }
+    })
+
+    if (warnIfEmpty(mine.length)) return
+
+    const fullName = profile?.full_name || (locale === 'de' ? 'Mitarbeiter' : 'Employee')
+    const reportTitle = locale === 'de' ? 'Meine Zeiterfassung' : 'My Time Tracking'
+    const subtitleParts = [fullName, `${format(yearStart, 'yyyy')} YTD`]
+
+    exportWorkingTimePdf(mine, {
+      title: reportTitle,
+      subtitle: subtitleParts.join(' · '),
+      filename: `meine-zeiterfassung_${slugify(fullName)}_${format(new Date(), 'yyyy')}`,
+      showEmployee: false, // single-person export — redundant column
+      locale,
+    })
+
+    toast.success(locale === 'de' ? 'PDF heruntergeladen.' : 'PDF downloaded.')
+  }, [entries, profile?.full_name, locale, warnIfEmpty])
 
   // ─── Employee fallback ───────────────────────────────────
   if (!isAdmin && !isDispatcher) {
@@ -214,13 +379,14 @@ export default function ReportsPage() {
           </h2>
           <p className="text-gray-500 text-sm max-w-sm">
             {locale === 'de'
-              ? 'Mitarbeiter können nur ihre persönlichen Jahresberichte im PDF-Format erstellen.'
-              : 'Employees can only generate personal year-to-date summaries in PDF format.'}
+              ? 'Sie können Ihre persönliche Zeiterfassung als PDF herunterladen (eigene Daten, laufendes Jahr).'
+              : 'Download your personal time-tracking summary as a PDF (your own data, year-to-date).'}
           </p>
         </div>
         <Button
           className="h-11 rounded-xl px-6 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium gap-2"
-          onClick={() => toast.info(locale === 'de' ? 'PDF wird erstellt...' : 'Generating PDF...')}
+          onClick={handleEmployeeSelfPdf}
+          disabled={loading}
         >
           <Download className="w-4 h-4" />
           {locale === 'de' ? 'Mein PDF herunterladen' : 'Download My PDF'}
@@ -243,36 +409,63 @@ export default function ReportsPage() {
         </p>
       </div>
 
-      {/* ── Date Range Selector ──────────────────────────── */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant={format(dateRange.start, 'M') === format(new Date(), 'M') ? 'default' : 'outline'}
-          size="sm"
-          className={cn(
-            'rounded-lg text-xs font-medium h-8',
-            format(dateRange.start, 'M') === format(new Date(), 'M')
-              ? 'bg-gray-900 text-white hover:bg-gray-800'
-              : 'text-gray-600'
-          )}
-          onClick={() => setDateRange({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) })}
-        >
-          <Calendar className="w-3.5 h-3.5 mr-1.5" />
-          {locale === 'de' ? 'Aktueller Monat' : 'Current Month'}
-        </Button>
-        <Button
-          variant={format(dateRange.start, 'M') === format(subMonths(new Date(), 1), 'M') ? 'default' : 'outline'}
-          size="sm"
-          className={cn(
-            'rounded-lg text-xs font-medium h-8',
-            format(dateRange.start, 'M') === format(subMonths(new Date(), 1), 'M')
-              ? 'bg-gray-900 text-white hover:bg-gray-800'
-              : 'text-gray-600'
-          )}
-          onClick={() => setDateRange({ start: startOfMonth(subMonths(new Date(), 1)), end: endOfMonth(subMonths(new Date(), 1)) })}
-        >
-          <Calendar className="w-3.5 h-3.5 mr-1.5" />
-          {locale === 'de' ? 'Vormonat' : 'Previous Month'}
-        </Button>
+      {/* ── Date Range + Employee Selector ───────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={format(dateRange.start, 'M') === format(new Date(), 'M') ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              'rounded-lg text-xs font-medium h-9',
+              format(dateRange.start, 'M') === format(new Date(), 'M')
+                ? 'bg-gray-900 text-white hover:bg-gray-800'
+                : 'text-gray-600'
+            )}
+            onClick={() => setDateRange({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) })}
+          >
+            <Calendar className="w-3.5 h-3.5 mr-1.5" />
+            {locale === 'de' ? 'Aktueller Monat' : 'Current Month'}
+          </Button>
+          <Button
+            variant={format(dateRange.start, 'M') === format(subMonths(new Date(), 1), 'M') ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              'rounded-lg text-xs font-medium h-9',
+              format(dateRange.start, 'M') === format(subMonths(new Date(), 1), 'M')
+                ? 'bg-gray-900 text-white hover:bg-gray-800'
+                : 'text-gray-600'
+            )}
+            onClick={() => setDateRange({ start: startOfMonth(subMonths(new Date(), 1)), end: endOfMonth(subMonths(new Date(), 1)) })}
+          >
+            <Calendar className="w-3.5 h-3.5 mr-1.5" />
+            {locale === 'de' ? 'Vormonat' : 'Previous Month'}
+          </Button>
+        </div>
+
+        {/* Employee filter (change-request #6) */}
+        {employeeOptions.length > 0 && (
+          <div className="relative w-full sm:w-64 sm:ml-auto">
+            <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <select
+              value={employeeFilter}
+              onChange={e => setEmployeeFilter(e.target.value)}
+              className={cn(
+                'w-full h-9 pl-9 pr-9 rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-medium appearance-none cursor-pointer',
+                employeeFilter !== 'all'
+                  ? 'border-blue-300 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 text-gray-600'
+              )}
+            >
+              <option value="all">
+                {locale === 'de' ? 'Alle Mitarbeiter' : 'All Employees'}
+              </option>
+              {employeeOptions.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+        )}
       </div>
 
       {/* ── Select Report Type ────────────────────────────── */}
@@ -330,16 +523,7 @@ export default function ReportsPage() {
                         variant="outline"
                         className="h-8 rounded-lg text-xs font-medium gap-1.5 text-gray-600"
                         onClick={() => {
-                          toast.info(locale === 'de' ? 'PDF-Export wird vorbereitet...' : 'Preparing PDF export...')
-                          // Track as recent report even for PDF stub
-                          const newReport: RecentReport = {
-                            id: crypto.randomUUID(),
-                            title: `${report.title} - ${format(dateRange.start, 'MMMM yyyy')}`,
-                            generatedAt: new Date().toISOString(),
-                            scope: 'All Employees',
-                            format: 'pdf',
-                          }
-                          setRecentReports(prev => [newReport, ...prev].slice(0, 10))
+                          report.onExportPDF()
                           setActiveReport(null)
                         }}
                       >
@@ -390,13 +574,6 @@ export default function ReportsPage() {
                 <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
                   {report.format}
                 </span>
-                <button
-                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
-                  onClick={() => toast.info(locale === 'de' ? 'Bericht wird erneut heruntergeladen...' : 'Re-downloading report...')}
-                  title={locale === 'de' ? 'Erneut herunterladen' : 'Re-download'}
-                >
-                  <Download className="w-4 h-4" />
-                </button>
                 <button
                   className="text-gray-300 hover:text-red-500 transition-colors p-1"
                   onClick={() => {

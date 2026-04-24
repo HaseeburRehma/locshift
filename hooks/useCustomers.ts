@@ -76,8 +76,8 @@ export function useCustomers() {
       await Promise.all(admins.map((admin: { id: string }) =>
         sendNotification({
           userId: admin.id,
-          title: '🏢 New Customer Added',
-          message: `A new customer "${customer.name}" has been added.`,
+          title: '🏢 Neuer Kunde angelegt',
+          message: `Ein neuer Kunde „${customer.name}" wurde angelegt.`,
           module: 'customers',
           moduleId: data?.id
         })

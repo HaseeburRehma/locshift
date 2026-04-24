@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useTimeTracking } from '@/hooks/useTimeTracking'
 import { cn } from '@/lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useTranslation } from '@/lib/i18n'
 
 interface ClockInOutCardProps {
   className?: string
@@ -13,16 +14,18 @@ interface ClockInOutCardProps {
 }
 
 export function ClockInOutCard({ className, compact = false }: ClockInOutCardProps) {
-  const { 
-    activeEntry, 
-    clockIn, 
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const {
+    activeEntry,
+    clockIn,
     startBreak,
     endBreak,
-    clockOut, 
-    elapsedSeconds, 
+    clockOut,
+    elapsedSeconds,
     breakSeconds,
-    loading, 
-    todayPlans 
+    loading,
+    todayPlans
   } = useTimeTracking()
   
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>()
@@ -65,7 +68,7 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
               "text-[9px] font-black uppercase tracking-[0.2em] leading-none opacity-60 mb-1",
               activeEntry ? "text-white" : "text-slate-400"
             )}>
-              {activeEntry ? 'Mission Active' : 'System Ready'}
+              {activeEntry ? L('Einsatz aktiv', 'Mission Active') : L('Bereit', 'System Ready')}
             </span>
             <div className="flex items-center gap-3">
               <span className={cn(
@@ -77,7 +80,7 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
               {activeEntry && (
                 <div className="hidden lg:flex flex-col border-l border-white/20 pl-3 py-1">
                    <span className="text-[10px] font-black uppercase tracking-widest leading-none text-white whitespace-nowrap">
-                      {activePlan?.route || 'Standard Protocol'}
+                      {activePlan?.route || L('Standardeinsatz', 'Standard Protocol')}
                    </span>
                 </div>
               )}
@@ -92,12 +95,12 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
                  {todayPlans.length > 0 && !compact && (
                     <Select onValueChange={setSelectedPlanId} value={selectedPlanId}>
                       <SelectTrigger className="h-10 w-40 rounded-xl border-slate-100 bg-slate-50 font-bold text-[10px] uppercase tracking-wider hidden md:flex">
-                        <SelectValue placeholder="Protocol" />
+                        <SelectValue placeholder={L('Einsatz', 'Protocol')} />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
                         {todayPlans.map(plan => (
                           <SelectItem key={plan.id} value={plan.id} className="font-bold py-2 text-xs">
-                            {plan.route || 'General Mission'}
+                            {plan.route || L('Allgemeiner Einsatz', 'General Mission')}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -108,7 +111,7 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
                     className="h-10 px-6 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 shadow-md flex-1 sm:flex-none"
                  >
                     <Play className="w-3.5 h-3.5 mr-2 fill-current" />
-                    Begin Shift
+                    {L('Schicht starten', 'Begin Shift')}
                  </Button>
               </div>
            ) : (
@@ -124,14 +127,14 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
                     )}
                  >
                     {isOnBreak ? <Play className="w-3.5 h-3.5 mr-2" /> : <Coffee className="w-3.5 h-3.5 mr-2" />}
-                    {isOnBreak ? 'Resume' : 'Pause'}
+                    {isOnBreak ? L('Fortsetzen', 'Resume') : L('Pause', 'Pause')}
                  </Button>
-                 <Button 
+                 <Button
                     onClick={() => clockOut()}
                     className="h-10 flex-1 sm:px-6 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 border-none"
                  >
                     <Square className="w-3.5 h-3.5 mr-2 fill-current" />
-                    End
+                    {L('Beenden', 'End')}
                  </Button>
               </div>
            )}

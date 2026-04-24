@@ -1,11 +1,13 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { Eye, Plus, Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, ChevronDown, Users } from 'lucide-react'
+import { Eye, Plus, Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, ChevronDown, Users, CalendarClock, Play, UserCheck, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { TimeEntry, UserRole, Profile } from '@/lib/types'
 import { format, isThisWeek, isThisMonth, parseISO } from 'date-fns'
+import { de as deLocale } from 'date-fns/locale'
+import { useTranslation } from '@/lib/i18n'
 
 interface TimesListProps {
   entries: TimeEntry[]
@@ -13,18 +15,45 @@ interface TimesListProps {
   onEntryClick: (id: string) => void
   onAddClick: () => void
   onToggleStatus?: (id: string, currentStatus: boolean) => void
+  /** Phase 2 #3 — flip an entry from planned → actual. */
+  onConvertPlanned?: (id: string) => void
   employees?: Profile[]
+  /**
+   * Phase 5 #4/#5/#6 — fires when the user taps "Export PDF".
+   * Receives the CURRENTLY filtered entries + the employee name for the
+   * active employee filter ("all" → null). The page is responsible for the
+   * actual PDF generation via lib/pdf/exportPdf.
+   */
+  onExportPdf?: (args: {
+    entries: TimeEntry[]
+    employeeName: string | null
+  }) => void
 }
 
-type FilterStatus = 'All' | 'Pending' | 'Approved' | 'Rejected' | 'This Week' | 'This Month'
+type FilterStatus = 'All' | 'Planned' | 'Actual' | 'Pending' | 'Approved' | 'Rejected' | 'This Week' | 'This Month'
 
-export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, employees }: TimesListProps) {
+export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, onConvertPlanned, employees, onExportPdf }: TimesListProps) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const dateLocale = locale === 'de' ? deLocale : undefined
   const canAdd = userRole === 'admin' || userRole === 'dispatcher'
   const isAdminView = userRole === 'admin' || userRole === 'dispatcher'
   const [filter, setFilter] = useState<FilterStatus>('All')
   const [employeeFilter, setEmployeeFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
+
+  // Filter pill labels (German-first per Rheinmaasrail brief)
+  const filterLabels: Record<FilterStatus, string> = {
+    All:            L('Alle', 'All'),
+    Planned:        L('Geplant', 'Planned'),
+    Actual:         L('Tatsächlich', 'Actual'),
+    Pending:        L('Ausstehend', 'Pending'),
+    Approved:       L('Genehmigt', 'Approved'),
+    Rejected:       L('Abgelehnt', 'Rejected'),
+    'This Week':    L('Diese Woche', 'This Week'),
+    'This Month':   L('Dieser Monat', 'This Month'),
+  }
 
   // Build employee options from the entries + passed employees list
   const employeeOptions = useMemo(() => {
@@ -50,10 +79,15 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
   const filteredEntries = useMemo(() => {
     let result = entries;
 
-    if (filter === 'Pending') {
-      result = result.filter(e => !e.is_verified)
+    // Phase 2 #3 — planned/actual filters
+    if (filter === 'Planned') {
+      result = result.filter(e => e.is_planned === true)
+    } else if (filter === 'Actual') {
+      result = result.filter(e => !e.is_planned)
+    } else if (filter === 'Pending') {
+      result = result.filter(e => !e.is_verified && !e.is_planned)
     } else if (filter === 'Approved') {
-      result = result.filter(e => e.is_verified)
+      result = result.filter(e => e.is_verified && !e.is_planned)
     } else if (filter === 'Rejected') {
       result = result.filter(() => false)
     } else if (filter === 'This Week') {
@@ -95,24 +129,56 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
     <div className="flex flex-col h-full bg-slate-50/40 md:bg-transparent animate-in fade-in duration-300">
       {/* Title */}
       <div className="mb-6 px-4 md:px-0">
-        <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 leading-none mb-2">Time Tracking</h1>
-        <p className="text-sm font-medium text-slate-400">Record and manage working hours</p>
+        <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 leading-none mb-2">
+          {L('Zeiterfassung', 'Time Tracking')}
+        </h1>
+        <p className="text-sm font-medium text-slate-400">
+          {L('Arbeitszeiten erfassen und verwalten', 'Record and manage working hours')}
+        </p>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200">
         {/* Header Toolbar */}
         <div className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-black text-slate-900 tracking-tight">Filter & Search</h2>
+            <h2 className="text-lg font-black text-slate-900 tracking-tight">
+              {L('Filter & Suche', 'Filter & Search')}
+            </h2>
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
+            {/* Phase 5 #4/#5/#6 — PDF export button, always visible.
+               For employees, the parent page pre-filters entries by user.id,
+               so this button naturally becomes their "own data" export (#5).
+               For admins, it respects the current employee dropdown (#6). */}
+            {onExportPdf && (
+              <Button
+                onClick={() => {
+                  const activeName =
+                    isAdminView && employeeFilter !== 'all'
+                      ? employeeOptions.find(e => e.id === employeeFilter)?.name ?? null
+                      : null
+                  onExportPdf({ entries: filteredEntries, employeeName: activeName })
+                }}
+                variant="outline"
+                disabled={filteredEntries.length === 0}
+                className="font-bold rounded-xl shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50 min-w-[140px] px-6 disabled:opacity-50"
+                title={
+                  filteredEntries.length === 0
+                    ? L('Keine Einträge zum Exportieren', 'No entries to export')
+                    : L('PDF exportieren', 'Export PDF')
+                }
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {L('PDF exportieren', 'Export PDF')}
+              </Button>
+            )}
             {canAdd && (
               <Button
                 onClick={onAddClick}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md min-w-[140px] px-6"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Time Entry
+                {L('Eintrag hinzufügen', 'Add Time Entry')}
               </Button>
             )}
           </div>
@@ -121,7 +187,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
         {/* Filter Pills + Employee Dropdown */}
         <div className="px-6 py-2 flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
           <div className="flex flex-wrap items-center gap-2">
-            {(['All', 'Pending', 'Approved', 'Rejected', 'This Week', 'This Month'] as FilterStatus[]).map((f) => (
+            {(['All', 'Planned', 'Actual', 'Pending', 'Approved', 'This Week', 'This Month'] as FilterStatus[]).map((f) => (
               <button
                 key={f}
                 onClick={() => handleFilterChange(f)}
@@ -132,7 +198,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                     : "bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
                 )}
               >
-                {f}
+                {filterLabels[f]}
               </button>
             ))}
           </div>
@@ -151,7 +217,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                     : 'border-slate-200 text-slate-600'
                 )}
               >
-                <option value="all">All Employees</option>
+                <option value="all">{L('Alle Mitarbeiter', 'All Employees')}</option>
                 {employeeOptions.map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                 ))}
@@ -166,16 +232,16 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 text-slate-800 text-[11px] uppercase tracking-wider border-y border-slate-100">
-                <th className="px-6 py-4 font-black whitespace-nowrap">Date</th>
-                {isAdminView && <th className="px-6 py-4 font-black whitespace-nowrap">Employee</th>}
-                <th className="px-6 py-4 font-black whitespace-nowrap">Start Time</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">End Time</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">Break</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">Total Hours</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">Customer</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">Location</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">Status</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap text-right">Actions</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Datum', 'Date')}</th>
+                {isAdminView && <th className="px-6 py-4 font-black whitespace-nowrap">{L('Mitarbeiter', 'Employee')}</th>}
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Startzeit', 'Start Time')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Endzeit', 'End Time')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Pause', 'Break')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Gesamtstunden', 'Total Hours')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Kunde', 'Customer')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Standort', 'Location')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Status', 'Status')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap text-right">{L('Aktionen', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -183,7 +249,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                 paginatedEntries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
-                      {format(parseISO(entry.date), 'MMM dd, yyyy')}
+                      {format(parseISO(entry.date), locale === 'de' ? 'dd.MM.yyyy' : 'MMM dd, yyyy', { locale: dateLocale })}
                     </td>
                     {isAdminView && (
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -194,7 +260,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                             className="w-7 h-7 rounded-lg object-cover border border-slate-100"
                           />
                           <span className="text-sm font-bold text-slate-800 truncate max-w-[120px]">
-                            {entry.employee?.full_name || 'Unknown'}
+                            {entry.employee?.full_name || L('Unbekannt', 'Unknown')}
                           </span>
                         </div>
                       </td>
@@ -203,7 +269,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                       {format(new Date(entry.start_time), 'HH:mm')}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
-                      {entry.end_time ? format(new Date(entry.end_time), 'HH:mm') : 'Active'}
+                      {entry.end_time ? format(new Date(entry.end_time), 'HH:mm') : L('Aktiv', 'Active')}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
                       {entry.break_minutes} min
@@ -216,7 +282,16 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
                       <div className="flex flex-col">
-                        <span>{entry.location || entry.plan?.location || '-'}</span>
+                        {/* Phase 3 #1 — prefer Betriebsstelle names if set, fall back to free-text location */}
+                        {(entry.start_location?.name || entry.destination_location?.name) ? (
+                          <span className="text-slate-800 font-semibold">
+                            {entry.start_location?.name ?? '—'}
+                            <span className="mx-1 text-slate-300">→</span>
+                            {entry.destination_location?.name ?? '—'}
+                          </span>
+                        ) : (
+                          <span>{entry.location || entry.plan?.location || '-'}</span>
+                        )}
                         {entry.latitude && entry.longitude && (
                           <a
                             href={`https://www.google.com/maps?q=${entry.latitude},${entry.longitude}`}
@@ -225,22 +300,56 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                             className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-1 font-bold"
                             onClick={e => e.stopPropagation()}
                           >
-                            <MapPin className="w-3 h-3" /> Mission Coordinates
+                            <MapPin className="w-3 h-3" /> {L('Einsatzkoordinaten', 'Mission Coordinates')}
                           </a>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={cn(
-                        "inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
-                        entry.is_verified ? "bg-emerald-100/50 text-emerald-600" : "bg-orange-100/50 text-orange-600"
-                      )}>
-                        {entry.is_verified ? 'Approved' : 'Pending'}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {entry.is_planned ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-100/70 text-sky-700">
+                            <CalendarClock className="w-3 h-3" />
+                            {L('Geplant', 'Planned')}
+                          </span>
+                        ) : (
+                          <span className={cn(
+                            "inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                            entry.is_verified ? "bg-emerald-100/50 text-emerald-600" : "bg-orange-100/50 text-orange-600"
+                          )}>
+                            {entry.is_verified ? L('Genehmigt', 'Approved') : L('Ausstehend', 'Pending')}
+                          </span>
+                        )}
+                        {/* Phase 3 #10 — Gastfahrt badge (informational) */}
+                        {entry.is_gastfahrt && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-violet-100/70 text-violet-700"
+                            title="Gastfahrt (Beifahrer)"
+                          >
+                            <UserCheck className="w-3 h-3" />
+                            Gast
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {onToggleStatus && canAdd && (
+                        {/* Phase 2 #3 — convert planned → actual */}
+                        {entry.is_planned && onConvertPlanned && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100"
+                            title={L('Als tatsächlich markieren', 'Mark as actual')}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onConvertPlanned(entry.id)
+                            }}
+                          >
+                            <Play className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {!entry.is_planned && onToggleStatus && canAdd && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -250,7 +359,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                                 ? "bg-orange-50 text-orange-500 hover:bg-orange-100 hover:text-orange-600"
                                 : "bg-emerald-50 text-emerald-500 hover:bg-emerald-100 hover:text-emerald-600"
                             )}
-                            title={entry.is_verified ? "Mark as Pending" : "Approve Log"}
+                            title={entry.is_verified ? L('Auf ausstehend setzen', 'Mark as Pending') : L('Eintrag genehmigen', 'Approve Log')}
                             onClick={(e) => {
                               e.stopPropagation();
                               onToggleStatus(entry.id, entry.is_verified);
@@ -274,7 +383,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
               ) : (
                 <tr>
                   <td colSpan={isAdminView ? 10 : 9} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">
-                    No time entries found
+                    {L('Keine Zeiteinträge gefunden', 'No time entries found')}
                   </td>
                 </tr>
               )}
@@ -286,7 +395,15 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
         {totalPages > 0 && (
           <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + (paginatedEntries.length > 0 ? 1 : 0)}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredEntries.length)}</span> of <span className="text-slate-900">{filteredEntries.length}</span> results
+              {locale === 'de' ? (
+                <>
+                  Zeige <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + (paginatedEntries.length > 0 ? 1 : 0)}</span> bis <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredEntries.length)}</span> von <span className="text-slate-900">{filteredEntries.length}</span> Einträgen
+                </>
+              ) : (
+                <>
+                  Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + (paginatedEntries.length > 0 ? 1 : 0)}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredEntries.length)}</span> of <span className="text-slate-900">{filteredEntries.length}</span> results
+                </>
+              )}
             </p>
             <div className="flex items-center gap-1">
               <Button

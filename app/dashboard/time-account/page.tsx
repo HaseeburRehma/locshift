@@ -8,11 +8,14 @@ import { useUser } from '@/lib/user-context'
 import { useTimeAccount } from '@/hooks/times/useTimeAccount'
 import { useOrganizationTimeAccounts } from '@/hooks/times/useOrgTimeAccounts'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 
 type View = 'personnel' | 'overview' | 'monthly'
 
 export default function TimeAccountPage() {
   const { isAdmin, isDispatcher, isEmployee, profile } = useUser()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   const [view, setView] = useState<View>((isAdmin || isDispatcher) ? 'personnel' : 'overview')
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
@@ -53,7 +56,7 @@ export default function TimeAccountPage() {
     return (
       <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
         <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-        <p className="text-[12px] font-medium text-slate-400">Loading personnel…</p>
+        <p className="text-[12px] font-medium text-slate-400">{L('Personal wird geladen…', 'Loading personnel…')}</p>
       </div>
     )
   }
@@ -62,7 +65,7 @@ export default function TimeAccountPage() {
     return (
       <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
         <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-        <p className="text-[12px] font-medium text-slate-400">Loading time account…</p>
+        <p className="text-[12px] font-medium text-slate-400">{L('Zeitkonto wird geladen…', 'Loading time account…')}</p>
       </div>
     )
   }

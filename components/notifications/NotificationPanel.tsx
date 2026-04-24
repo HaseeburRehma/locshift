@@ -6,6 +6,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 
 const moduleIcons: Record<string, React.ReactNode> = {
   plans:     <FileText className="w-4 h-4 text-blue-600" />,
@@ -33,9 +34,16 @@ const moduleRoutes: Record<string, string> = {
   system:    '/dashboard',
 }
 
-function timeAgo(dateStr: string) {
+function timeAgo(dateStr: string, locale: 'de' | 'en') {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
+  if (locale === 'de') {
+    if (mins < 1) return 'gerade eben'
+    if (mins < 60) return `vor ${mins} Min.`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `vor ${hrs} Std.`
+    return `vor ${Math.floor(hrs / 24)} Tag(en)`
+  }
   if (mins < 1) return 'Just now'
   if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)
@@ -50,6 +58,8 @@ export function NotificationPanel() {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { notifications, unreadCount, markAllAsRead, markAsRead, loading } = useNotifications()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   // Bell ring animation when count increases
   useEffect(() => {
@@ -70,7 +80,7 @@ export function NotificationPanel() {
         description: latest.body,
         duration: 5000,
         action: {
-          label: 'View',
+          label: L('Anzeigen', 'View'),
           onClick: () => router.push(moduleRoutes[latest.type as string] || '/dashboard')
         }
       })
@@ -92,7 +102,7 @@ export function NotificationPanel() {
       <button
         onClick={() => setOpen(o => !o)}
         className="relative flex items-center justify-center w-10 h-10 rounded-2xl hover:bg-gray-100 transition-all duration-200 group"
-        title="Notifications"
+        title={L('Benachrichtigungen', 'Notifications')}
       >
         <Bell className={cn(
           "w-5 h-5 transition-all duration-200",
@@ -112,10 +122,10 @@ export function NotificationPanel() {
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-black text-gray-900">Notifications</h3>
+              <h3 className="text-base font-black text-gray-900">{L('Benachrichtigungen', 'Notifications')}</h3>
               {unreadCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-xs font-black tabular-nums">
-                  {unreadCount} new
+                  {unreadCount} {L('neu', 'new')}
                 </span>
               )}
             </div>
@@ -126,7 +136,7 @@ export function NotificationPanel() {
                   className="flex items-center gap-1.5 text-xs font-bold text-[#0064E0] px-3 py-1.5 rounded-xl hover:bg-blue-50 transition-all"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                  Mark all read
+                  {L('Alle als gelesen markieren', 'Mark all read')}
                 </button>
               )}
               <button onClick={() => setOpen(false)} className="p-1.5 rounded-xl hover:bg-gray-100 transition-all">
@@ -146,8 +156,8 @@ export function NotificationPanel() {
                 <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
                   <Bell className="w-6 h-6 text-gray-300" />
                 </div>
-                <p className="text-sm font-bold text-gray-400">All caught up!</p>
-                <p className="text-xs text-gray-300 mt-1">No new notifications.</p>
+                <p className="text-sm font-bold text-gray-400">{L('Alles erledigt!', 'All caught up!')}</p>
+                <p className="text-xs text-gray-300 mt-1">{L('Keine neuen Benachrichtigungen.', 'No new notifications.')}</p>
               </div>
             ) : (
               notifications.map(n => (
@@ -174,7 +184,7 @@ export function NotificationPanel() {
                       {!n.is_read && <div className="w-2 h-2 rounded-full bg-[#0064E0] flex-shrink-0 mt-1.5" />}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
-                    <p className="text-[10px] font-bold text-gray-400 mt-1.5 uppercase tracking-wide">{timeAgo(n.created_at)}</p>
+                    <p className="text-[10px] font-bold text-gray-400 mt-1.5 uppercase tracking-wide">{timeAgo(n.created_at, locale)}</p>
                   </div>
                 </button>
               ))

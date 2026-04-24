@@ -110,17 +110,17 @@ export function UserManagementPanel() {
       <CardContent>
         <div className="rounded-md border border-slate-200">
           <div className="grid grid-cols-12 gap-4 p-4 font-medium text-sm text-slate-500 border-b bg-slate-50">
-            <div className="col-span-4">User</div>
-            <div className="col-span-4">Current Role</div>
-            <div className="col-span-4 justify-self-end">Change Role</div>
+            <div className="col-span-4">{locale === 'en' ? 'User' : 'Benutzer'}</div>
+            <div className="col-span-4">{locale === 'en' ? 'Current Role' : 'Aktuelle Rolle'}</div>
+            <div className="col-span-4 justify-self-end">{locale === 'en' ? 'Change Role' : 'Rolle ändern'}</div>
           </div>
           <div className="divide-y divide-slate-100">
             {Array.isArray(users) ? (
               users.map((user: any) => (
                 <div key={user.id} className="grid grid-cols-12 gap-4 p-4 items-center">
                   <div className="col-span-4">
-                    <div className="font-medium text-slate-900">{user.full_name || 'Anonymous User'}</div>
-                    <div className="text-xs text-slate-500">{user.email || 'No email associated'}</div>
+                    <div className="font-medium text-slate-900">{user.full_name || (locale === 'en' ? 'Anonymous User' : 'Anonymer Benutzer')}</div>
+                    <div className="text-xs text-slate-500">{user.email || (locale === 'en' ? 'No email associated' : 'Keine E-Mail hinterlegt')}</div>
                   </div>
                   <div className="col-span-4 flex items-center gap-2">
                     <Badge variant="outline" className={`flex items-center gap-1.5 px-2 py-0.5 ${getRoleBadge(user.role)}`}>
@@ -136,13 +136,13 @@ export function UserManagementPanel() {
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
                       disabled={updating === user.id}
                     >
-                      <option value="viewer">Viewer (Default)</option>
-                      <option value="admin">Admin</option>
+                      <option value="viewer">{locale === 'en' ? 'Viewer (Default)' : 'Betrachter (Standard)'}</option>
+                      <option value="admin">{locale === 'en' ? 'Admin' : 'Administrator'}</option>
                       <option value="manager">Manager</option>
-                      <option value="disponent">Disponent (Dispatcher)</option>
-                      <option value="technician">Technician</option>
-                      <option value="partner_admin">Partner Admin</option>
-                      <option value="partner_agent">Partner Agent</option>
+                      <option value="disponent">{locale === 'en' ? 'Dispatcher' : 'Disponent'}</option>
+                      <option value="technician">{locale === 'en' ? 'Technician' : 'Techniker'}</option>
+                      <option value="partner_admin">{locale === 'en' ? 'Partner Admin' : 'Partner-Administrator'}</option>
+                      <option value="partner_agent">{locale === 'en' ? 'Partner Agent' : 'Partner-Agent'}</option>
                     </select>
                     <Button
                       variant="ghost"
@@ -159,7 +159,7 @@ export function UserManagementPanel() {
               ))
             ) : (
               <div className="p-8 text-center text-muted-foreground italic">
-                {users?.error || 'No users found or session expired.'}
+                {users?.error || (locale === 'en' ? 'No users found or session expired.' : 'Keine Benutzer gefunden oder Sitzung abgelaufen.')}
               </div>
             )}
           </div>

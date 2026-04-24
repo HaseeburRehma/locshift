@@ -110,12 +110,14 @@ export default function CustomersPage() {
         {/* Header Console */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-1">
           <div className="space-y-1.5">
-            <span className="text-[10px] font-black uppercase text-blue-600 tracking-[0.2em] leading-none mb-1 block">Operational CRM</span>
+            <span className="text-[10px] font-black uppercase text-blue-600 tracking-[0.2em] leading-none mb-1 block">
+              {locale === 'en' ? 'Operational CRM' : 'Betriebs-CRM'}
+            </span>
             <h2 className="text-3xl font-black tracking-tight text-slate-900 leading-none">
               {locale === 'en' ? 'Customer Management' : 'Kundenverwaltung'}
             </h2>
             <p className="text-sm font-bold text-slate-400 capitalize tracking-tight flex items-center gap-2">
-               Organize project sites & client contacts
+               {locale === 'en' ? 'Organize project sites & client contacts' : 'Einsatzorte und Kundenkontakte verwalten'}
             </p>
           </div>
           
@@ -145,9 +147,9 @@ export default function CustomersPage() {
               </div>
 
               <div className="flex items-center gap-2 w-full md:w-auto p-1 bg-slate-50 rounded-xl border border-slate-100">
-                 <FilterButton active={filterStatus === 'all'} label="All" onClick={() => setFilterStatus('all')} />
-                 <FilterButton active={filterStatus === 'active'} label="Active" onClick={() => setFilterStatus('active')} />
-                 <FilterButton active={filterStatus === 'inactive'} label="Inactive" onClick={() => setFilterStatus('inactive')} />
+                 <FilterButton active={filterStatus === 'all'} label={locale === 'en' ? 'All' : 'Alle'} onClick={() => setFilterStatus('all')} />
+                 <FilterButton active={filterStatus === 'active'} label={locale === 'en' ? 'Active' : 'Aktiv'} onClick={() => setFilterStatus('active')} />
+                 <FilterButton active={filterStatus === 'inactive'} label={locale === 'en' ? 'Inactive' : 'Inaktiv'} onClick={() => setFilterStatus('inactive')} />
               </div>
            </div>
         </Card>
@@ -174,17 +176,17 @@ export default function CustomersPage() {
                        </DropdownMenuTrigger>
                        <DropdownMenuContent align="end" className="rounded-xl border-slate-100 shadow-2xl p-2 w-40">
                           <DropdownMenuItem className="rounded-lg font-bold text-[11px] uppercase tracking-widest py-2.5 cursor-pointer" onClick={() => handleEdit(customer)}>
-                            Edit Mission
+                            {locale === 'en' ? 'Edit' : 'Bearbeiten'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                              className={cn("rounded-lg font-bold text-[11px] uppercase tracking-widest py-2.5 cursor-pointer", customer.is_active ? "text-amber-600" : "text-emerald-600")}
                              onClick={() => toggleStatus(customer.id, customer.is_active)}
                           >
-                            {customer.is_active ? 'Deactivate' : 'Activate'}
+                            {customer.is_active ? (locale === 'en' ? 'Deactivate' : 'Deaktivieren') : (locale === 'en' ? 'Activate' : 'Aktivieren')}
                           </DropdownMenuItem>
                           <div className="h-px bg-slate-50 my-1" />
                           <DropdownMenuItem className="rounded-lg font-bold text-[11px] uppercase tracking-widest py-2.5 cursor-pointer text-red-500 focus:text-red-600 focus:bg-red-50" onClick={() => handleDelete(customer.id, customer.name)}>
-                            Remove Record
+                            {locale === 'en' ? 'Remove Record' : 'Datensatz entfernen'}
                           </DropdownMenuItem>
                        </DropdownMenuContent>
                     </DropdownMenu>
@@ -206,7 +208,9 @@ export default function CustomersPage() {
                            customer.is_active ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-200/50 text-slate-400 border-slate-200"
                         )}>
                            <div className={cn("w-1 h-1 rounded-full", customer.is_active ? "bg-emerald-500" : "bg-slate-400")} />
-                           {customer.is_active ? 'ACTIVE ACCOUNT' : 'INACTIVE'}
+                           {customer.is_active
+                             ? (locale === 'en' ? 'ACTIVE ACCOUNT' : 'AKTIVER KUNDE')
+                             : (locale === 'en' ? 'INACTIVE' : 'INAKTIV')}
                         </div>
                      </div>
                   </div>
@@ -214,15 +218,15 @@ export default function CustomersPage() {
                   <div className="grid gap-3 pt-2">
                      <div className="flex items-center gap-3">
                         <MapPin className="w-4 h-4 text-slate-300" />
-                        <p className="text-xs font-bold text-slate-500 truncate">{customer.address || 'Location Unspecified'}</p>
+                        <p className="text-xs font-bold text-slate-500 truncate">{customer.address || (locale === 'en' ? 'Location Unspecified' : 'Adresse unbekannt')}</p>
                      </div>
                      <div className="flex items-center gap-3">
                         <User className="w-4 h-4 text-slate-300" />
-                        <p className="text-xs font-black text-slate-700 tracking-tight">{customer.contact_person || 'No Lead Contact'}</p>
+                        <p className="text-xs font-black text-slate-700 tracking-tight">{customer.contact_person || (locale === 'en' ? 'No Lead Contact' : 'Kein Ansprechpartner')}</p>
                      </div>
                      <div className="flex items-center gap-3">
                         <Mail className="w-4 h-4 text-slate-300" />
-                        <p className="text-xs font-bold text-blue-600 truncate">{customer.email || 'No Primary Email'}</p>
+                        <p className="text-xs font-bold text-blue-600 truncate">{customer.email || (locale === 'en' ? 'No Primary Email' : 'Keine E-Mail hinterlegt')}</p>
                      </div>
                   </div>
                </div>
@@ -232,7 +236,7 @@ export default function CustomersPage() {
                <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100 border-dashed">
                   <Users className="w-10 h-10 text-slate-300" />
                </div>
-               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Zero Mission Profiles matched Your Search</p>
+               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{locale === 'en' ? 'No customers matched your search' : 'Keine Kunden für Ihre Suche gefunden'}</p>
             </div>
           )}
         </div>

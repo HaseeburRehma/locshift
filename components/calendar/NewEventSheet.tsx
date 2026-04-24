@@ -1,29 +1,29 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { 
-  X, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  MapPin, 
-  Users, 
-  Check, 
-  Trash2, 
+import {
+  X,
+  Calendar as CalendarIcon,
+  Clock,
+  MapPin,
+  Users,
+  Check,
+  Trash2,
   ArrowLeft,
-  Edit3
+  Edit3,
+  Bell
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { useTranslation } from '@/lib/i18n'
-import { CalendarEvent, CalendarEventType, EVENT_COLORS, Profile } from '@/lib/types'
+import { CalendarEvent, CalendarEventType, EVENT_COLORS, Profile, REMINDER_OPTIONS } from '@/lib/types'
 import { useCreateEvent } from '@/hooks/calendar/useCreateEvent'
 import { EventTypeSelector } from './EventTypeSelector'
 import { useUser } from '@/lib/user-context'
 import { ContactPickerGrid } from '@/components/chat/ContactPickerGrid'
 import { cn } from '@/lib/utils'
-import { sendNotification } from '@/lib/notifications/service'
 
 interface NewEventSheetProps {
   isOpen: boolean
@@ -46,6 +46,8 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [selectedMembers, setSelectedMembers] = useState<Profile[]>([])
+  // Phase 4 #7 — reminder picker (null = none)
+  const [reminderMinutes, setReminderMinutes] = useState<number | null>(null)
 
   // Initialize form when editing or opening
   useEffect(() => {
@@ -56,13 +58,18 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
         setLocation(eventToEdit.location || '')
         setEventType(eventToEdit.event_type)
         setIsAllDay(eventToEdit.is_all_day)
-        
+        setReminderMinutes(
+          eventToEdit.reminder_minutes_before === undefined || eventToEdit.reminder_minutes_before === null
+            ? null
+            : Number(eventToEdit.reminder_minutes_before)
+        )
+
         // Format dates for input type="datetime-local"
         const start = new Date(eventToEdit.start_time)
         const end = new Date(eventToEdit.end_time)
         setStartTime(new Date(start.getTime() - start.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
         setEndTime(new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
-        
+
         setSelectedMembers(eventToEdit.members?.map(m => m.user) || [])
       } else {
         // New event defaults
@@ -71,13 +78,14 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
         setLocation('')
         setEventType('event')
         setIsAllDay(false)
-        
+        setReminderMinutes(null)
+
         const baseDate = initialDate || new Date()
         const start = new Date(baseDate)
         start.setHours(9, 0, 0, 0)
         const end = new Date(baseDate)
         end.setHours(10, 0, 0, 0)
-        
+
         setStartTime(new Date(start.getTime() - start.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
         setEndTime(new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
         setSelectedMembers([])
@@ -101,31 +109,19 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
       start_time: new Date(startTime).toISOString(),
       end_time: new Date(endTime).toISOString(),
       color: EVENT_COLORS[eventType],
-      member_ids: selectedMembers.map(m => m.id)
+      member_ids: selectedMembers.map(m => m.id),
+      // Phase 4 #7 — pass reminder choice through; useCreateEvent handles persistence
+      reminder_minutes_before: reminderMinutes,
     }
 
     let success = false
     if (eventToEdit) {
       success = await updateEvent(eventToEdit.id, data)
     } else {
+      // Note: notifications to invited members are dispatched inside useCreateEvent
+      // (single source of truth). We no longer fire a second round from here.
       const result = await createEvent(data)
       success = !!result
-
-      // Fire notifications to all selected members
-      if (result && selectedMembers.length > 0) {
-        const startLabel = new Date(startTime).toLocaleString('en-GB', {
-          weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-        })
-        await Promise.all(selectedMembers.map((member) =>
-          sendNotification({
-            userId: member.id,
-            title: `📅 You've been added to "${title}"`,
-            message: `You have been scheduled for an event on ${startLabel}${location ? ` at ${location}` : ''}.`,
-            module: 'calendar',
-            moduleId: result.id
-          })
-        ))
-      }
     }
 
     if (success) {
@@ -134,6 +130,7 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
       setDescription('')
       setLocation('')
       setEventType('event')
+      setReminderMinutes(null)
       setSelectedMembers([])
       onClose()
     }
@@ -141,7 +138,7 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
 
   const handleDelete = async () => {
     if (!eventToEdit) return
-    if (confirm('Are you sure you want to delete this event?')) {
+    if (confirm(locale === 'de' ? 'Diesen Termin wirklich löschen?' : 'Are you sure you want to delete this event?')) {
       const success = await deleteEvent(eventToEdit.id)
       if (success) onClose()
     }
@@ -179,7 +176,13 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
                   <CalendarIcon className="w-6 h-6" />
                 </div>
                 <h2 className="text-xl font-black text-gray-900">
-                  {eventToEdit ? (eventType === 'shift' ? 'Edit Shift' : 'Edit Event') : (eventType === 'shift' ? 'Assign Shift' : 'New Event')}
+                  {locale === 'de'
+                    ? (eventToEdit
+                        ? (eventType === 'shift' ? 'Schicht bearbeiten' : 'Termin bearbeiten')
+                        : (eventType === 'shift' ? 'Schicht zuweisen' : 'Neuer Termin'))
+                    : (eventToEdit
+                        ? (eventType === 'shift' ? 'Edit Shift' : 'Edit Event')
+                        : (eventType === 'shift' ? 'Assign Shift' : 'New Event'))}
                 </h2>
               </div>
               <button 
@@ -196,19 +199,27 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
               
               {/* Type Selector */}
               <div className="space-y-2">
-                <label className="text-[13px] font-black uppercase tracking-widest text-gray-400 pl-1">Event Type</label>
+                <label className="text-[13px] font-black uppercase tracking-widest text-gray-400 pl-1">
+                  {locale === 'de' ? 'Terminart' : 'Event Type'}
+                </label>
                 <EventTypeSelector value={eventType} onChange={setEventType} />
               </div>
 
               {/* Title / Route Input */}
               <div className="space-y-2">
                 <label className="text-[13px] font-black uppercase tracking-widest text-gray-400 pl-1">
-                  {eventType === 'shift' ? 'Route / Plan Name' : 'Title'}
+                  {locale === 'de'
+                    ? (eventType === 'shift' ? 'Route / Planname' : 'Titel')
+                    : (eventType === 'shift' ? 'Route / Plan Name' : 'Title')}
                 </label>
-                <Input 
+                <Input
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder={eventType === 'shift' ? 'e.g. Route 42: Berlin Hbf' : 'e.g. Team Meeting, Doctor...'}
+                  placeholder={
+                    locale === 'de'
+                      ? (eventType === 'shift' ? 'z. B. Route 42: Berlin Hbf' : 'z. B. Team-Meeting, Arzttermin…')
+                      : (eventType === 'shift' ? 'e.g. Route 42: Berlin Hbf' : 'e.g. Team Meeting, Doctor...')
+                  }
                   className="h-14 bg-gray-50 border-gray-100 rounded-2xl px-4 font-bold text-gray-900 focus:ring-4 focus:ring-blue-500/5 transition-all outline-none border-none"
                   required
                 />
@@ -217,9 +228,13 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
               {/* Time Section */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
-                  <label className="text-[13px] font-black uppercase tracking-widest text-gray-400">Time & Date</label>
+                  <label className="text-[13px] font-black uppercase tracking-widest text-gray-400">
+                    {locale === 'de' ? 'Zeit & Datum' : 'Time & Date'}
+                  </label>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-500">All day</span>
+                    <span className="text-xs font-bold text-gray-500">
+                      {locale === 'de' ? 'Ganztägig' : 'All day'}
+                    </span>
                     <Switch checked={isAllDay} onCheckedChange={setIsAllDay} />
                   </div>
                 </div>
@@ -246,41 +261,85 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
                 </div>
               </div>
 
-              {/* Location Input */}
+              {/* Location Input — Phase 5 #2: always optional.
+                 (Physical location must never block saving; Betriebsstellen
+                 selectors cover the primary start/destination use case.) */}
               <div className="space-y-2">
                 <label className="text-[13px] font-black uppercase tracking-widest text-gray-400 pl-1">
-                   {eventType === 'shift' ? 'Destination / Location' : 'Location'}
+                   {locale === 'de'
+                     ? (eventType === 'shift' ? 'Zielort / Standort (optional)' : 'Standort (optional)')
+                     : (eventType === 'shift' ? 'Destination / Location (optional)' : 'Location (optional)')}
                 </label>
                 <div className="relative group">
                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 group-focus-within:text-blue-500" />
-                   <Input 
+                   <Input
                     value={location}
                     onChange={e => setLocation(e.target.value)}
-                    placeholder={eventType === 'shift' ? 'e.g. Berlin Central Station' : 'Add location...'}
+                    placeholder={
+                      locale === 'de'
+                        ? (eventType === 'shift' ? 'z. B. Berlin Hbf' : 'Standort hinzufügen…')
+                        : (eventType === 'shift' ? 'e.g. Berlin Central Station' : 'Add location...')
+                    }
                     className="h-14 pl-12 pr-4 bg-gray-50 border-none rounded-2xl font-bold text-gray-900"
-                    required={eventType === 'shift'}
                   />
                 </div>
               </div>
+
+              {/* Phase 4 #7 — Reminder Picker (non-shift events only) */}
+              {eventType !== 'shift' && (
+                <div className="space-y-2">
+                  <label className="text-[13px] font-black uppercase tracking-widest text-gray-400 pl-1 flex items-center gap-2">
+                    <Bell className="w-3.5 h-3.5 text-gray-400" />
+                    {locale === 'de' ? 'Erinnerung' : 'Reminder'}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {REMINDER_OPTIONS.map(opt => {
+                      const active = reminderMinutes === opt.value
+                      const key = opt.value === null ? 'none' : String(opt.value)
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setReminderMinutes(opt.value)}
+                          className={cn(
+                            'px-4 h-10 rounded-2xl text-xs font-black uppercase tracking-wider transition-all border',
+                            active
+                              ? 'bg-[#0064E0] text-white border-[#0064E0] shadow-md shadow-blue-500/25'
+                              : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'
+                          )}
+                        >
+                          {locale === 'de' ? opt.label_de : opt.label_en}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Member Picker Trigger */}
               <div className="space-y-4">
                <div className="flex items-center justify-between px-1">
                    <label className="text-[13px] font-black uppercase tracking-widest text-gray-400">
-                      {eventType === 'shift' ? 'Assigned Employee' : 'Members'}
+                     {locale === 'de'
+                       ? (eventType === 'shift' ? 'Zugewiesene Person' : 'Teilnehmer')
+                       : (eventType === 'shift' ? 'Assigned Employee' : 'Members')}
                    </label>
-                   <button 
+                   <button
                     type="button"
                     onClick={() => setStep('members')}
                     className="text-xs font-black text-[#0064E0] hover:underline"
                    >
-                     {eventType === 'shift' ? '+ Assign Employee' : '+ Add Members'}
+                     {locale === 'de'
+                       ? (eventType === 'shift' ? '+ Mitarbeiter zuweisen' : '+ Teilnehmer hinzufügen')
+                       : (eventType === 'shift' ? '+ Assign Employee' : '+ Add Members')}
                    </button>
                 </div>
-                
+
                 <div className="flex -space-x-2 overflow-hidden px-1">
                   {selectedMembers.length === 0 ? (
-                    <p className="text-xs text-gray-400 font-medium italic">No members assigned.</p>
+                    <p className="text-xs text-gray-400 font-medium italic">
+                      {locale === 'de' ? 'Keine Teilnehmer zugewiesen.' : 'No members assigned.'}
+                    </p>
                   ) : (
                     selectedMembers.map(m => (
                       <div key={m.id} className="inline-block h-10 w-10 rounded-full ring-2 ring-white bg-gray-100 overflow-hidden" title={m.full_name || ''}>
@@ -304,11 +363,13 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
 
               {/* Description */}
               <div className="space-y-2">
-                <label className="text-[13px] font-black uppercase tracking-widest text-gray-400 pl-1">Description</label>
-                <Textarea 
+                <label className="text-[13px] font-black uppercase tracking-widest text-gray-400 pl-1">
+                  {locale === 'de' ? 'Beschreibung' : 'Description'}
+                </label>
+                <Textarea
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  placeholder="Optional notes or details..."
+                  placeholder={locale === 'de' ? 'Optionale Notizen oder Details…' : 'Optional notes or details...'}
                   className="min-h-[100px] bg-gray-50 border-none rounded-2xl p-4 font-medium text-gray-700 resize-none"
                 />
               </div>
@@ -336,7 +397,9 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
                 ) : (
                   <>
                     <Check className="w-6 h-6" />
-                    {eventToEdit ? 'Save Changes' : 'Create Event'}
+                    {locale === 'de'
+                      ? (eventToEdit ? 'Änderungen speichern' : 'Termin erstellen')
+                      : (eventToEdit ? 'Save Changes' : 'Create Event')}
                   </>
                 )}
               </Button>
@@ -353,10 +416,12 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-                <h2 className="text-xl font-black text-gray-900">Select Members</h2>
+                <h2 className="text-xl font-black text-gray-900">
+                  {locale === 'de' ? 'Teilnehmer auswählen' : 'Select Members'}
+                </h2>
               </div>
               <Button variant="ghost" onClick={() => setStep('form')} className="font-bold text-[#0064E0]">
-                Done ({selectedMembers.length})
+                {locale === 'de' ? 'Fertig' : 'Done'} ({selectedMembers.length})
               </Button>
             </div>
             

@@ -2,19 +2,24 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { 
-  Check, 
+import {
+  Check,
   Pencil,
   Map as MapIcon,
-  Search
+  Search,
+  Moon,
+  Hotel,
+  ArrowRight,
+  Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
-import type { Plan } from '@/lib/types'
+import type { Plan, ShiftTemplate } from '@/lib/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useProfiles } from '@/hooks/useProfiles'
 import { useCustomers } from '@/hooks/useCustomers'
@@ -24,6 +29,8 @@ import { useTranslation } from '@/lib/i18n'
 import { toast } from 'sonner'
 import { sendNotification } from '@/lib/notifications/service'
 import LocationPickerModal from './LocationPickerModal'
+import { ShiftTemplatePicker, type TemplatePayload } from './ShiftTemplatePicker'
+import { BetriebsstelleSelector } from './BetriebsstelleSelector'
 
 interface PlanFormProps {
   onSuccess?: () => void
@@ -34,7 +41,7 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
   const isEditing = !!initialPlan
   const router = useRouter()
   const { locale } = useTranslation()
-  const { profile: currentUser } = useUser()
+  const { profile: currentUser, isAdmin, isDispatcher } = useUser()
   const { profiles, loading: loadingProfiles } = useProfiles()
   const { customers, loading: loadingCustomers } = useCustomers()
   const { createPlan } = usePlans()
@@ -65,6 +72,57 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
   const [notes, setNotes] = useState(initialPlan?.notes ?? '')
   const [isMapOpen, setIsMapOpen] = useState(false)
 
+  // Phase 2 #11 — overnight stay + hotel
+  const [overnightStay, setOvernightStay] = useState<boolean>(initialPlan?.overnight_stay ?? false)
+  const [hotelAddress, setHotelAddress] = useState<string>(initialPlan?.hotel_address ?? '')
+
+  // Phase 3 #1 — Start / Destination Betriebsstellen
+  const [startLocationId, setStartLocationId] = useState<string | null>(initialPlan?.start_location_id ?? null)
+  const [destinationLocationId, setDestinationLocationId] = useState<string | null>(initialPlan?.destination_location_id ?? null)
+  // Phase 3 #10 — Gastfahrt (employee travels as passenger)
+  const [isGastfahrt, setIsGastfahrt] = useState<boolean>(initialPlan?.is_gastfahrt ?? false)
+
+  // Phase 2 #8 — shift templates
+  const applyTemplate = (tpl: ShiftTemplate) => {
+    if (tpl.customer_id) setCustomerId(tpl.customer_id)
+    setStartTime(tpl.start_time)
+    setEndTime(tpl.end_time)
+    if (tpl.route) setRoute(tpl.route)
+    if (tpl.location) setLocation(tpl.location)
+    if (tpl.notes) setNotes(tpl.notes)
+    setOvernightStay(tpl.overnight_stay)
+    setHotelAddress(tpl.hotel_address ?? '')
+    if (tpl.duration_days > 1) {
+      // Spread the end date across the template's duration
+      const baseEnd = new Date(`${startDate}T${tpl.end_time}:00`)
+      baseEnd.setDate(baseEnd.getDate() + (tpl.duration_days - 1))
+      setEndDate(baseEnd.toISOString().split('T')[0])
+    } else {
+      setEndDate(startDate)
+    }
+    toast.success(locale === 'de' ? `Vorlage „${tpl.name}" übernommen` : `Template "${tpl.name}" applied`)
+  }
+
+  const buildTemplatePayload = (): TemplatePayload => {
+    // Duration measured in whole calendar days (inclusive).
+    const start = new Date(`${startDate}T00:00:00`)
+    const end = new Date(`${endDate}T00:00:00`)
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1)
+
+    return {
+      name: '',                                // filled by the picker dialog
+      customer_id: customerId && customerId !== 'null' ? customerId : null,
+      start_time: startTime,
+      end_time: endTime,
+      duration_days: days,
+      route: route || null,
+      location: location || null,
+      overnight_stay: overnightStay,
+      hotel_address: hotelAddress || null,
+      notes: notes || null,
+    }
+  }
+
   const handleLocationSelect = (data: { address: string }) => {
     setLocation(data.address)
   }
@@ -91,10 +149,8 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
       return
     }
 
-    if (!location.trim()) {
-      toast.error(locale === 'en' ? 'Physical location is required' : 'Physischer Standort ist erforderlich')
-      return
-    }
+    // Physical Location is optional — see change-request #2 (Rheinmaasrail).
+    // The DB column is already nullable; only this form-level check was blocking saves.
 
     try {
       setLoading(true)
@@ -124,6 +180,12 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
             route: route || null,
             location: location || null,
             notes: notes || null,
+            overnight_stay: overnightStay,
+            hotel_address: hotelAddress || null,
+            // Phase 3 #1 + #10
+            start_location_id: startLocationId,
+            destination_location_id: destinationLocationId,
+            is_gastfahrt: isGastfahrt,
             updated_at: new Date().toISOString(),
           })
           .eq('id', initialPlan.id)
@@ -138,8 +200,8 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
         if (employeeId !== initialPlan.employee_id) {
           await sendNotification({
             userId: employeeId,
-            title: '📋 Shift Updated',
-            message: `Your shift starting ${startLabel}${location ? ` at ${location}` : ''} has been updated.`,
+            title: '📋 Schicht aktualisiert',
+            message: `Ihre Schicht ab ${startLabel}${location ? ` (${location})` : ''} wurde aktualisiert.`,
             module: 'plans',
             moduleId: initialPlan.id,
           })
@@ -167,15 +229,21 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
               notes: notes || null,
               status: 'assigned',
               rejection_reason: null,
+              overnight_stay: overnightStay,
+              hotel_address: hotelAddress || null,
+              // Phase 3 #1 + #10
+              start_location_id: startLocationId,
+              destination_location_id: destinationLocationId,
+              is_gastfahrt: isGastfahrt,
             })
 
-            const startLabel = currentStart.toLocaleString('en-GB', {
+            const startLabel = currentStart.toLocaleString(locale === 'de' ? 'de-DE' : 'en-GB', {
               weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
             })
             await sendNotification({
               userId: empId,
-              title: '📋 New Shift Assigned',
-              message: `You have been assigned a new shift starting ${startLabel}${location ? ` at ${location}` : ''}.`,
+              title: '📋 Neue Schicht zugewiesen',
+              message: `Ihnen wurde eine neue Schicht ab ${startLabel}${location ? ` (${location})` : ''} zugewiesen.`,
               module: 'plans',
               moduleId: newPlan?.id,
             })
@@ -208,6 +276,16 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-slate-50">
             {/* Left Column - Core Logistics */}
             <div className="p-10 space-y-12">
+              {/* Shift Template picker (Phase 2 #8) — admin/dispatcher only in create mode */}
+              {!isEditing && (isAdmin || isDispatcher) && (
+                <ShiftTemplatePicker
+                  onApply={applyTemplate}
+                  getCurrentPayload={buildTemplatePayload}
+                  canSave={true}
+                  locale={locale}
+                />
+              )}
+
               {/* Assignment Section */}
               <div className="space-y-8">
                 <div>
@@ -304,7 +382,9 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                   </div>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between px-1">
-                      <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest">Physical Location</Label>
+                      <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest">
+                        {locale === 'en' ? 'Physical Location (optional)' : 'Physischer Standort (optional)'}
+                      </Label>
                       <button 
                         type="button"
                         onClick={() => setIsMapOpen(true)}
@@ -315,8 +395,8 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                       </button>
                     </div>
                     <div className="relative group">
-                      <Input 
-                        placeholder="Street Address or GPS Coordinates" 
+                      <Input
+                        placeholder="Street Address or GPS Coordinates"
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
                         className="h-14 pr-12 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
@@ -327,6 +407,106 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Betriebsstellen + Gastfahrt Section (Phase 3 #1 + #10) ─ */}
+              <div className="pt-8 border-t border-slate-50 space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 leading-none">
+                    {locale === 'de' ? 'Start- & Zielort' : 'Start & Destination'}
+                  </h3>
+                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">
+                    {locale === 'de' ? 'Betriebsstellen · Fahrtart' : 'Operational Locations · Travel Mode'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5">
+                  <BetriebsstelleSelector
+                    value={startLocationId}
+                    onChange={setStartLocationId}
+                    kind="start"
+                    locale={locale}
+                  />
+                  <div className="flex items-center justify-center text-slate-300">
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                  <BetriebsstelleSelector
+                    value={destinationLocationId}
+                    onChange={setDestinationLocationId}
+                    kind="destination"
+                    locale={locale}
+                  />
+                </div>
+
+                {/* Phase 3 #10 — Gastfahrt toggle */}
+                <label className="flex items-center justify-between p-5 rounded-2xl bg-slate-50/50 border border-slate-100 cursor-pointer hover:bg-slate-50 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                      <Users className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">
+                        {locale === 'de' ? 'Gastfahrt' : 'Passenger Travel (Gastfahrt)'}
+                      </p>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-none mt-0.5">
+                        {locale === 'de'
+                          ? 'Mitarbeiter reist als Beifahrer (kein aktives Fahren)'
+                          : 'Employee travels as passenger (not driving)'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch checked={isGastfahrt} onCheckedChange={setIsGastfahrt} />
+                </label>
+              </div>
+
+              {/* Overnight Stay Section (Phase 2 #11) ──────────────────── */}
+              <div className="pt-8 border-t border-slate-50 space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 leading-none">
+                    {locale === 'de' ? 'Übernachtung & Spesen' : 'Overnight & Allowance'}
+                  </h3>
+                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">
+                    {locale === 'de' ? 'Auswärtstätigkeit' : 'Away-from-home trip'}
+                  </p>
+                </div>
+
+                <label className="flex items-center justify-between p-5 rounded-2xl bg-slate-50/50 border border-slate-100 cursor-pointer hover:bg-slate-50 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                      <Moon className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">
+                        {locale === 'de' ? 'Übernachtung erforderlich' : 'Requires overnight stay'}
+                      </p>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-none mt-0.5">
+                        {locale === 'de'
+                          ? 'Voller Spesensatz (€28) wird automatisch angewendet'
+                          : 'Full allowance (€28) auto-applied'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch checked={overnightStay} onCheckedChange={setOvernightStay} />
+                </label>
+
+                {overnightStay && (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest px-1">
+                      {locale === 'de' ? 'Hoteladresse' : 'Hotel Address'}
+                    </Label>
+                    <div className="relative group">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center pointer-events-none">
+                        <Hotel className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <Input
+                        placeholder={locale === 'de' ? 'Hotel oder Unterkunft' : 'Hotel or lodging'}
+                        value={hotelAddress}
+                        onChange={(e) => setHotelAddress(e.target.value)}
+                        className="h-14 pl-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold focus:bg-white transition-all text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

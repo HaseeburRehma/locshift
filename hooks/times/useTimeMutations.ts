@@ -4,6 +4,7 @@ import { TimeEntry, TimeEntryFormData } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { actionToasts } from '@/lib/toast/actionToasts'
 import { sendNotification } from '@/lib/notifications/service'
+import { calculateSpesen, DEFAULT_SPESEN_RATES } from '@/lib/spesen'
 
 export function useTimeMutations() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -19,6 +20,17 @@ export function useTimeMutations() {
 
     setIsSubmitting(true)
     try {
+      // Phase 2 #11 — Spesen is computed client-side so the row carries
+      // the snapshot value (org rate changes don't retroactively rewrite
+      // past entries).
+      const start = new Date(`${data.date}T${data.startTime}:00`).getTime()
+      const end = new Date(`${data.date}T${data.endTime}:00`).getTime()
+      const netHours = Math.max(0, (end - start) / 3_600_000 - (data.breakMinutes ?? 0) / 60)
+      const mealAllowance = calculateSpesen(netHours, !!data.overnightStay, {
+        partial: (profile as any)?.organization?.spesen_rate_partial ?? DEFAULT_SPESEN_RATES.partial,
+        full: (profile as any)?.organization?.spesen_rate_full ?? DEFAULT_SPESEN_RATES.full,
+      })
+
       const payload = {
         employee_id: profile.id,
         organization_id: profile.organization_id,
@@ -30,6 +42,15 @@ export function useTimeMutations() {
         location: data.location || null,
         notes: data.notes || null,
         is_verified: false,
+        // Phase 2 additions
+        overnight_stay: !!data.overnightStay,
+        hotel_address: data.hotelAddress || null,
+        meal_allowance: Number(mealAllowance.toFixed(2)),
+        is_planned: !!data.isPlanned,
+        // Phase 3 #1 + #10
+        start_location_id: data.startLocationId ?? null,
+        destination_location_id: data.destinationLocationId ?? null,
+        is_gastfahrt: !!data.isGastfahrt,
         // net_hours is NOT included — it is a GENERATED column
       }
 

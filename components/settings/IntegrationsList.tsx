@@ -43,8 +43,7 @@ interface Integration {
 
 const INTEGRATIONS: Integration[] = [
   { id: 'supabase', name: 'Supabase', provider: 'Database', category: 'Infrastructure', icon: Database, color: 'text-emerald-500' },
-  { id: 'openai', name: 'OpenAI', provider: 'GPT-4 / DALL-E', category: 'Artificial Intelligence', icon: Bot, color: 'text-teal-600' },
-  { id: 'anthropic', name: 'Anthropic', provider: 'Claude Haiku', category: 'Artificial Intelligence', icon: Zap, color: 'text-orange-500' },
+  { id: 'anthropic', name: 'Anthropic', provider: 'Claude Sonnet 4.6', category: 'Artificial Intelligence', icon: Bot, color: 'text-orange-500' },
   { id: 'stripe', name: 'Stripe', provider: 'Payments', category: 'Finance', icon: CreditCard, color: 'text-indigo-600' },
   { id: 'sendgrid', name: 'SendGrid', provider: 'Email Service', category: 'Communication', icon: Mail, color: 'text-blue-500' },
   { id: 'twilio', name: 'Twilio', provider: 'WhatsApp / SMS', category: 'Communication', icon: MessageSquare, color: 'text-rose-500' },

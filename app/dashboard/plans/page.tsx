@@ -368,7 +368,9 @@ export default function PlansPage() {
             <h2 className="text-4xl font-black tracking-tight text-gray-900">
               {locale === 'en' ? 'Plans & Schedules' : 'Pläne & Termine'}
             </h2>
-            <p className="text-base text-gray-400 font-medium">Manage shift assignments and schedules</p>
+            <p className="text-base text-gray-400 font-medium">
+              {locale === 'en' ? 'Manage shift assignments and schedules' : 'Schichten und Einsätze verwalten'}
+            </p>
           </div>
           <div className="flex gap-3 flex-shrink-0">
             <Link href="/dashboard/plans/new">
@@ -386,20 +388,29 @@ export default function PlansPage() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               {/* Status filter pills */}
               <div className="flex flex-wrap gap-2 bg-gray-50/50 p-1.5 rounded-2xl border border-gray-100/50">
-                {['all', 'draft', 'assigned', 'confirmed', 'this-week'].map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s as any)}
-                    className={cn(
-                      'px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-300',
-                      statusFilter === s
-                        ? 'bg-[#0064E0] text-white shadow-lg shadow-blue-200'
-                        : 'text-gray-400 hover:text-gray-600 hover:bg-white'
-                    )}
-                  >
-                    {s.replace('-', ' ')}
-                  </button>
-                ))}
+                {(() => {
+                  const pillLabels: Record<string, { de: string; en: string }> = {
+                    all:         { de: 'Alle',        en: 'All' },
+                    draft:       { de: 'Entwurf',     en: 'Draft' },
+                    assigned:    { de: 'Zugewiesen',  en: 'Assigned' },
+                    confirmed:   { de: 'Bestätigt',   en: 'Confirmed' },
+                    'this-week': { de: 'Diese Woche', en: 'This Week' },
+                  }
+                  return ['all', 'draft', 'assigned', 'confirmed', 'this-week'].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setStatusFilter(s as any)}
+                      className={cn(
+                        'px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-300',
+                        statusFilter === s
+                          ? 'bg-[#0064E0] text-white shadow-lg shadow-blue-200'
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-white'
+                      )}
+                    >
+                      {locale === 'de' ? pillLabels[s].de : pillLabels[s].en}
+                    </button>
+                  ))
+                })()}
               </div>
 
               <div className="flex items-center gap-3 w-full lg:w-auto">
@@ -441,14 +452,14 @@ export default function PlansPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/20 border-b border-gray-100/50">
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[220px]">Employee</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[140px]">Date</th>
-                    <th className="px-4 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-center min-w-[110px]">Start Time</th>
-                    <th className="px-4 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-center min-w-[110px]">End Time</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[160px]">Customer</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[200px]">Location</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[220px]">{locale === 'de' ? 'Mitarbeiter' : 'Employee'}</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[140px]">{locale === 'de' ? 'Datum' : 'Date'}</th>
+                    <th className="px-4 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-center min-w-[110px]">{locale === 'de' ? 'Startzeit' : 'Start Time'}</th>
+                    <th className="px-4 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-center min-w-[110px]">{locale === 'de' ? 'Endzeit' : 'End Time'}</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[160px]">{locale === 'de' ? 'Kunde' : 'Customer'}</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[200px]">{locale === 'de' ? 'Standort' : 'Location'}</th>
                     <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-left min-w-[130px]">Status</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-right min-w-[120px]">Actions</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-right min-w-[120px]">{locale === 'de' ? 'Aktionen' : 'Actions'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -458,7 +469,7 @@ export default function PlansPage() {
                     ? (
                       <tr>
                         <td colSpan={8} className="p-20 text-center text-gray-300 font-black text-[11px] uppercase tracking-widest italic">
-                          No plans found in this category
+                          {locale === 'de' ? 'Keine Pläne in dieser Kategorie' : 'No plans found in this category'}
                         </td>
                       </tr>
                     )
@@ -519,7 +530,7 @@ export default function PlansPage() {
                              </span>
                              {plan.location?.includes(',') && (
                                <span className="text-[9px] font-black text-gray-300 uppercase tracking-tighter opacity-70">
-                                 Mission Coordinates
+                                 {locale === 'de' ? 'Einsatzkoordinaten' : 'Mission Coordinates'}
                                </span>
                              )}
                            </div>

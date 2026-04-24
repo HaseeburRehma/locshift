@@ -28,7 +28,10 @@ export function CalendarEventList({ date, events, onEditEvent }: CalendarEventLi
           {dateHeading}
         </h3>
         <span className="text-xs font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-          {events.length} {events.length === 1 ? 'Event' : 'Events'}
+          {events.length}{' '}
+          {locale === 'de'
+            ? (events.length === 1 ? 'Termin' : 'Termine')
+            : (events.length === 1 ? 'Event' : 'Events')}
         </span>
       </div>
 

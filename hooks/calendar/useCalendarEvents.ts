@@ -2,6 +2,27 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CalendarEvent, EVENT_COLORS } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
+import { toast } from 'sonner'
+
+/**
+ * Supabase PostgrestError uses non-enumerable properties — spreading it
+ * into a plain object literal prints `{}` which is why the original
+ * `[useCalendarEvents] Fetch error detail: {}` log was useless.
+ * This helper normalises every known error shape into a plain object that
+ * serialises cleanly.
+ */
+function normalizeError(err: any): Record<string, unknown> {
+  if (!err) return { message: 'unknown error' }
+  if (typeof err === 'string') return { message: err }
+  return {
+    message: err.message ?? err.error_description ?? String(err),
+    code: err.code,
+    details: err.details,
+    hint: err.hint,
+    status: err.status,
+    statusText: err.statusText,
+  }
+}
 
 export function useCalendarEvents(year: number, month: number) {
   const [events, setEvents] = useState<CalendarEvent[]>([])
@@ -18,13 +39,21 @@ export function useCalendarEvents(year: number, month: number) {
 
     const fetchAll = async () => {
       setIsLoading(true)
-      
+
       const startOfMonth = new Date(year, month - 1, 1).toISOString()
       const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString()
 
+      // Fail-partially rather than fail-whole: each fetch is wrapped in its
+      // own try/catch so a broken calendar_event_members join doesn't hide
+      // plan data (and vice-versa). Every error is logged with the full
+      // PostgrestError shape (message/code/details/hint).
+      let calData: any[] = []
+      let planData: any[] = []
+      let hadError = false
+
+      // 1. Calendar events with joined creator + invited members
       try {
-        // 1. Fetch from calendar_events with member filtering for employees
-        let calQuery = supabase
+        const calQuery = supabase
           .from('calendar_events')
           .select(`
             *,
@@ -37,24 +66,38 @@ export function useCalendarEvents(year: number, month: number) {
           .gte('start_time', startOfMonth)
           .lte('start_time', endOfMonth)
 
-        // Employees only see events they created or are members of, plus public ones
-        if (!isAdminOrDispatcher) {
-          // This is a simplified filter; real DB policy handles some, but frontend needs to filter merged data
-          // We won't change the query but we'll filter in JS to handle the complex "member" logic reliably
+        const { data, error } = await calQuery
+        if (error) {
+          hadError = true
+          console.error('[useCalendarEvents] calendar_events fetch failed:', {
+            ...normalizeError(error),
+            orgId,
+            userId,
+            startOfMonth,
+            endOfMonth,
+          })
+          // Common case: RLS policy not applied yet → point the user to the fix
+          if (error.code === '42501') {
+            toast.error('Keine Berechtigung zum Laden der Termine. Bitte Administrator kontaktieren.')
+          }
+        } else {
+          calData = data ?? []
         }
+      } catch (err) {
+        hadError = true
+        console.error('[useCalendarEvents] calendar_events threw:', normalizeError(err))
+      }
 
-        const { data: calData, error: calError } = await calQuery
-        if (calError) throw calError
-
-        // 2. Fetch from plans (existing shifts)
+      // 2. Plans (existing shifts) — independent of the calendar fetch
+      try {
         let planQuery = supabase
           .from('plans')
           .select(`
-            id, 
-            start_time, 
-            end_time, 
-            route, 
-            location, 
+            id,
+            start_time,
+            end_time,
+            route,
+            location,
             status,
             employee:profiles!employee_id(id, full_name, avatar_url, role)
           `)
@@ -62,14 +105,27 @@ export function useCalendarEvents(year: number, month: number) {
           .gte('start_time', startOfMonth)
           .lte('start_time', endOfMonth)
 
-        // Employees only see their own plans
         if (!isAdminOrDispatcher) {
-            planQuery = planQuery.eq('employee_id', profile.id)
+          planQuery = planQuery.eq('employee_id', profile.id)
         }
 
-        const { data: planData, error: planError } = await planQuery
-        if (planError) throw planError
+        const { data, error } = await planQuery
+        if (error) {
+          hadError = true
+          console.error('[useCalendarEvents] plans fetch failed:', {
+            ...normalizeError(error),
+            orgId,
+            userId,
+          })
+        } else {
+          planData = data ?? []
+        }
+      } catch (err) {
+        hadError = true
+        console.error('[useCalendarEvents] plans threw:', normalizeError(err))
+      }
 
+      try {
         // Map plans to CalendarEvent shape
         const mappedPlans: CalendarEvent[] = (planData ?? []).map((plan: any) => ({
           id: `plan-${plan.id}`,
@@ -91,25 +147,24 @@ export function useCalendarEvents(year: number, month: number) {
         // Final Filter for Employees (Calendar Events)
         let finalEvents = calData || []
         if (!isAdminOrDispatcher && userId) {
-           finalEvents = finalEvents.filter((e: any) => 
-             e.creator_id === userId || 
-             e.event_type === 'birthday' || 
+           finalEvents = finalEvents.filter((e: any) =>
+             e.creator_id === userId ||
+             e.event_type === 'birthday' ||
              e.event_type === 'holiday' ||
              e.members?.some((m: any) => m.user?.id === userId)
            )
         }
-        
-        setEvents([...finalEvents, ...mappedPlans])
 
-      } catch (err: any) {
-        console.error('[useCalendarEvents] Fetch error detail:', {
-          message: err.message,
-          error: err,
-          orgId,
-          userId
-        })
+        setEvents([...finalEvents, ...mappedPlans])
+      } catch (err) {
+        console.error('[useCalendarEvents] mapping/setState threw:', normalizeError(err))
+        hadError = true
       } finally {
         setIsLoading(false)
+        if (hadError) {
+          // Non-blocking user signal so the screen isn't silently empty
+          toast.error('Kalender konnte nicht vollständig geladen werden. Details in der Konsole.')
+        }
       }
     }
 

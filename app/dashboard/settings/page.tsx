@@ -37,64 +37,72 @@ export default async function SettingsHubPage() {
 
   const settingsCards = [
     {
-      title: 'Account & Personnel',
-      description: 'Manage your personal profile, qualifications, and core employee data.',
+      title: 'Konto & Personal',
+      description: 'Persönliches Profil, Qualifikationen und Stammdaten verwalten.',
       href: '/dashboard/settings/personal-data',
       icon: User,
       color: 'bg-indigo-600',
-      status: 'Personal'
+      status: 'Persönlich'
     },
     {
-      title: 'Global Settings',
-      description: 'Configure and manage system-wide working time models.',
+      title: 'Globale Einstellungen',
+      description: 'Systemweite Arbeitszeitmodelle konfigurieren und verwalten.',
       href: '/dashboard/settings/global',
       icon: Settings2,
       color: 'bg-slate-900',
-      status: 'Core'
+      status: 'Kern'
     },
     {
-      title: 'Company Profile',
-      description: 'Manage your business details, branding, and contact info.',
+      title: 'Betriebsstellen',
+      description: 'Start- und Zielorte (Depots, Bahnhöfe, Werkstätten) verwalten.',
+      href: '/dashboard/settings/betriebsstellen',
+      icon: Building2,
+      color: 'bg-cyan-600',
+      status: 'Phase 3'
+    },
+    {
+      title: 'Unternehmensprofil',
+      description: 'Firmendaten, Branding und Kontaktinformationen verwalten.',
       href: '/dashboard/settings/company',
       icon: Building2,
       color: 'bg-blue-500',
-      status: 'Configured'
+      status: 'Konfiguriert'
     },
     {
-      title: 'Integrations',
-      description: 'Connect with Supabase, OpenAI, Stripe, and more.',
+      title: 'Integrationen',
+      description: 'Anbindung an Supabase, Anthropic Claude, Stripe u. a.',
       href: '/dashboard/settings/integrations',
       icon: Zap,
       color: 'bg-amber-500',
-      status: '6 Active'
+      status: '5 aktiv'
     },
     {
-      title: 'Notifications',
-      description: 'Control alerts for email, WhatsApp, and in-app triggers.',
+      title: 'Benachrichtigungen',
+      description: 'E-Mail-, WhatsApp- und In-App-Benachrichtigungen steuern.',
       href: '/dashboard/settings/notifications',
       icon: Bell,
       color: 'bg-indigo-500',
-      status: 'Active'
+      status: 'Aktiv'
     },
     {
-      title: 'Billing & Plans',
-      description: 'View your subscription balance and usage stats.',
+      title: 'Abrechnung & Tarife',
+      description: 'Abo-Guthaben und Nutzungsstatistiken einsehen.',
       href: '/dashboard/settings/billing',
       icon: CreditCard,
       color: 'bg-emerald-500',
       status: 'Premium'
     },
     {
-      title: 'Security',
-      description: 'Role-based access control and system permissions.',
+      title: 'Sicherheit',
+      description: 'Rollenbasierte Zugriffskontrolle und Systemberechtigungen.',
       href: '/dashboard/settings/security',
       icon: ShieldCheck,
       color: 'bg-red-500',
-      status: 'Secure'
+      status: 'Sicher'
     },
     {
-      title: 'Localization',
-      description: 'Configure languages, timezone, and currency.',
+      title: 'Lokalisierung',
+      description: 'Sprachen, Zeitzone und Währung konfigurieren.',
       href: '/dashboard/settings/company#localization',
       icon: Globe,
       color: 'bg-cyan-500',
@@ -107,8 +115,8 @@ export default async function SettingsHubPage() {
       {/* ----------------- DESKTOP VIEW ----------------- */}
       <div className="hidden md:block space-y-8 pb-24">
         <div className="space-y-2">
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">Settings Hub</h1>
-          <p className="text-slate-500 font-medium">Fine-tune your LokShift Operations Center parameters.</p>
+          <h1 className="text-4xl font-black tracking-tight text-slate-900">Einstellungen</h1>
+          <p className="text-slate-500 font-medium">Feinjustieren Sie Ihre LokShift-Einsatzzentrale.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -137,7 +145,7 @@ export default async function SettingsHubPage() {
                     </div>
 
                     <div className="mt-auto pt-6 flex items-center text-blue-600 text-[10px] font-black uppercase tracking-widest gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-[-10px] group-hover:translate-x-0">
-                      Configure <ChevronRight className="h-3 w-3 stroke-[3]" />
+                      Konfigurieren <ChevronRight className="h-3 w-3 stroke-[3]" />
                     </div>
                   </div>
                 </div>
@@ -165,49 +173,49 @@ export default async function SettingsHubPage() {
           <p className="text-sm font-medium text-slate-400">{profile?.email || user.email}</p>
         </div>
 
-        {/* Personal Details */}
+        {/* Persönliche Daten */}
         <div className="space-y-3">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 opacity-60">Personal Details</h3>
+          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 opacity-60">Persönliche Daten</h3>
           <div className="bg-white rounded-3xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-100">
-            <MobileLinkItem icon={User} label="Personal Data" href="/dashboard/settings/personal-data" />
-            <MobileLinkItem icon={Map} label="Absences" href="/dashboard/settings/absences" />
-            <MobileLinkItem icon={Clock} label="Working Hours" href="/dashboard/settings/working-hours" />
-            <MobileLinkItem icon={GraduationCap} label="Qualifications" href="/dashboard/settings/qualifications" borderBottom={false} />
+            <MobileLinkItem icon={User} label="Stammdaten" href="/dashboard/settings/personal-data" />
+            <MobileLinkItem icon={Map} label="Abwesenheiten" href="/dashboard/settings/absences" />
+            <MobileLinkItem icon={Clock} label="Arbeitszeiten" href="/dashboard/settings/working-hours" />
+            <MobileLinkItem icon={GraduationCap} label="Qualifikationen" href="/dashboard/settings/qualifications" borderBottom={false} />
           </div>
         </div>
 
-        {/* Settings */}
+        {/* Einstellungen */}
         <div className="space-y-3">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 opacity-60">Settings</h3>
+          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 opacity-60">Einstellungen</h3>
           <div className="bg-white rounded-3xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-100">
-            <MobileActionItem icon={Bell} label="Notifications">
+            <MobileActionItem icon={Bell} label="Benachrichtigungen">
               <NotificationToggle initialEnabled={true} userId={user.id} />
             </MobileActionItem>
-            <MobileActionItem icon={Globe} label="Select Language">
+            <MobileActionItem icon={Globe} label="Sprache wählen">
               <div className="flex items-center gap-1 text-blue-600 font-bold text-xs uppercase tracking-tighter bg-blue-50/50 px-2.5 py-1 rounded-lg">
-                 German <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                 Deutsch <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
               </div>
             </MobileActionItem>
-            <MobileLinkItem icon={Clock} label="Auto - Tracking" href="/dashboard/settings" />
-            <MobileLinkItem icon={Lock} label="Change Password" href="/dashboard/settings" borderBottom={false} />
+            <MobileLinkItem icon={Clock} label="Auto-Erfassung" href="/dashboard/settings" />
+            <MobileLinkItem icon={Lock} label="Passwort ändern" href="/dashboard/settings" borderBottom={false} />
           </div>
         </div>
 
-        {/* Information */}
+        {/* Informationen */}
         <div className="space-y-3">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 opacity-60">Information</h3>
+          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 opacity-60">Informationen</h3>
           <div className="bg-white rounded-3xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-100">
-            <MobileLinkItem icon={MessageSquare} label="Feedback & Help" href="/dashboard/settings" />
-            <MobileLinkItem icon={Lock} label="Data Protection" href="/dashboard/settings" />
-            <MobileLinkItem icon={Info} label="Imprint" href="/dashboard/settings" borderBottom={false} />
+            <MobileLinkItem icon={MessageSquare} label="Feedback & Hilfe" href="/dashboard/settings" />
+            <MobileLinkItem icon={Lock} label="Datenschutz" href="/dashboard/settings" />
+            <MobileLinkItem icon={Info} label="Impressum" href="/dashboard/settings" borderBottom={false} />
           </div>
         </div>
 
-        {/* Appearance */}
+        {/* Darstellung */}
         <div className="space-y-3">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 opacity-60">Appearance</h3>
+          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 opacity-60">Darstellung</h3>
           <div className="bg-white rounded-3xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-100">
-            <MobileActionItem icon={Sun} label="Theme" borderBottom={false}>
+            <MobileActionItem icon={Sun} label="Design" borderBottom={false}>
               <div className="flex items-center gap-1 text-slate-400 font-bold text-xs uppercase tracking-tighter bg-slate-50 px-2.5 py-1 rounded-lg">
                  System <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
               </div>
@@ -215,10 +223,10 @@ export default async function SettingsHubPage() {
           </div>
         </div>
 
-        {/* Logout */}
+        {/* Abmelden */}
         <form action="/auth/signout" method="post" className="pt-4 pb-8">
            <button type="submit" className="w-full bg-[#FAFBFF] text-red-500 border border-red-100 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-sm uppercase tracking-widest active:scale-[0.98] transition-all shadow-sm">
-             <LogOut className="w-4 h-4 stroke-[3]" /> Logout
+             <LogOut className="w-4 h-4 stroke-[3]" /> Abmelden
            </button>
         </form>
 

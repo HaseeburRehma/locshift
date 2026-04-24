@@ -14,10 +14,14 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { de, enGB } from 'date-fns/locale'
+import { useTranslation } from '@/lib/i18n'
 
 export function NotificationBell() {
   const { notifications, unreadCount, markAsRead, markAllAsRead, loading } = useNotifications()
   const [isOpen, setIsOpen] = useState(false)
+  const { locale } = useTranslation()
+  const L = (deStr: string, en: string) => (locale === 'de' ? deStr : en)
+  const dateLocale = locale === 'de' ? de : enGB
   const prevUnreadCount = useRef(unreadCount)
   const router = useRouter()
 
@@ -67,15 +71,15 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h4 className="font-semibold text-sm">Notifications</h4>
+          <h4 className="font-semibold text-sm">{L('Benachrichtigungen', 'Notifications')}</h4>
           {unreadCount > 0 && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={markAllAsRead}
               className="h-auto text-xs text-blue-600 hover:text-blue-700 p-0"
             >
-              Mark all as read
+              {L('Alle als gelesen markieren', 'Mark all as read')}
             </Button>
           )}
         </div>
@@ -107,7 +111,7 @@ export function NotificationBell() {
                       </span>
                     )}
                     <span className="text-[10px] text-slate-400 mt-1">
-                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: dateLocale })}
                     </span>
                   </div>
                   {!notif.is_read && (
@@ -121,7 +125,7 @@ export function NotificationBell() {
           ) : (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-slate-400">
               <Bell className="w-8 h-8 opacity-20" />
-              <p className="text-xs">No notifications yet</p>
+              <p className="text-xs">{L('Noch keine Benachrichtigungen', 'No notifications yet')}</p>
             </div>
           )}
         </ScrollArea>
@@ -134,7 +138,7 @@ export function NotificationBell() {
               router.push('/dashboard/notifications')
             }}
           >
-            View all notifications
+            {L('Alle Benachrichtigungen anzeigen', 'View all notifications')}
           </Button>
         </div>
       </PopoverContent>

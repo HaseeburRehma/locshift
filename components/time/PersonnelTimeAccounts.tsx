@@ -15,8 +15,10 @@ import { TimeAccount, MonthlyTimeData } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
+import { useTranslation } from '@/lib/i18n'
 import { groupByMonth } from '@/lib/times/calculations'
 import { Loader2 } from 'lucide-react'
+import { de as deLocale } from 'date-fns/locale'
 
 interface PersonnelTimeAccountsProps {
   accounts: TimeAccount[]
@@ -55,6 +57,8 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   useEffect(() => { setCurrentPage(1) }, [searchTerm])
 
@@ -79,15 +83,15 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-[26px] md:text-[30px] font-bold text-slate-900 tracking-tight leading-none">
-              Personnel Accounts
+              {L('Personal-Zeitkonten', 'Personnel Accounts')}
             </h1>
-            <p className="text-[13px] text-slate-500">Monitor time balances across your workforce</p>
+            <p className="text-[13px] text-slate-500">{L('Zeitsalden aller Mitarbeiter überwachen', 'Monitor time balances across your workforce')}</p>
           </div>
           <div className="relative w-full md:w-72 shrink-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search employees…"
+              placeholder={L('Mitarbeiter suchen…', 'Search employees…')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full h-10 pl-10 pr-4 text-[13px] font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
@@ -108,7 +112,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
               )}
             >
               <Users className="h-3.5 w-3.5" />
-              All Employees
+              {L('Alle Mitarbeiter', 'All Employees')}
             </button>
             {accounts.map(acc => (
               <button
@@ -145,7 +149,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
             </div>
             <div className="relative space-y-3">
               <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-400">
-                {selectedEmployeeId ? 'Employee Balance' : 'Organisation Balance'}
+                {selectedEmployeeId ? L('Mitarbeiter-Saldo', 'Employee Balance') : L('Organisations-Saldo', 'Organisation Balance')}
               </p>
               <div className={cn(
                 'text-[36px] font-bold tabular-nums leading-none tracking-tight',
@@ -160,15 +164,18 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
               </div>
               <p className="text-[12px] text-slate-400 leading-relaxed max-w-[180px]">
                 {selectedEmployeeId
-                  ? `Accumulated time credits for ${selectedAccount?.full_name ?? 'this employee'}.`
-                  : 'Accumulated time credits across the entire unit.'}
+                  ? L(
+                      `Angesammelte Zeitguthaben für ${selectedAccount?.full_name ?? 'diesen Mitarbeiter'}.`,
+                      `Accumulated time credits for ${selectedAccount?.full_name ?? 'this employee'}.`,
+                    )
+                  : L('Angesammelte Zeitguthaben der gesamten Organisation.', 'Accumulated time credits across the entire unit.')}
               </p>
             </div>
           </div>
 
           <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4 hover:border-slate-300 hover:shadow-sm transition-all">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-              {selectedEmployeeId ? 'Actual Hours' : 'Total Employees'}
+              {selectedEmployeeId ? L('Tatsächliche Stunden', 'Actual Hours') : L('Mitarbeiter insgesamt', 'Total Employees')}
             </p>
             <div className="text-[36px] font-bold text-slate-900 leading-none tabular-nums">
               {selectedEmployeeId
@@ -180,14 +187,14 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                 <Users className="h-3.5 w-3.5 text-blue-600" />
               </div>
               <span className="text-[12px] text-slate-400 font-medium">
-                {selectedEmployeeId ? 'Hours worked' : 'Operational workforce'}
+                {selectedEmployeeId ? L('Geleistete Stunden', 'Hours worked') : L('Aktive Belegschaft', 'Operational workforce')}
               </span>
             </div>
           </div>
 
           <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4 hover:border-slate-300 hover:shadow-sm transition-all">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-              {selectedEmployeeId ? 'Target Hours' : 'Time Account Compliance'}
+              {selectedEmployeeId ? L('Sollstunden', 'Target Hours') : L('Zeitkonto-Compliance', 'Time Account Compliance')}
             </p>
             <div className="flex items-baseline gap-1 leading-none">
               {selectedEmployeeId ? (
@@ -206,7 +213,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                 <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
               </div>
               <span className="text-[12px] text-slate-400 font-medium">
-                {selectedEmployeeId ? 'Per month' : 'Meeting target hours'}
+                {selectedEmployeeId ? L('Pro Monat', 'Per month') : L('Sollstunden erreicht', 'Meeting target hours')}
               </span>
             </div>
           </div>
@@ -218,6 +225,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
             employeeId={selectedEmployeeId}
             employeeName={selectedAccount?.full_name ?? ''}
             onViewFull={() => onSelectEmployee(selectedEmployeeId)}
+            locale={locale}
           />
         )}
 
@@ -225,28 +233,28 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-[16px] font-semibold text-slate-900">
-              {selectedEmployeeId ? `All Personnel` : 'Personnel List'}
+              {selectedEmployeeId ? L('Gesamtes Personal', 'All Personnel') : L('Personal-Liste', 'Personnel List')}
             </h2>
             {filtered.length > ITEMS_PER_PAGE && (
               <span className="text-[12px] text-slate-400 font-medium">
                 {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-                {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
+                {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} {L('von', 'of')} {filtered.length}
               </span>
             )}
           </div>
 
           {/* Column headers — desktop */}
           <div className="hidden md:grid grid-cols-12 px-6 py-3 bg-slate-50/60 border-b border-slate-100 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-            <div className="col-span-5">Employee</div>
-            <div className="col-span-3 text-right">Target / mo</div>
-            <div className="col-span-3 text-right">Balance</div>
+            <div className="col-span-5">{L('Mitarbeiter', 'Employee')}</div>
+            <div className="col-span-3 text-right">{L('Soll / Monat', 'Target / mo')}</div>
+            <div className="col-span-3 text-right">{L('Saldo', 'Balance')}</div>
             <div className="col-span-1" />
           </div>
 
           <div className="divide-y divide-slate-100 min-h-[200px]">
             {filtered.length === 0 ? (
               <div className="px-6 py-16 text-center">
-                <p className="text-[13px] text-slate-400 font-medium">No employees found.</p>
+                <p className="text-[13px] text-slate-400 font-medium">{L('Keine Mitarbeiter gefunden.', 'No employees found.')}</p>
               </div>
             ) : (
               paginated.map(account => {
@@ -281,7 +289,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                             {account.full_name}
                           </p>
                           <p className="text-[12px] text-slate-400 mt-0.5">
-                            {account.actual_hours.toFixed(1)} hrs worked
+                            {account.actual_hours.toFixed(1)} {L('Std. geleistet', 'hrs worked')}
                           </p>
                         </div>
                       </div>
@@ -322,7 +330,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                           )}>
                             {account.full_name}
                           </p>
-                          <p className="text-[12px] text-slate-400">Target: {account.target_hours}h/mo</p>
+                          <p className="text-[12px] text-slate-400">{L('Soll', 'Target')}: {account.target_hours}h/mo</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -352,7 +360,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                 onClick={() => setCurrentPage(p => p - 1)}
                 className="text-[13px] font-medium text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 active:scale-95"
               >
-                ← Previous
+                ← {L('Zurück', 'Previous')}
               </button>
               <div className="flex items-center gap-1.5">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
@@ -375,7 +383,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                 onClick={() => setCurrentPage(p => p + 1)}
                 className="text-[13px] font-medium text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 active:scale-95"
               >
-                Next →
+                {L('Weiter', 'Next')} →
               </button>
             </div>
           )}
@@ -390,12 +398,15 @@ function EmployeeMonthlyPanel({
   employeeId,
   employeeName,
   onViewFull,
+  locale,
 }: {
   employeeId: string
   employeeName: string
   onViewFull: () => void
+  locale: 'de' | 'en'
 }) {
   const { data, loading } = useEmployeeMonthly(employeeId)
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   return (
     <div className="bg-white border border-blue-200 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
@@ -409,14 +420,14 @@ function EmployeeMonthlyPanel({
             <h3 className="text-[14px] font-semibold text-slate-900 leading-none">
               {employeeName}
             </h3>
-            <p className="text-[12px] text-slate-400 mt-0.5">Monthly time account breakdown</p>
+            <p className="text-[12px] text-slate-400 mt-0.5">{L('Monatliche Zeitkonto-Aufschlüsselung', 'Monthly time account breakdown')}</p>
           </div>
         </div>
         <button
           onClick={onViewFull}
           className="flex items-center gap-1.5 text-[12px] font-semibold text-blue-600 hover:text-blue-700 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-200"
         >
-          View Full Detail
+          {L('Gesamte Details ansehen', 'View Full Detail')}
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -425,28 +436,29 @@ function EmployeeMonthlyPanel({
       {loading ? (
         <div className="flex items-center justify-center py-12 gap-3">
           <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-          <span className="text-[13px] text-slate-400 font-medium">Loading breakdown…</span>
+          <span className="text-[13px] text-slate-400 font-medium">{L('Aufschlüsselung wird geladen…', 'Loading breakdown…')}</span>
         </div>
       ) : data.length === 0 ? (
         <div className="px-6 py-12 text-center">
-          <p className="text-[13px] text-slate-400 font-medium">No time records found for this employee.</p>
+          <p className="text-[13px] text-slate-400 font-medium">{L('Keine Zeiteinträge für diesen Mitarbeiter gefunden.', 'No time records found for this employee.')}</p>
         </div>
       ) : (
         <>
           {/* Column headers - desktop */}
           <div className="hidden md:grid grid-cols-12 px-6 py-3 bg-slate-50/60 border-b border-slate-100 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-            <div className="col-span-4">Month</div>
-            <div className="col-span-2 text-right">Working Days</div>
-            <div className="col-span-2 text-right">Scheduled</div>
-            <div className="col-span-2 text-right">Actual</div>
-            <div className="col-span-2 text-right">Balance</div>
+            <div className="col-span-4">{L('Monat', 'Month')}</div>
+            <div className="col-span-2 text-right">{L('Arbeitstage', 'Working Days')}</div>
+            <div className="col-span-2 text-right">{L('Geplant', 'Scheduled')}</div>
+            <div className="col-span-2 text-right">{L('Tatsächlich', 'Actual')}</div>
+            <div className="col-span-2 text-right">{L('Saldo', 'Balance')}</div>
           </div>
 
           <div className="divide-y divide-slate-100">
             {data.slice(0, 6).map(month => {
-              const label = new Date(month.year, month.month - 1).toLocaleDateString('en-US', {
-                month: 'long', year: 'numeric',
-              })
+              const label = new Date(month.year, month.month - 1).toLocaleDateString(
+                locale === 'de' ? 'de-DE' : 'en-US',
+                { month: 'long', year: 'numeric' },
+              )
               return (
                 <div
                   key={month.key}
@@ -481,7 +493,7 @@ function EmployeeMonthlyPanel({
                   <div className="md:hidden px-5 py-4 flex items-center justify-between">
                     <div>
                       <p className="text-[14px] font-semibold text-slate-900">{label}</p>
-                      <p className="text-[12px] text-slate-400">{month.workingDays} days · {month.actualHours.toFixed(1)}h actual</p>
+                      <p className="text-[12px] text-slate-400">{month.workingDays} {L('Tage', 'days')} · {month.actualHours.toFixed(1)}h {L('tatsächlich', 'actual')}</p>
                     </div>
                     <span className={cn(
                       'text-[14px] font-bold tabular-nums',
@@ -501,7 +513,7 @@ function EmployeeMonthlyPanel({
                 onClick={onViewFull}
                 className="text-[13px] font-semibold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5"
               >
-                View all {data.length} months
+                {L(`Alle ${data.length} Monate anzeigen`, `View all ${data.length} months`)}
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>

@@ -34,6 +34,7 @@ const ITEMS_PER_PAGE = 10
 export default function PerDiemPage() {
   const { isAdmin, isDispatcher, profile } = useUser()
   const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const { perDiems, loading, createPerDiem, updatePerDiemStatus } = usePerDiem()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
 
@@ -122,7 +123,7 @@ export default function PerDiemPage() {
     a.href = url
     a.download = `per_diems_${format(new Date(), 'yyyy-MM-dd')}.csv`
     a.click()
-    toast.success('Export started')
+    toast.success(L('Export gestartet', 'Export started'))
   }
 
   const renderForm = () => (
@@ -144,13 +145,14 @@ export default function PerDiemPage() {
   }
 
   const daysOrHours = (pd: PerDiem) => {
-    if (pd.working_hours) return `${pd.working_hours} hrs`
-    return `${pd.num_days ?? 1} ${(pd.num_days ?? 1) === 1 ? 'day' : 'days'}`
+    if (pd.working_hours) return `${pd.working_hours} ${L('Std.', 'hrs')}`
+    const n = pd.num_days ?? 1
+    return `${n} ${n === 1 ? L('Tag', 'day') : L('Tage', 'days')}`
   }
 
   const rateLabel = (pd: PerDiem) => {
-    if (pd.working_hours && pd.hourly_rate) return `€${pd.hourly_rate.toFixed(2)}/hr`
-    return `€${(pd.rate ?? 0).toFixed(2)}/day`
+    if (pd.working_hours && pd.hourly_rate) return `€${pd.hourly_rate.toFixed(2)}/${L('Std.', 'hr')}`
+    return `€${(pd.rate ?? 0).toFixed(2)}/${L('Tag', 'day')}`
   }
 
   return (
@@ -161,10 +163,10 @@ export default function PerDiemPage() {
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-[26px] md:text-[30px] font-bold text-slate-900 tracking-tight leading-none">
-              Per Diem / Travel Allowance
+              {L('Verpflegung / Spesen', 'Per Diem / Travel Allowance')}
             </h1>
             <p className="text-[13px] text-slate-500 font-normal">
-              Submit and track per diem claims
+              {L('Verpflegungsanträge erfassen und nachverfolgen', 'Submit and track per diem claims')}
             </p>
           </div>
           {isAdminView && (
@@ -173,7 +175,7 @@ export default function PerDiemPage() {
               className="flex items-center gap-2 text-[13px] font-semibold text-slate-600 px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
             >
               <Download className="h-4 w-4" />
-              Export CSV
+              {L('CSV exportieren', 'Export CSV')}
             </button>
           )}
         </div>
@@ -184,28 +186,28 @@ export default function PerDiemPage() {
             <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-blue-600 leading-none tracking-tight">
               €{stats.totalAmount.toFixed(2)}
             </div>
-            <p className="text-[12px] text-slate-500 font-normal leading-none">Total This Month</p>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">{L('Gesamt diesen Monat', 'Total This Month')}</p>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all col-span-1">
             <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-blue-600 leading-none tracking-tight">
               {stats.pendingCount}
             </div>
-            <p className="text-[12px] text-slate-500 font-normal leading-none">Pending Claims</p>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">{L('Offene Anträge', 'Pending Claims')}</p>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all hidden md:block">
             <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-emerald-500 leading-none tracking-tight">
               {stats.approvedCount}
             </div>
-            <p className="text-[12px] text-slate-500 font-normal leading-none">Approved</p>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">{L('Genehmigt', 'Approved')}</p>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all hidden md:block">
             <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-slate-900 leading-none tracking-tight">
               €{stats.totalAll.toFixed(0)}
             </div>
-            <p className="text-[12px] text-slate-500 font-normal leading-none">Total All Time</p>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">{L('Gesamtsumme', 'Total All Time')}</p>
           </div>
         </div>
 
@@ -215,7 +217,7 @@ export default function PerDiemPage() {
           {/* Card header: title + search + filter + add button */}
           <div className="px-6 py-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center gap-4">
             <h2 className="text-[16px] font-semibold text-slate-900 shrink-0">
-              Per Diem Claims
+              {L('Verpflegungs-Anträge', 'Per Diem Claims')}
             </h2>
 
             {/* Search */}
@@ -223,7 +225,7 @@ export default function PerDiemPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder={isAdminView ? 'Search employee or task…' : 'Search destination…'}
+                placeholder={isAdminView ? L('Mitarbeiter oder Einsatz suchen…', 'Search employee or task…') : L('Zielort suchen…', 'Search destination…')}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full h-9 pl-9 pr-4 text-[13px] font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
@@ -232,20 +234,28 @@ export default function PerDiemPage() {
 
             {/* Status filters */}
             <div className="flex gap-1.5 flex-wrap">
-              {(['all', 'submitted', 'approved', 'rejected'] as StatusFilter[]).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setStatusFilter(f)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all',
-                    statusFilter === f
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
-                  )}
-                >
-                  {f === 'submitted' ? 'Pending' : f.charAt(0).toUpperCase() + f.slice(1)}
-                </button>
-              ))}
+              {(['all', 'submitted', 'approved', 'rejected'] as StatusFilter[]).map(f => {
+                const labels: Record<StatusFilter, { de: string; en: string }> = {
+                  all:       { de: 'Alle',       en: 'All' },
+                  submitted: { de: 'Ausstehend', en: 'Pending' },
+                  approved:  { de: 'Genehmigt',  en: 'Approved' },
+                  rejected:  { de: 'Abgelehnt',  en: 'Rejected' },
+                }
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setStatusFilter(f)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all',
+                      statusFilter === f
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                    )}
+                  >
+                    {locale === 'de' ? labels[f].de : labels[f].en}
+                  </button>
+                )
+              })}
             </div>
 
             {/* Add Claim button */}
@@ -254,7 +264,7 @@ export default function PerDiemPage() {
               className="ml-auto shrink-0 flex items-center gap-2 bg-blue-600 text-white text-[13px] font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors active:scale-95 shadow-sm"
             >
               <Plus className="h-4 w-4" />
-              Add Claim
+              {L('Antrag hinzufügen', 'Add Claim')}
             </button>
           </div>
 
@@ -263,14 +273,14 @@ export default function PerDiemPage() {
             'hidden md:grid px-6 py-3 bg-slate-50/60 border-b border-slate-100 text-[11px] font-semibold uppercase tracking-widest text-slate-400',
             isAdminView ? 'grid-cols-12' : 'grid-cols-10'
           )}>
-            {isAdminView && <div className="col-span-2">Employee</div>}
-            <div className={isAdminView ? 'col-span-2' : 'col-span-3'}>Travel Dates</div>
-            <div className="col-span-2">Destination</div>
-            <div className="col-span-1">Days</div>
-            <div className="col-span-2">Rate</div>
-            <div className="col-span-1 text-right">Amount</div>
+            {isAdminView && <div className="col-span-2">{L('Mitarbeiter', 'Employee')}</div>}
+            <div className={isAdminView ? 'col-span-2' : 'col-span-3'}>{L('Reisezeitraum', 'Travel Dates')}</div>
+            <div className="col-span-2">{L('Zielort', 'Destination')}</div>
+            <div className="col-span-1">{L('Tage', 'Days')}</div>
+            <div className="col-span-2">{L('Satz', 'Rate')}</div>
+            <div className="col-span-1 text-right">{L('Betrag', 'Amount')}</div>
             <div className="col-span-1 text-center">Status</div>
-            <div className="col-span-1 text-right">Actions</div>
+            <div className="col-span-1 text-right">{L('Aktionen', 'Actions')}</div>
           </div>
 
           {/* Rows */}
@@ -278,12 +288,12 @@ export default function PerDiemPage() {
             {loading ? (
               <div className="flex items-center justify-center py-16 gap-3">
                 <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-                <span className="text-[13px] text-slate-400">Loading claims…</span>
+                <span className="text-[13px] text-slate-400">{L('Anträge werden geladen…', 'Loading claims…')}</span>
               </div>
             ) : filteredPerDiems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
                 <Wallet className="h-10 w-10 text-slate-300" />
-                <p className="text-[13px] text-slate-400 font-medium">No per diem claims found.</p>
+                <p className="text-[13px] text-slate-400 font-medium">{L('Keine Verpflegungsanträge gefunden.', 'No per diem claims found.')}</p>
               </div>
             ) : (
               paginated.map(pd => (

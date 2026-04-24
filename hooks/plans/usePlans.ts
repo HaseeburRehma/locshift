@@ -20,7 +20,8 @@ export function usePlans() {
     
     let query = supabase
       .from('plans')
-      .select('*, employee:profiles!employee_id(*), customer:customers(*)')
+      // Phase 3 #1 — pull joined Betriebsstellen so lists/details can render them
+      .select('*, employee:profiles!employee_id(*), customer:customers(*), start_location:operational_locations!start_location_id(id, name, short_code, type), destination_location:operational_locations!destination_location_id(id, name, short_code, type)')
       .eq('organization_id', profile.organization_id)
       .order('start_time', { ascending: false })
 
@@ -68,9 +69,9 @@ export function usePlans() {
 
         // Notify current user if they are the assigned employee
         if (payload.new.employee_id === profile.id) {
-          toast.info('📋 New shift assigned to you', {
-            description: 'Check your schedule for details.',
-            action: { label: 'View', onClick: () => window.location.href = '/dashboard/plans' }
+          toast.info('📋 Neue Schicht zugewiesen', {
+            description: 'Details im Einsatzplan einsehen.',
+            action: { label: 'Anzeigen', onClick: () => window.location.href = '/dashboard/plans' }
           })
         }
       })
@@ -87,7 +88,7 @@ export function usePlans() {
         
         const { old: old_, new: new_ } = payload
         if (old_?.status === 'assigned' && new_?.status === 'confirmed') {
-          toast.success('✅ Plan confirmed by employee')
+          toast.success('✅ Einsatzplan vom Mitarbeiter bestätigt')
         }
       })
       .on('postgres_changes', {
@@ -134,7 +135,7 @@ export function usePlans() {
       setPlans(prev => prev.map(p =>
         p.id === planId ? { ...p, status: previous?.status || 'assigned', _updating: false } : p
       ))
-      actionToasts.genericError('Failed to update plan status')
+      actionToasts.genericError('Planstatus konnte nicht aktualisiert werden')
       throw error
     }
 
@@ -146,8 +147,8 @@ export function usePlans() {
     if (previous?.creator_id && previous.creator_id !== profile?.id) {
       await sendNotification({
         userId: previous.creator_id,
-        title: status === 'confirmed' ? '✅ Plan Confirmed' : '❌ Plan Rejected',
-        message: `${profile?.full_name} ${status} the shift on ${new Date(previous.start_time).toLocaleDateString()}`,
+        title: status === 'confirmed' ? '✅ Einsatzplan bestätigt' : '❌ Einsatzplan abgelehnt',
+        message: `${profile?.full_name} hat die Schicht am ${new Date(previous.start_time).toLocaleDateString('de-DE')} ${status === 'confirmed' ? 'bestätigt' : 'abgelehnt'}`,
         module: 'plans',
         moduleId: planId
       })
@@ -184,8 +185,8 @@ export function usePlans() {
     if (newPlan.employee_id) {
       await sendNotification({
         userId: newPlan.employee_id,
-        title: '📋 New Shift Assigned',
-        message: `You have been assigned a new shift for ${new Date(newPlan.start_time).toLocaleDateString()}. Please confirm.`,
+        title: '📋 Neue Schicht zugewiesen',
+        message: `Ihnen wurde eine neue Schicht am ${new Date(newPlan.start_time).toLocaleDateString('de-DE')} zugewiesen. Bitte bestätigen.`,
         module: 'plans',
         moduleId: newPlan.id
       })
@@ -205,7 +206,7 @@ export function usePlans() {
     if (error) {
       // Rollback if delete fails
       if (previous) setPlans(prev => [...prev, previous].sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()))
-      actionToasts.genericError('Failed to delete plan')
+      actionToasts.genericError('Einsatzplan konnte nicht gelöscht werden')
       return
     }
     actionToasts.planDeleted()

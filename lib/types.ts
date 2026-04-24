@@ -70,6 +70,9 @@ export interface Organization {
   slug: string
   logo_url: string | null
   settings: Record<string, any>
+  // Phase 2 #11 — configurable Spesen (meal allowance) rates
+  spesen_rate_partial?: number
+  spesen_rate_full?: number
   created_at: string
   updated_at: string
 }
@@ -104,11 +107,60 @@ export interface Plan {
   notes: string | null
   status: 'draft' | 'assigned' | 'confirmed' | 'rejected' | 'cancelled'
   rejection_reason: string | null
+  // Phase 2 #11 — overnight stay + hotel
+  overnight_stay?: boolean
+  hotel_address?: string | null
+  // Phase 3 #1 — Start / destination Betriebsstellen
+  start_location_id?: string | null
+  destination_location_id?: string | null
+  // Phase 3 #10 — Gastfahrt
+  is_gastfahrt?: boolean
   created_at: string
   updated_at: string
   // Joined fields
   employee?: Profile
   customer?: Customer
+  start_location?: OperationalLocation | null
+  destination_location?: OperationalLocation | null
+}
+
+// Phase 3 #1 — Operational locations (Betriebsstellen)
+export type OperationalLocationType = 'depot' | 'station' | 'yard' | 'workshop' | 'office' | 'other'
+
+export interface OperationalLocation {
+  id: string
+  organization_id: string
+  name: string
+  short_code: string | null
+  type: OperationalLocationType
+  address: string | null
+  latitude: number | null
+  longitude: number | null
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+// Phase 2 #8 — Shift templates
+export interface ShiftTemplate {
+  id: string
+  organization_id: string
+  creator_id: string
+  name: string
+  customer_id: string | null
+  start_time: string      // 'HH:MM'
+  end_time: string        // 'HH:MM'
+  duration_days: number
+  route: string | null
+  location: string | null
+  overnight_stay: boolean
+  hotel_address: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // Joined
+  customer?: { id: string; name: string }
 }
 
 export interface TimeEntry {
@@ -131,6 +183,17 @@ export interface TimeEntry {
   is_on_break?: boolean             // Real-time status
   current_break_start?: string     // ISO timestamp
   total_break_seconds?: number     // Accumulated
+  // Phase 2 #11 — overnight stay + meal allowance (Spesen)
+  overnight_stay?: boolean
+  hotel_address?: string | null
+  meal_allowance?: number
+  // Phase 2 #3 — planned (future) entries
+  is_planned?: boolean
+  // Phase 3 #1 — Start / destination Betriebsstellen
+  start_location_id?: string | null
+  destination_location_id?: string | null
+  // Phase 3 #10 — Gastfahrt
+  is_gastfahrt?: boolean
   created_at: string
   updated_at: string
   // Joined
@@ -138,6 +201,8 @@ export interface TimeEntry {
   customer?: { id: string; name: string }
   verifier?: { id: string; full_name: string }
   plan?: { location?: string; customer?: { id: string; name: string } }
+  start_location?: OperationalLocation | null
+  destination_location?: OperationalLocation | null
 }
 
 export interface MonthlyTimeData {
@@ -159,6 +224,16 @@ export interface TimeEntryFormData {
   customerId?: string
   location?: string
   notes?: string
+  // Phase 2 #11
+  overnightStay?: boolean
+  hotelAddress?: string
+  // Phase 2 #3 — user-explicit flag for future/planned entries
+  isPlanned?: boolean
+  // Phase 3 #1 — Start / destination Betriebsstellen
+  startLocationId?: string | null
+  destinationLocationId?: string | null
+  // Phase 3 #10 — Gastfahrt
+  isGastfahrt?: boolean
 }
 
 export interface TimeAccount {
@@ -269,6 +344,9 @@ export interface CalendarEvent {
   is_all_day: boolean
   color: string
   location: string | null
+  // Phase 4 #7 — reminder configuration (NULL = no reminder)
+  reminder_minutes_before?: number | null
+  reminder_sent_at?: string | null
   created_at: string
   updated_at: string
   // Optional joined fields
@@ -292,4 +370,16 @@ export interface CalendarEventFormData {
   color: string
   location?: string
   member_ids: string[]
+  // Phase 4 #7 — reminder picker (NULL/undefined = none)
+  reminder_minutes_before?: number | null
 }
+
+// Phase 4 #7 — canonical reminder-picker options (minutes)
+export const REMINDER_OPTIONS: { value: number | null; label_de: string; label_en: string }[] = [
+  { value: null,   label_de: 'Keine Erinnerung', label_en: 'No reminder' },
+  { value: 15,     label_de: '15 Min. vorher',   label_en: '15 min before' },
+  { value: 30,     label_de: '30 Min. vorher',   label_en: '30 min before' },
+  { value: 60,     label_de: '1 Stunde vorher',  label_en: '1 hour before' },
+  { value: 1440,   label_de: '1 Tag vorher',     label_en: '1 day before' },
+  { value: 10080,  label_de: '1 Woche vorher',   label_en: '1 week before' },
+]

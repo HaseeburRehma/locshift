@@ -19,10 +19,13 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n'
 
 export default function LiveShiftPage() {
   const { role, isAdmin, isDispatcher } = useUser()
   const { activeEntry, todayPlans, loading } = useTimeTracking()
+  const { locale } = useTranslation()
+  const L = (deStr: string, en: string) => (locale === 'de' ? deStr : en)
   
   const activePlan = todayPlans.find(p => p.id === activeEntry?.plan_id) || todayPlans[0]
 
@@ -30,7 +33,7 @@ export default function LiveShiftPage() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Syncing Operational HUD...</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{L('Einsatz-HUD wird synchronisiert…', 'Syncing Operational HUD...')}</p>
       </div>
     )
   }
@@ -54,9 +57,9 @@ export default function LiveShiftPage() {
                <div className="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-100">
                   <Activity className="h-6 w-6" />
                </div>
-               Live Mission
+               {L('Live-Einsatz', 'Live Mission')}
             </h2>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Real-time operational center</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">{L('Einsatzzentrale in Echtzeit', 'Real-time operational center')}</p>
         </div>
         <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-4 py-2 rounded-full uppercase tracking-widest border border-blue-100/50">
             {format(new Date(), 'EEEE, d. MMMM yyyy', { locale: de })}
@@ -77,9 +80,9 @@ export default function LiveShiftPage() {
                  <Navigation className="h-8 w-8" />
               </div>
               <div className="space-y-2">
-                 <p className="text-xl font-bold text-slate-900 tracking-tight leading-none">No Scheduled Mission Today</p>
+                 <p className="text-xl font-bold text-slate-900 tracking-tight leading-none">{L('Heute kein geplanter Einsatz', 'No Scheduled Mission Today')}</p>
                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed max-w-[200px] mx-auto">
-                   Check your operational calendar for future deployment details.
+                   {L('Sehen Sie im Einsatzkalender kommende Einsätze ein.', 'Check your operational calendar for future deployment details.')}
                  </p>
               </div>
             </div>
@@ -93,7 +96,7 @@ export default function LiveShiftPage() {
                       "font-black text-[10px] uppercase tracking-[0.2em] px-4 py-1.5 rounded-full shadow-sm border-none leading-none h-6",
                       activeEntry ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600"
                     )}>
-                      {activeEntry ? (activeEntry.is_on_break ? 'On Standby' : 'Mission Active') : 'Mission Ready'}
+                      {activeEntry ? (activeEntry.is_on_break ? L('In Bereitschaft', 'On Standby') : L('Einsatz aktiv', 'Mission Active')) : L('Einsatzbereit', 'Mission Ready')}
                     </Badge>
                  </div>
 
@@ -103,7 +106,7 @@ export default function LiveShiftPage() {
                     </div>
                     <div className="space-y-1.5">
                       <h3 className="font-black text-slate-900 text-3xl tracking-tighter leading-none">
-                        {activePlan.route || 'Operational Hub'}
+                        {activePlan.route || L('Einsatzzentrale', 'Operational Hub')}
                       </h3>
                       <div className="flex items-center gap-3">
                          <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -111,7 +114,7 @@ export default function LiveShiftPage() {
                             {format(new Date(activePlan.start_time), 'HH:mm')} – {format(new Date(activePlan.end_time), 'HH:mm')}
                          </div>
                          <div className="h-1 w-1 rounded-full bg-slate-200" />
-                         <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Mission ID: {activePlan.id.slice(0, 8)}</span>
+                         <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{L('Einsatz-ID', 'Mission ID')}: {activePlan.id.slice(0, 8)}</span>
                       </div>
                     </div>
                  </div>
@@ -125,9 +128,9 @@ export default function LiveShiftPage() {
                       <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover/item:text-blue-600 group-hover/item:bg-blue-50 transition-all border border-slate-50">
                         <MapPin className="h-5 w-5" />
                       </div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Current Work Site</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{L('Aktueller Einsatzort', 'Current Work Site')}</span>
                     </div>
-                    <span className="text-sm font-black text-slate-900 tracking-tight">{activePlan.location || 'Main Deployment Center'}</span>
+                    <span className="text-sm font-black text-slate-900 tracking-tight">{activePlan.location || L('Hauptzentrale', 'Main Deployment Center')}</span>
                   </div>
 
                   <div className="flex items-center justify-between group/item">
@@ -135,15 +138,15 @@ export default function LiveShiftPage() {
                       <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover/item:text-blue-600 group-hover/item:bg-blue-50 transition-all border border-slate-50">
                         <PlayCircle className="h-5 w-5" />
                       </div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Assignment Context</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{L('Einsatzstatus', 'Assignment Context')}</span>
                     </div>
-                    <span className="text-sm font-black text-slate-900 tracking-tight uppercase">{activePlan.status} Operational</span>
+                    <span className="text-sm font-black text-slate-900 tracking-tight uppercase">{activePlan.status} {L('Einsatzbereit', 'Operational')}</span>
                   </div>
                </div>
 
                <div className="pt-4 flex gap-4">
                   <Button className="flex-1 h-16 rounded-[2rem] bg-slate-900 hover:bg-black text-white font-black uppercase tracking-widest text-xs shadow-2xl transition-all active:scale-95 group">
-                    Mission Analytics <ChevronRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    {L('Einsatzauswertung', 'Mission Analytics')} <ChevronRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </Button>
                </div>
             </div>
@@ -155,9 +158,12 @@ export default function LiveShiftPage() {
                 <Navigation className="w-32 h-32 text-blue-500" />
              </div>
              <div className="relative z-10 space-y-4">
-                <h4 className="text-xs font-black text-blue-400 uppercase tracking-[0.4em] leading-none">Operational Directives</h4>
+                <h4 className="text-xs font-black text-blue-400 uppercase tracking-[0.4em] leading-none">{L('Einsatzvorgaben', 'Operational Directives')}</h4>
                 <p className="text-[11px] font-bold text-slate-400 leading-relaxed max-w-[85%] italic">
-                  Mission completion mandates verification of all organizational checkpoints. Break durations are live-monitored by dispatch.
+                  {L(
+                    'Der Einsatzabschluss erfordert die Bestätigung aller organisatorischen Kontrollpunkte. Pausen werden live von der Disposition überwacht.',
+                    'Mission completion mandates verification of all organizational checkpoints. Break durations are live-monitored by dispatch.',
+                  )}
                 </p>
              </div>
           </div>
