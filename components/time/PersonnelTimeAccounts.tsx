@@ -82,7 +82,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
         {/* ── Title + Search ── */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-[26px] md:text-[30px] font-bold text-slate-900 tracking-tight leading-none">
+            <h1 className="text-[26px] md:text-[30px] font-bold text-[#0064E0] tracking-tight leading-none">
               {L('Personal-Zeitkonten', 'Personnel Accounts')}
             </h1>
             <p className="text-[13px] text-slate-500">{L('Zeitsalden aller Mitarbeiter überwachen', 'Monitor time balances across your workforce')}</p>

@@ -25,6 +25,8 @@ type NewLocationInput = {
   address?: string | null
   latitude?: number | null
   longitude?: number | null
+  // CR #1 follow-up — optional contact phone for the Betriebsstelle.
+  phone_number?: string | null
   notes?: string | null
   is_active?: boolean
 }

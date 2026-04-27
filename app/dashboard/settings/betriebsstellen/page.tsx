@@ -15,7 +15,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  Plus, Trash2, Edit2, ChevronLeft, MapPin, Power, PowerOff, Building2,
+  Plus, Trash2, Edit2, ChevronLeft, MapPin, Power, PowerOff, Building2, Phone,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +45,7 @@ type FormState = {
   short_code: string
   type: OperationalLocationType
   address: string
+  phone_number: string
   notes: string
 }
 
@@ -53,6 +54,7 @@ const EMPTY_FORM: FormState = {
   short_code: '',
   type: 'depot',
   address: '',
+  phone_number: '',
   notes: '',
 }
 
@@ -83,6 +85,7 @@ export default function BetriebsstellenPage() {
       short_code: loc.short_code ?? '',
       type: loc.type,
       address: loc.address ?? '',
+      phone_number: loc.phone_number ?? '',
       notes: loc.notes ?? '',
     })
     setFormOpen(true)
@@ -97,6 +100,7 @@ export default function BetriebsstellenPage() {
       short_code: form.short_code.trim() || null,
       type: form.type,
       address: form.address.trim() || null,
+      phone_number: form.phone_number.trim() || null,
       notes: form.notes.trim() || null,
     }
     let result = null
@@ -232,6 +236,20 @@ export default function BetriebsstellenPage() {
                       )}
                     </p>
                   </div>
+
+                  {loc.phone_number && (
+                    <div className="flex items-start gap-3">
+                      <div className="h-8 w-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+                        <Phone className="h-4 w-4" />
+                      </div>
+                      <a
+                        href={`tel:${loc.phone_number.replace(/\s+/g, '')}`}
+                        className="text-sm font-semibold text-slate-800 leading-snug hover:text-emerald-600 transition-colors"
+                      >
+                        {loc.phone_number}
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {loc.notes && (
@@ -342,6 +360,21 @@ export default function BetriebsstellenPage() {
                 value={form.address}
                 onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
                 placeholder="Straße, PLZ Ort"
+                className="h-12 rounded-xl"
+              />
+            </div>
+
+            {/* CR #1 follow-up — optional contact phone for the Betriebsstelle */}
+            <div className="md:col-span-2 space-y-2">
+              <Label className="text-[10px] font-semibold uppercase text-gray-500 tracking-widest">
+                Telefon (optional)
+              </Label>
+              <Input
+                value={form.phone_number}
+                onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))}
+                placeholder="z. B. +49 30 12345678"
+                type="tel"
+                inputMode="tel"
                 className="h-12 rounded-xl"
               />
             </div>

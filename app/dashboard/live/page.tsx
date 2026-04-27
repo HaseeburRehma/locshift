@@ -53,7 +53,7 @@ export default function LiveShiftPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4 md:px-0">
         <div className="space-y-2">
-            <h2 className="text-4xl font-black tracking-tighter text-slate-900 leading-none flex items-center gap-4">
+            <h2 className="text-4xl font-bold tracking-tight text-[#0064E0] leading-none flex items-center gap-4">
                <div className="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-100">
                   <Activity className="h-6 w-6" />
                </div>

@@ -365,7 +365,7 @@ export default function PlansPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div className="space-y-1">
-            <h2 className="text-4xl font-black tracking-tight text-gray-900">
+            <h2 className="text-4xl font-bold tracking-tight text-[#0064E0]">
               {locale === 'en' ? 'Plans & Schedules' : 'Pläne & Termine'}
             </h2>
             <p className="text-base text-gray-400 font-medium">

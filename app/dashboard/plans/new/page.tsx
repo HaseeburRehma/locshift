@@ -25,15 +25,15 @@ export default function NewPlanPage() {
         </Button>
 
         <div className="flex items-center gap-5">
-           <div className="w-14 h-14 rounded-3xl bg-gray-900 flex items-center justify-center shadow-xl shadow-gray-200">
+           <div className="w-14 h-14 rounded-3xl bg-gradient-to-br from-[#0064E0] to-[#0050B3] flex items-center justify-center shadow-xl shadow-blue-200/60">
               <CalendarPlus className="w-7 h-7 text-white" />
            </div>
-           <div className="space-y-1">
-              <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+           <div className="space-y-1.5">
+              <h1 className="text-3xl font-bold text-[#0064E0] tracking-tight leading-none">
                 {locale === 'en' ? 'Create New Operational Plan' : 'Neuen Einsatzplan erstellen'}
               </h1>
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest leading-none">
-                {locale === 'en' ? 'Assign employees to customers and routes' : 'Mitarbeiter Kunden und Touren zuweisen'}
+              <p className="text-xs font-medium text-slate-500 tracking-wide leading-none">
+                {locale === 'en' ? 'Assign employees to customers and routes' : 'Mitarbeiter, Kunden und Touren zuweisen'}
               </p>
            </div>
         </div>

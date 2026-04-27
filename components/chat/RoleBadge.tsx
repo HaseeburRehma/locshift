@@ -1,11 +1,16 @@
+'use client'
+
 import React from 'react'
 import { UserRole } from '@/lib/types'
+import { useTranslation } from '@/lib/i18n'
 
 interface RoleBadgeProps {
   role: UserRole
 }
 
 export function RoleBadge({ role }: RoleBadgeProps) {
+  const { locale } = useTranslation()
+
   const getBadgeStyles = () => {
     switch (role) {
       case 'admin':
@@ -19,9 +24,9 @@ export function RoleBadge({ role }: RoleBadgeProps) {
   }
 
   const getRoleLabel = () => {
-    if (role === 'admin') return 'Administrator'
-    if (role === 'manager' || role === 'disponent') return 'Dispatcher'
-    return 'Employee'
+    if (role === 'admin') return locale === 'de' ? 'Administrator' : 'Administrator'
+    if (role === 'manager' || role === 'disponent') return locale === 'de' ? 'Disponent' : 'Dispatcher'
+    return locale === 'de' ? 'Mitarbeiter' : 'Employee'
   }
 
   return (

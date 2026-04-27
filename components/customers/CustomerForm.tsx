@@ -102,22 +102,22 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
           <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hide">
              <div className="space-y-4">
                 <div className="grid gap-2">
-                   <Label htmlFor="name" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Company Name</Label>
-                   <Input 
-                      id="name" 
-                      value={formData.name} 
-                      placeholder="e.g. TyloTech Dusseldorf"
+                   <Label htmlFor="name" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{locale === 'en' ? 'Company Name' : 'Firmenname'}</Label>
+                   <Input
+                      id="name"
+                      value={formData.name}
+                      placeholder={locale === 'en' ? 'e.g. TyloTech Dusseldorf' : 'z. B. TyloTech Düsseldorf'}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
                       className="h-12 rounded-xl border-slate-200 bg-white font-bold"
                    />
                 </div>
 
                 <div className="grid gap-2">
-                   <Label htmlFor="address" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Address</Label>
-                   <Input 
-                      id="address" 
-                      value={formData.address} 
-                      placeholder="Street, ZIP, City"
+                   <Label htmlFor="address" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{locale === 'en' ? 'Address' : 'Adresse'}</Label>
+                   <Input
+                      id="address"
+                      value={formData.address}
+                      placeholder={locale === 'en' ? 'Street, ZIP, City' : 'Straße, PLZ, Ort'}
                       onChange={(e) => setFormData({...formData, address: e.target.value})}
                       className="h-12 rounded-xl border-slate-200 bg-white font-bold text-sm"
                    />
@@ -125,21 +125,21 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
 
                 <div className="grid grid-cols-2 gap-4">
                    <div className="grid gap-2">
-                      <Label htmlFor="contact_person" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Primary Contact</Label>
-                      <Input 
-                         id="contact_person" 
-                         value={formData.contact_person} 
-                         placeholder="Name"
+                      <Label htmlFor="contact_person" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{locale === 'en' ? 'Primary Contact' : 'Ansprechpartner'}</Label>
+                      <Input
+                         id="contact_person"
+                         value={formData.contact_person}
+                         placeholder={locale === 'en' ? 'Name' : 'Name'}
                          onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
                          className="h-12 rounded-xl border-slate-200 bg-white font-bold text-sm"
                       />
                    </div>
                    <div className="grid gap-2">
-                      <Label htmlFor="email" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Email</Label>
-                      <Input 
-                         id="email" 
+                      <Label htmlFor="email" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{locale === 'en' ? 'Email' : 'E-Mail'}</Label>
+                      <Input
+                         id="email"
                          type="email"
-                         value={formData.email} 
+                         value={formData.email}
                          placeholder="mail@customer.com"
                          onChange={(e) => setFormData({...formData, email: e.target.value})}
                          className="h-12 rounded-xl border-slate-200 bg-white font-bold text-sm"
@@ -148,10 +148,10 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 </div>
 
                 <div className="grid gap-2">
-                   <Label htmlFor="phone" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Phone</Label>
-                   <Input 
-                      id="phone" 
-                      value={formData.phone} 
+                   <Label htmlFor="phone" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{locale === 'en' ? 'Phone' : 'Telefon'}</Label>
+                   <Input
+                      id="phone"
+                      value={formData.phone}
                       placeholder="+49..."
                       onChange={(e) => setFormData({...formData, phone: e.target.value})}
                       className="h-12 rounded-xl border-slate-200 bg-white font-bold text-sm"
@@ -159,11 +159,11 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 </div>
 
                 <div className="grid gap-2">
-                   <Label htmlFor="notes" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Operational Notes</Label>
-                   <Textarea 
-                      id="notes" 
-                      value={formData.notes} 
-                      placeholder="Project details, special access, etc."
+                   <Label htmlFor="notes" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{locale === 'en' ? 'Operational Notes' : 'Betriebsnotizen'}</Label>
+                   <Textarea
+                      id="notes"
+                      value={formData.notes}
+                      placeholder={locale === 'en' ? 'Project details, special access, etc.' : 'Projektdetails, Zugangshinweise usw.'}
                       onChange={(e) => setFormData({...formData, notes: e.target.value})}
                       className="min-h-[100px] rounded-xl border-slate-200 bg-white font-medium text-sm"
                    />
@@ -172,13 +172,17 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
           </div>
 
           <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-             <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} className="h-12 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400">Cancel</Button>
-             <Button 
-                type="submit" 
+             <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} className="h-12 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400">{locale === 'en' ? 'Cancel' : 'Abbrechen'}</Button>
+             <Button
+                type="submit"
                 disabled={loading}
                 className="h-12 rounded-xl px-10 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[11px] tracking-widest shadow-lg shadow-blue-200"
              >
-                {loading ? 'Processing...' : (customer ? 'Update Record' : 'Save Customer')}
+                {loading
+                  ? (locale === 'en' ? 'Processing...' : 'Wird gespeichert…')
+                  : (customer
+                      ? (locale === 'en' ? 'Update Record' : 'Datensatz aktualisieren')
+                      : (locale === 'en' ? 'Save Customer' : 'Kunde speichern'))}
              </Button>
           </DialogFooter>
         </form>

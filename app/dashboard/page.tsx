@@ -67,7 +67,7 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
     <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-700">
       {/* Header Section */}
       <div className="space-y-1">
-        <h1 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none">Dashboard</h1>
+        <h1 className="text-[32px] font-bold text-[#0064E0] tracking-tight leading-none">Dashboard</h1>
         <p className="text-slate-400 text-sm font-medium">
           {L(
             `Willkommen zurück, ${profile.full_name?.split(' ')[0]}! Hier ist Ihre heutige Übersicht.`,
@@ -262,7 +262,7 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
     <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-700">
       {/* Header Section */}
       <div className="space-y-1">
-        <h1 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none">{L('Persönliches Dashboard', 'Personal Dashboard')}</h1>
+        <h1 className="text-[32px] font-bold text-[#0064E0] tracking-tight leading-none">{L('Persönliches Dashboard', 'Personal Dashboard')}</h1>
         <p className="text-slate-400 text-sm font-medium">
           {L(
             `Willkommen zurück, ${profile.full_name?.split(' ')[0]}! Hier ist Ihre persönliche Übersicht.`,

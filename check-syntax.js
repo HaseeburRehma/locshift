@@ -58,6 +58,17 @@ const files = [
   'hooks/useCustomers.ts',
   'components/shared/PlanForm.tsx',
   'components/time/ClockInOutCard.tsx',
+  // Phase 8 — multi-fix pass
+  'components/shared/BetriebsstelleSelector.tsx',
+  'components/time/TimeAccountOverview.tsx',
+  'app/dashboard/holiday-bonus/page.tsx',
+  'app/dashboard/plans/new/page.tsx',
+  // Phase 9 — translations + chat bucket fix
+  'components/shared/PerDiemForm.tsx',
+  'components/customers/CustomerForm.tsx',
+  'components/chat/ChatList.tsx',
+  'components/chat/RoleBadge.tsx',
+  'components/dashboard/CreateUserModal.tsx',
 ]
 
 const sqlFiles = [

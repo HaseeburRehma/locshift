@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { Eye, Plus, Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, ChevronDown, Users, CalendarClock, Play, UserCheck, Download } from 'lucide-react'
+import { Eye, Plus, Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, ChevronDown, Users, CalendarClock, Play, UserCheck, Download, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { TimeEntry, UserRole, Profile } from '@/lib/types'
@@ -28,11 +28,17 @@ interface TimesListProps {
     entries: TimeEntry[]
     employeeName: string | null
   }) => void
+  /**
+   * Hard-delete a time entry. Only wired by the parent page when the
+   * current user is admin / dispatcher; the trash button is hidden for
+   * everyone else by checking whether this prop is defined.
+   */
+  onDelete?: (entry: TimeEntry) => void
 }
 
 type FilterStatus = 'All' | 'Planned' | 'Actual' | 'Pending' | 'Approved' | 'Rejected' | 'This Week' | 'This Month'
 
-export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, onConvertPlanned, employees, onExportPdf }: TimesListProps) {
+export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, onConvertPlanned, employees, onExportPdf, onDelete }: TimesListProps) {
   const { locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const dateLocale = locale === 'de' ? deLocale : undefined
@@ -129,7 +135,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
     <div className="flex flex-col h-full bg-slate-50/40 md:bg-transparent animate-in fade-in duration-300">
       {/* Title */}
       <div className="mb-6 px-4 md:px-0">
-        <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 leading-none mb-2">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[#0064E0] leading-none mb-2">
           {L('Zeiterfassung', 'Time Tracking')}
         </h1>
         <p className="text-sm font-medium text-slate-400">
@@ -373,9 +379,27 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                           size="icon"
                           className="h-8 w-8 bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg"
                           onClick={() => onEntryClick(entry.id)}
+                          title={L('Anzeigen', 'View')}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
+                        {/* Phase 6 #4 — admin/dispatcher delete (the parent
+                            only passes onDelete for those roles, so it is
+                            naturally hidden for employees). */}
+                        {onDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 rounded-lg"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onDelete(entry)
+                            }}
+                            title={L('Löschen', 'Delete')}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

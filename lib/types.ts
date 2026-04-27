@@ -138,6 +138,8 @@ export interface OperationalLocation {
   longitude: number | null
   is_active: boolean
   notes: string | null
+  // CR #1 follow-up — optional contact number per Betriebsstelle
+  phone_number?: string | null
   created_at: string
   updated_at: string
 }

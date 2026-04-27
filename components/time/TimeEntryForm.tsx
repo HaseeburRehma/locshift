@@ -17,6 +17,8 @@ import { TimeEntry, TimeEntryFormData } from '@/lib/types'
 import { format } from 'date-fns'
 import { calculateSpesen, DEFAULT_SPESEN_RATES, spesenTierLabel } from '@/lib/spesen'
 import { BetriebsstelleSelector } from '@/components/shared/BetriebsstelleSelector'
+import { useOperationalLocations } from '@/hooks/useOperationalLocations'
+import { useTranslation } from '@/lib/i18n'
 
 interface TimeEntryFormProps {
   onBack: () => void
@@ -27,7 +29,11 @@ interface TimeEntryFormProps {
   spesenRates?: { partial: number; full: number }
   /** Phase 2 #3 — show planned-entry toggle (hidden for e.g. clock-out flow). */
   allowPlanned?: boolean
-  /** Locale for copy. */
+  /**
+   * Locale override. When omitted, the form reads from the global
+   * useTranslation() context so the language toggle in the header
+   * actually flips this surface too.
+   */
   locale?: 'de' | 'en'
 }
 
@@ -38,8 +44,13 @@ export function TimeEntryForm({
   initialData,
   spesenRates = DEFAULT_SPESEN_RATES,
   allowPlanned = true,
-  locale = 'de',
+  locale: localeProp,
 }: TimeEntryFormProps) {
+  // Read from global i18n context so the EN/DE switch in the header
+  // actually applies to this form. The optional prop still wins, so
+  // any callers that pass `locale` explicitly keep their behaviour.
+  const { locale: contextLocale } = useTranslation()
+  const locale: 'de' | 'en' = (localeProp ?? contextLocale) as 'de' | 'en'
   const [formData, setFormData] = useState<TimeEntryFormData>({
     date: initialData?.date || new Date().toISOString().split('T')[0],
     startTime: initialData ? format(new Date(initialData.start_time), 'HH:mm') : '08:00',
@@ -58,6 +69,9 @@ export function TimeEntryForm({
   })
 
   const isEdit = !!initialData
+
+  // Single source of truth for both Betriebsstellen selectors.
+  const { locations: opLocations, loading: opLocationsLoading } = useOperationalLocations()
 
   // Live Spesen preview — computed from current form values.
   const spesenPreview = (() => {
@@ -312,6 +326,9 @@ export function TimeEntryForm({
                   onChange={(v) => setFormData({ ...formData, startLocationId: v })}
                   kind="start"
                   locale={locale}
+                  locations={opLocations}
+                  loading={opLocationsLoading}
+                  excludeId={formData.destinationLocationId ?? null}
                 />
                 <div className="flex items-center justify-center text-slate-300">
                   <ArrowRight className="w-4 h-4" />
@@ -321,6 +338,9 @@ export function TimeEntryForm({
                   onChange={(v) => setFormData({ ...formData, destinationLocationId: v })}
                   kind="destination"
                   locale={locale}
+                  locations={opLocations}
+                  loading={opLocationsLoading}
+                  excludeId={formData.startLocationId ?? null}
                 />
               </div>
 

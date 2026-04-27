@@ -115,7 +115,7 @@ export default async function SettingsHubPage() {
       {/* ----------------- DESKTOP VIEW ----------------- */}
       <div className="hidden md:block space-y-8 pb-24">
         <div className="space-y-2">
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">Einstellungen</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-[#0064E0]">Einstellungen</h1>
           <p className="text-slate-500 font-medium">Feinjustieren Sie Ihre LokShift-Einsatzzentrale.</p>
         </div>
 

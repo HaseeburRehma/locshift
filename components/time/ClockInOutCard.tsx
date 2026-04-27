@@ -127,7 +127,7 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
                     )}
                  >
                     {isOnBreak ? <Play className="w-3.5 h-3.5 mr-2" /> : <Coffee className="w-3.5 h-3.5 mr-2" />}
-                    {isOnBreak ? L('Fortsetzen', 'Resume') : L('Pause', 'Pause')}
+                    {isOnBreak ? L('Fortsetzen', 'Resume') : L('Pause machen', 'Pause')}
                  </Button>
                  <Button
                     onClick={() => clockOut()}

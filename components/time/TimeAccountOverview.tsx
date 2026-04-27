@@ -4,6 +4,8 @@ import React, { useState } from 'react'
 import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { MonthlyTimeData } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n'
+import { de as deLocale } from 'date-fns/locale'
 
 interface TimeAccountOverviewProps {
   onBack: () => void
@@ -25,6 +27,9 @@ export function TimeAccountOverview({
   employeeName,
 }: TimeAccountOverviewProps) {
   const [currentPage, setCurrentPage] = useState(1)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const dateLocaleTag = locale === 'de' ? 'de-DE' : 'en-US'
 
   const totalPages = Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE))
   const paginatedData = data.slice(
@@ -36,7 +41,7 @@ export function TimeAccountOverview({
   const latestMonth = data[0] ?? null
   const totalHours = latestMonth?.actualHours ?? 0
   const latestMonthLabel = latestMonth
-    ? new Date(latestMonth.year, latestMonth.month - 1).toLocaleDateString('en-US', { month: 'short' })
+    ? new Date(latestMonth.year, latestMonth.month - 1).toLocaleDateString(dateLocaleTag, { month: 'short' })
     : 'N/A'
   const workingDays = latestMonth?.workingDays ?? 0
 
@@ -53,7 +58,7 @@ export function TimeAccountOverview({
           <ArrowLeft className="w-4 h-4" />
         </button>
         <h1 className="text-[17px] font-bold text-slate-900 tracking-tight">
-          {employeeName ?? 'Time Accounts'}
+          {employeeName ?? L('Zeitkonten', 'Time Accounts')}
         </h1>
       </div>
 
@@ -67,17 +72,19 @@ export function TimeAccountOverview({
             className="hidden md:flex items-center gap-2 text-[13px] font-semibold text-slate-500 hover:text-blue-600 transition-colors group"
           >
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            Back to Personnel
+            {L('Zurück zur Personalliste', 'Back to Personnel')}
           </button>
         )}
 
         {/* ── Page Title ── */}
         <div className="space-y-1">
-          <h1 className="text-[26px] md:text-[30px] font-bold text-slate-900 tracking-tight leading-none">
-            {employeeName ? `${employeeName}'s Account` : 'Time Accounts'}
+          <h1 className="text-[26px] md:text-[30px] font-bold text-[#0064E0] tracking-tight leading-none">
+            {employeeName
+              ? L(`Zeitkonto von ${employeeName}`, `${employeeName}'s Account`)
+              : L('Zeitkonten', 'Time Accounts')}
           </h1>
           <p className="text-[13px] text-slate-500 font-normal">
-            Track overtime and account balances
+            {L('Überstunden und Konto-Salden verfolgen', 'Track overtime and account balances')}
           </p>
         </div>
 
@@ -95,7 +102,7 @@ export function TimeAccountOverview({
                 : `${totalBalance.toFixed(1)}h`}
             </div>
             <p className="text-[12px] text-slate-500 font-normal leading-none">
-              Hours Balance (YTD)
+              {L('Stundensaldo (lfd. Jahr)', 'Hours Balance (YTD)')}
             </p>
           </div>
 
@@ -105,7 +112,7 @@ export function TimeAccountOverview({
               {totalOvertimePaid.toFixed(1)}h
             </div>
             <p className="text-[12px] text-slate-500 font-normal leading-none">
-              Overtime Paid
+              {L('Bezahlte Überstunden', 'Overtime Paid')}
             </p>
           </div>
 
@@ -115,7 +122,7 @@ export function TimeAccountOverview({
               {totalHours.toFixed(1)}h
             </div>
             <p className="text-[12px] text-slate-500 font-normal leading-none">
-              Total Hours ({latestMonthLabel})
+              {L(`Gesamtstunden (${latestMonthLabel})`, `Total Hours (${latestMonthLabel})`)}
             </p>
           </div>
 
@@ -125,7 +132,7 @@ export function TimeAccountOverview({
               {workingDays}
             </div>
             <p className="text-[12px] text-slate-500 font-normal leading-none">
-              Working Days
+              {L('Arbeitstage', 'Working Days')}
             </p>
           </div>
         </div>
@@ -136,11 +143,11 @@ export function TimeAccountOverview({
           {/* Section header */}
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-[16px] font-semibold text-slate-900">
-              Monthly Breakdown
+              {L('Monatsübersicht', 'Monthly Breakdown')}
             </h2>
             {data.length > ITEMS_PER_PAGE && (
               <span className="text-[12px] text-slate-400 font-medium">
-                {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, data.length)} of {data.length}
+                {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, data.length)} {L('von', 'of')} {data.length}
               </span>
             )}
           </div>
@@ -148,14 +155,16 @@ export function TimeAccountOverview({
           {/* Empty state */}
           {data.length === 0 && (
             <div className="px-6 py-16 text-center">
-              <p className="text-[13px] text-slate-400 font-medium">No time records found.</p>
+              <p className="text-[13px] text-slate-400 font-medium">
+                {L('Keine Zeiteinträge gefunden.', 'No time records found.')}
+              </p>
             </div>
           )}
 
           {/* Month rows */}
           <div className="divide-y divide-slate-100">
             {paginatedData.map((month) => {
-              const label = new Date(month.year, month.month - 1).toLocaleDateString('en-US', {
+              const label = new Date(month.year, month.month - 1).toLocaleDateString(dateLocaleTag, {
                 month: 'long',
                 year: 'numeric',
               })
@@ -171,7 +180,7 @@ export function TimeAccountOverview({
                       {label}
                     </h4>
                     <p className="text-[12px] text-slate-400 font-normal">
-                      {month.workingDays} working days
+                      {month.workingDays} {L('Arbeitstage', 'working days')}
                     </p>
                   </div>
 
@@ -199,7 +208,7 @@ export function TimeAccountOverview({
                 onClick={() => setCurrentPage(p => p - 1)}
                 className="text-[13px] font-medium text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 active:scale-95"
               >
-                ← Previous
+                ← {L('Zurück', 'Previous')}
               </button>
 
               <div className="flex items-center gap-1.5">
@@ -224,7 +233,7 @@ export function TimeAccountOverview({
                 onClick={() => setCurrentPage(p => p + 1)}
                 className="text-[13px] font-medium text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 active:scale-95"
               >
-                Next →
+                {L('Weiter', 'Next')} →
               </button>
             </div>
           )}

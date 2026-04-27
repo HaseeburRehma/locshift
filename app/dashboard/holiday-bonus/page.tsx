@@ -171,7 +171,7 @@ export default function HolidayBonusPage() {
       <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
         {/* Header */}
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-2xl font-bold text-[#0064E0] tracking-tight">
             {locale === 'de' ? 'Urlaubsgeld' : 'Holiday Bonus'}
           </h1>
           <p className="text-sm text-gray-500">
@@ -285,7 +285,7 @@ export default function HolidayBonusPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-2xl font-bold text-[#0064E0] tracking-tight">
             {locale === 'de' ? 'Urlaubsgeld' : 'Holiday Bonus'}
           </h1>
           <p className="text-sm text-gray-500">

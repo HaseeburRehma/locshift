@@ -51,6 +51,33 @@ export default function TimesPage() {
     }
   }
 
+  // Phase 6 #4 — admin/dispatcher hard-delete with confirm dialog.
+  // Optimistic removal + reload on failure. RLS already restricts DELETE
+  // to admin/dispatcher (see 20260424120000_security_baseline.sql).
+  const handleDelete = async (entry: TimeEntry) => {
+    if (!profile?.organization_id) return
+    const confirmed = window.confirm(
+      `Diesen Zeiteintrag wirklich löschen?\n\n${entry.date} · ${entry.employee?.full_name ?? 'Mitarbeiter'} · ${entry.net_hours?.toFixed?.(2) ?? '0.00'}h`,
+    )
+    if (!confirmed) return
+
+    const previous = entries
+    setEntries(prev => prev.filter(e => e.id !== entry.id))
+
+    const { error } = await supabase
+      .from('time_entries')
+      .delete()
+      .eq('id', entry.id)
+
+    if (error) {
+      console.error('[times] delete failed', error)
+      toast.error(error.message || 'Eintrag konnte nicht gelöscht werden')
+      setEntries(previous) // rollback
+      return
+    }
+    toast.success('Zeiteintrag gelöscht')
+  }
+
   // Phase 2 #3 — promote a planned entry to an actual (worked) one.
   const handleConvertPlanned = async (id: string) => {
     if (!profile?.organization_id) return
@@ -237,6 +264,7 @@ export default function TimesPage() {
             }}
             onToggleStatus={canAddManually ? handleToggleStatus : undefined}
             onConvertPlanned={handleConvertPlanned}
+            onDelete={canAddManually ? handleDelete : undefined}
             onExportPdf={({ entries: filtered, employeeName }) => {
               // Phase 5 #4/#5/#6 — Produce an "Arbeitszeitbericht" from the
               // currently-filtered rows. For employees the page already pre-

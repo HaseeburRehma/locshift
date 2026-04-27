@@ -401,7 +401,7 @@ export default function ReportsPage() {
 
       {/* ── Header ───────────────────────────────────────── */}
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+        <h1 className="text-2xl font-bold text-[#0064E0] tracking-tight">
           {locale === 'de' ? 'Berichte' : 'Reports'}
         </h1>
         <p className="text-sm text-gray-500">

@@ -5,6 +5,25 @@ import { useUser } from '@/lib/user-context'
 import { toast } from 'sonner'
 import { sendNotification } from '@/lib/notifications/service'
 
+/**
+ * Supabase PostgrestError uses non-enumerable properties — passing it directly
+ * to console.error prints `{}` which is why the original log was useless.
+ * normalizeError() pulls out the fields we actually care about so the console
+ * shows message / code / details / hint.
+ */
+function normalizeError(err: any): Record<string, unknown> {
+  if (!err) return { message: 'unknown error' }
+  if (typeof err === 'string') return { message: err }
+  return {
+    message: err.message ?? err.error_description ?? String(err),
+    code: err.code,
+    details: err.details,
+    hint: err.hint,
+    status: err.status,
+    statusText: err.statusText,
+  }
+}
+
 export function useCreateEvent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { user, profile } = useUser()
@@ -116,8 +135,16 @@ export function useCreateEvent() {
       toast.success('Termin erfolgreich erstellt')
       return event
     } catch (err: any) {
-      console.error('[useCreateEvent] Error:', err)
-      toast.error(err.message || 'Failed to create event')
+      const detail = normalizeError(err)
+      console.error('[useCreateEvent] Error:', detail)
+      // Surface the most useful field to the user so they don't just see a
+      // generic toast when the actual problem is e.g. a missing RLS helper.
+      const userMsg =
+        (detail.message as string)
+        || (detail.hint as string)
+        || (detail.code as string)
+        || 'Termin konnte nicht erstellt werden'
+      toast.error(userMsg)
       return null
     } finally {
       setIsSubmitting(false)
@@ -201,7 +228,9 @@ export function useCreateEvent() {
       toast.success('Termin aktualisiert')
       return true
     } catch (err: any) {
-      toast.error(err.message || 'Update failed')
+      const detail = normalizeError(err)
+      console.error('[useCreateEvent] update error:', detail)
+      toast.error((detail.message as string) || (detail.hint as string) || 'Aktualisierung fehlgeschlagen')
       return false
     } finally {
       setIsSubmitting(false)
@@ -216,7 +245,9 @@ export function useCreateEvent() {
       toast.success('Termin gelöscht')
       return true
     } catch (err: any) {
-      toast.error(err.message || 'Delete failed')
+      const detail = normalizeError(err)
+      console.error('[useCreateEvent] delete error:', detail)
+      toast.error((detail.message as string) || (detail.hint as string) || 'Löschen fehlgeschlagen')
       return false
     } finally {
       setIsSubmitting(false)

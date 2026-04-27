@@ -113,7 +113,7 @@ export default function CustomersPage() {
             <span className="text-[10px] font-black uppercase text-blue-600 tracking-[0.2em] leading-none mb-1 block">
               {locale === 'en' ? 'Operational CRM' : 'Betriebs-CRM'}
             </span>
-            <h2 className="text-3xl font-black tracking-tight text-slate-900 leading-none">
+            <h2 className="text-3xl font-bold tracking-tight text-[#0064E0] leading-none">
               {locale === 'en' ? 'Customer Management' : 'Kundenverwaltung'}
             </h2>
             <p className="text-sm font-bold text-slate-400 capitalize tracking-tight flex items-center gap-2">

@@ -31,6 +31,7 @@ import { sendNotification } from '@/lib/notifications/service'
 import LocationPickerModal from './LocationPickerModal'
 import { ShiftTemplatePicker, type TemplatePayload } from './ShiftTemplatePicker'
 import { BetriebsstelleSelector } from './BetriebsstelleSelector'
+import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 
 interface PlanFormProps {
   onSuccess?: () => void
@@ -79,6 +80,11 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
   // Phase 3 #1 — Start / Destination Betriebsstellen
   const [startLocationId, setStartLocationId] = useState<string | null>(initialPlan?.start_location_id ?? null)
   const [destinationLocationId, setDestinationLocationId] = useState<string | null>(initialPlan?.destination_location_id ?? null)
+  // Fetch the operational_locations list once at this level so both
+  // selectors share a single source of truth (was the bug where the
+  // destination dropdown sometimes appeared empty due to two parallel
+  // hook instances racing on first render).
+  const { locations: opLocations, loading: opLocationsLoading } = useOperationalLocations()
   // Phase 3 #10 — Gastfahrt (employee travels as passenger)
   const [isGastfahrt, setIsGastfahrt] = useState<boolean>(initialPlan?.is_gastfahrt ?? false)
 
@@ -286,34 +292,42 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                 />
               )}
 
-              {/* Assignment Section */}
+              {/* Zuweisung */}
               <div className="space-y-8">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 leading-none">Assignment</h3>
-                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">Personnel & Clients</p>
+                <div className="border-l-4 border-[#0064E0] pl-4">
+                  <h3 className="text-xl font-semibold text-[#0064E0] leading-none">
+                    {locale === 'de' ? 'Zuweisung' : 'Assignment'}
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-400 tracking-wide mt-2">
+                    {locale === 'de' ? 'Personal & Kunden' : 'Personnel & Clients'}
+                  </p>
                 </div>
 
                 <div className="space-y-6">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between px-1">
-                      <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest">Target Employee(s)</Label>
+                      <Label className="text-[11px] font-medium text-slate-500 tracking-wide">
+                        {locale === 'de' ? 'Mitarbeiter' : 'Target Employee(s)'}
+                      </Label>
                       {!isEditing && (
                         <label className="flex items-center gap-2 cursor-pointer group">
-                          <input 
-                            type="checkbox" 
-                            checked={isBulkEmployees} 
-                            onChange={e => setIsBulkEmployees(e.target.checked)} 
-                            className="w-4 h-4 rounded text-[#0064E0] border-gray-200 focus:ring-[#0064E0] transition-all" 
+                          <input
+                            type="checkbox"
+                            checked={isBulkEmployees}
+                            onChange={e => setIsBulkEmployees(e.target.checked)}
+                            className="w-4 h-4 rounded text-[#0064E0] border-gray-200 focus:ring-[#0064E0] transition-all"
                           />
-                          <span className="text-[11px] font-semibold text-gray-500 group-hover:text-gray-900 transition-colors">Assign Multiple</span>
+                          <span className="text-[11px] font-medium text-slate-500 group-hover:text-slate-900 transition-colors">
+                            {locale === 'de' ? 'Mehrere zuweisen' : 'Assign Multiple'}
+                          </span>
                         </label>
                       )}
                     </div>
 
                     {!isBulkEmployees ? (
                       <Select value={employeeId} onValueChange={setEmployeeId}>
-                        <SelectTrigger className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 hover:shadow-sm transition-all text-sm">
-                          <SelectValue placeholder="Identify Personnel" />
+                        <SelectTrigger className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 hover:shadow-sm transition-all text-sm">
+                          <SelectValue placeholder={locale === 'de' ? 'Person auswählen' : 'Identify Personnel'} />
                         </SelectTrigger>
                         <SelectContent className="rounded-2xl border-gray-100 shadow-2xl p-2">
                           {profiles.map(p => (
@@ -347,15 +361,19 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest px-1">Customer / Project</Label>
+                    <Label className="text-[11px] font-medium text-slate-500 tracking-wide px-1">
+                      {locale === 'de' ? 'Kunde / Projekt' : 'Customer / Project'}
+                    </Label>
                     <Select value={customerId} onValueChange={setCustomerId}>
-                      <SelectTrigger className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 hover:shadow-sm transition-all text-sm">
-                        <SelectValue placeholder="Optional Client Selection" />
+                      <SelectTrigger className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 hover:shadow-sm transition-all text-sm">
+                        <SelectValue placeholder={locale === 'de' ? 'Kunde auswählen (optional)' : 'Optional Client Selection'} />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-gray-100 shadow-2xl p-2">
-                        <SelectItem value="null" className="font-semibold py-3 rounded-xl text-gray-400 italic">No specific client</SelectItem>
+                        <SelectItem value="null" className="font-medium py-3 rounded-xl text-slate-400 italic">
+                          {locale === 'de' ? 'Kein spezifischer Kunde' : 'No specific client'}
+                        </SelectItem>
                         {customers.map(c => (
-                          <SelectItem key={c.id} value={c.id} className="font-semibold py-3 rounded-xl">{c.name}</SelectItem>
+                          <SelectItem key={c.id} value={c.id} className="font-medium py-3 rounded-xl">{c.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -363,43 +381,49 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                 </div>
               </div>
 
-              {/* Logistics Section */}
+              {/* Logistik */}
               <div className="pt-8 border-t border-slate-50 space-y-8">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 leading-none">Logistics</h3>
-                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">Routes & Coordinates</p>
+                <div className="border-l-4 border-[#0064E0] pl-4">
+                  <h3 className="text-xl font-semibold text-[#0064E0] leading-none">
+                    {locale === 'de' ? 'Logistik' : 'Logistics'}
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-400 tracking-wide mt-2">
+                    {locale === 'de' ? 'Routen & Koordinaten' : 'Routes & Coordinates'}
+                  </p>
                 </div>
 
                 <div className="space-y-6">
                   <div className="space-y-3">
-                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest px-1">Route Designation</Label>
-                    <Input 
-                      placeholder="e.g. Frankfurt Main Hub - Night Shift" 
+                    <Label className="text-[11px] font-medium text-slate-500 tracking-wide px-1">
+                      {locale === 'de' ? 'Routenbezeichnung' : 'Route Designation'}
+                    </Label>
+                    <Input
+                      placeholder={locale === 'de' ? 'z. B. Frankfurt Hbf — Nachtschicht' : 'e.g. Frankfurt Main Hub - Night Shift'}
                       value={route}
                       onChange={(e) => setRoute(e.target.value)}
-                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white focus:shadow-md transition-all text-sm"
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white focus:shadow-md transition-all text-sm"
                     />
                   </div>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between px-1">
-                      <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest">
+                      <Label className="text-[11px] font-medium text-slate-500 tracking-wide">
                         {locale === 'en' ? 'Physical Location (optional)' : 'Physischer Standort (optional)'}
                       </Label>
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setIsMapOpen(true)}
-                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#0064E0] hover:text-blue-800 transition-colors"
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-[#0064E0] hover:text-blue-800 transition-colors"
                       >
                         <MapIcon className="w-3.5 h-3.5" />
-                        Pick on Map
+                        {locale === 'de' ? 'Auf Karte auswählen' : 'Pick on Map'}
                       </button>
                     </div>
                     <div className="relative group">
                       <Input
-                        placeholder="Street Address or GPS Coordinates"
+                        placeholder={locale === 'de' ? 'Straße oder GPS-Koordinaten' : 'Street Address or GPS Coordinates'}
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
-                        className="h-14 pr-12 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
+                        className="h-14 pr-12 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white transition-all text-sm"
                       />
                       <div className="absolute right-4 top-1/2 -translate-y-1/2">
                          <Search className="w-4 h-4 text-slate-300 group-focus-within:text-[#0064E0] transition-colors" />
@@ -409,13 +433,13 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                 </div>
               </div>
 
-              {/* Betriebsstellen + Gastfahrt Section (Phase 3 #1 + #10) ─ */}
+              {/* Start- & Zielort + Gastfahrt — full width inside the left column */}
               <div className="pt-8 border-t border-slate-50 space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 leading-none">
+                <div className="border-l-4 border-[#0064E0] pl-4">
+                  <h3 className="text-xl font-semibold text-[#0064E0] leading-none">
                     {locale === 'de' ? 'Start- & Zielort' : 'Start & Destination'}
                   </h3>
-                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">
+                  <p className="text-[11px] font-medium text-slate-400 tracking-wide mt-2">
                     {locale === 'de' ? 'Betriebsstellen · Fahrtart' : 'Operational Locations · Travel Mode'}
                   </p>
                 </div>
@@ -426,6 +450,9 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                     onChange={setStartLocationId}
                     kind="start"
                     locale={locale}
+                    locations={opLocations}
+                    loading={opLocationsLoading}
+                    excludeId={destinationLocationId}
                   />
                   <div className="flex items-center justify-center text-slate-300">
                     <ArrowRight className="w-4 h-4" />
@@ -435,6 +462,9 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                     onChange={setDestinationLocationId}
                     kind="destination"
                     locale={locale}
+                    locations={opLocations}
+                    loading={opLocationsLoading}
+                    excludeId={startLocationId}
                   />
                 </div>
 
@@ -445,10 +475,10 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                       <Users className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-gray-900">
+                      <p className="text-sm font-semibold text-slate-900">
                         {locale === 'de' ? 'Gastfahrt' : 'Passenger Travel (Gastfahrt)'}
                       </p>
-                      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-none mt-0.5">
+                      <p className="text-[11px] font-medium tracking-wide text-slate-400 leading-snug mt-0.5">
                         {locale === 'de'
                           ? 'Mitarbeiter reist als Beifahrer (kein aktives Fahren)'
                           : 'Employee travels as passenger (not driving)'}
@@ -458,14 +488,126 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                   <Switch checked={isGastfahrt} onCheckedChange={setIsGastfahrt} />
                 </label>
               </div>
+            </div>
 
-              {/* Overnight Stay Section (Phase 2 #11) ──────────────────── */}
+            {/* Right Column - Operational Detail */}
+            <div className="p-10 space-y-12 bg-white">
+              {/* Zeitplan */}
+              <div className="space-y-8">
+                <div className="border-l-4 border-[#0064E0] pl-4">
+                  <h3 className="text-xl font-semibold text-[#0064E0] leading-none">
+                    {locale === 'de' ? 'Zeitplan' : 'Timeline'}
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-400 tracking-wide mt-2">
+                    {locale === 'de' ? 'Einsatzfenster' : 'Operational Window'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-3">
+                    <Label className="text-[11px] font-medium text-slate-500 tracking-wide pl-1">
+                      {locale === 'de' ? 'Startdatum' : 'Start Date'}
+                    </Label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white transition-all text-sm"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[11px] font-medium text-slate-500 tracking-wide pl-1">
+                      {locale === 'de' ? 'Startzeit' : 'Start Time'}
+                    </Label>
+                    <Input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white transition-all text-sm"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[11px] font-medium text-slate-500 tracking-wide pl-1">
+                      {locale === 'de' ? 'Enddatum' : 'End Date'}
+                    </Label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white transition-all text-sm"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[11px] font-medium text-slate-500 tracking-wide pl-1">
+                      {locale === 'de' ? 'Endzeit' : 'End Time'}
+                    </Label>
+                    <Input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white transition-all text-sm"
+                    />
+                  </div>
+                </div>
+
+                {!isEditing && (
+                  <div className="pt-2">
+                    <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-6 flex items-center justify-between group transition-all hover:bg-blue-50/60">
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {locale === 'de' ? 'Täglich wiederholen' : 'Repeat Daily'}
+                        </p>
+                        <p className="text-[11px] font-medium tracking-wide text-slate-400 leading-snug">
+                          {locale === 'de' ? 'In die nächsten Folgetage übernehmen' : 'Copy to next consecutive days'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="30"
+                          value={repeatDays}
+                          onChange={(e) => setRepeatDays(e.target.value)}
+                          className="w-16 h-10 rounded-lg bg-white border-slate-200 font-semibold px-3 text-center text-slate-900 shadow-sm"
+                        />
+                        <span className="text-[11px] font-medium text-slate-500 tracking-wide">
+                          {locale === 'de' ? 'Tage' : 'Days'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Notizen */}
+              <div className="pt-8 border-t border-slate-50 space-y-8">
+                <div className="border-l-4 border-[#0064E0] pl-4">
+                  <h3 className="text-xl font-semibold text-[#0064E0] leading-none">
+                    {locale === 'de' ? 'Notizen' : 'Mission Notes'}
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-400 tracking-wide mt-2">
+                    {locale === 'de' ? 'Einsatzhinweise' : 'Operational Directives'}
+                  </p>
+                </div>
+
+                <Textarea
+                  placeholder={locale === 'de'
+                    ? 'Ausführliche Einsatzanweisungen, Sicherheitshinweise oder interne Hinweise…'
+                    : 'Detailed deployment instructions, safety protocols, or internal reminders...'}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="min-h-[180px] rounded-2xl border-slate-100 bg-slate-50/30 font-medium p-6 focus:bg-white focus:shadow-md transition-all text-sm leading-relaxed"
+                />
+              </div>
+
+              {/* Übernachtung & Spesen — moved to the right column so the
+                 form balances visually instead of leaning all-left. */}
               <div className="pt-8 border-t border-slate-50 space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 leading-none">
+                <div className="border-l-4 border-[#0064E0] pl-4">
+                  <h3 className="text-xl font-semibold text-[#0064E0] leading-none">
                     {locale === 'de' ? 'Übernachtung & Spesen' : 'Overnight & Allowance'}
                   </h3>
-                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">
+                  <p className="text-[11px] font-medium text-slate-400 tracking-wide mt-2">
                     {locale === 'de' ? 'Auswärtstätigkeit' : 'Away-from-home trip'}
                   </p>
                 </div>
@@ -476,10 +618,10 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                       <Moon className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-gray-900">
+                      <p className="text-sm font-semibold text-slate-900">
                         {locale === 'de' ? 'Übernachtung erforderlich' : 'Requires overnight stay'}
                       </p>
-                      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-none mt-0.5">
+                      <p className="text-[11px] font-medium tracking-wide text-slate-400 leading-snug mt-0.5">
                         {locale === 'de'
                           ? 'Voller Spesensatz (€28) wird automatisch angewendet'
                           : 'Full allowance (€28) auto-applied'}
@@ -491,7 +633,7 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
 
                 {overnightStay && (
                   <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest px-1">
+                    <Label className="text-[11px] font-medium text-slate-500 tracking-wide px-1">
                       {locale === 'de' ? 'Hoteladresse' : 'Hotel Address'}
                     </Label>
                     <div className="relative group">
@@ -502,98 +644,11 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                         placeholder={locale === 'de' ? 'Hotel oder Unterkunft' : 'Hotel or lodging'}
                         value={hotelAddress}
                         onChange={(e) => setHotelAddress(e.target.value)}
-                        className="h-14 pl-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold focus:bg-white transition-all text-sm"
+                        className="h-14 pl-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium focus:bg-white transition-all text-sm"
                       />
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Right Column - Operational Detail */}
-            <div className="p-10 space-y-12 bg-white">
-              {/* Timeline Section */}
-              <div className="space-y-8">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 leading-none">Timeline</h3>
-                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">Operational Window</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-5">
-                  <div className="space-y-3">
-                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest pl-1">Start Date</Label>
-                    <Input 
-                      type="date" 
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest pl-1">Start Time</Label>
-                    <Input 
-                      type="time" 
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest pl-1">End Date</Label>
-                    <Input 
-                      type="date" 
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest pl-1">End Time</Label>
-                    <Input 
-                      type="time" 
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-semibold px-6 focus:bg-white transition-all text-sm"
-                    />
-                  </div>
-                </div>
-
-                {!isEditing && (
-                  <div className="pt-2">
-                    <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-6 flex items-center justify-between group transition-all hover:bg-slate-50">
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold text-gray-900">Repeat Daily</p>
-                        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-none">Copy to next consecutive days</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Input 
-                          type="number"
-                          min="0"
-                          max="30" 
-                          value={repeatDays}
-                          onChange={(e) => setRepeatDays(e.target.value)}
-                          className="w-16 h-10 rounded-lg bg-white border-slate-200 font-bold px-3 text-center text-slate-900 shadow-sm"
-                        />
-                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Days</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Notes Section */}
-              <div className="pt-8 border-t border-slate-50 space-y-8">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 leading-none">Mission Notes</h3>
-                  <p className="text-[10px] font-semibold uppercase text-gray-400 tracking-[0.1em] mt-1.5">Operational Directives</p>
-                </div>
-
-                <Textarea 
-                  placeholder="Detailed deployment instructions, safety protocols, or internal reminders..." 
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="min-h-[220px] rounded-2xl border-slate-100 bg-slate-50/30 font-semibold p-6 focus:bg-white focus:shadow-md transition-all text-sm leading-relaxed"
-                />
               </div>
             </div>
           </div>
@@ -603,25 +658,25 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
             <Button
               type="button"
               variant="ghost"
-              className="h-14 rounded-2xl px-10 font-bold text-gray-400 hover:text-gray-900 hover:bg-white transition-all uppercase tracking-widest text-[10px]"
+              className="h-14 rounded-2xl px-8 font-medium text-slate-500 hover:text-slate-900 hover:bg-white transition-all text-sm"
               onClick={() => router.back()}
             >
-              Discard Changes
+              {locale === 'de' ? 'Verwerfen' : 'Discard Changes'}
             </Button>
             <Button
               type="submit"
               disabled={loading}
-              className="h-14 px-16 rounded-2xl bg-slate-900 hover:bg-black text-white font-bold text-sm shadow-xl shadow-slate-100 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 gap-3"
+              className="h-14 px-12 rounded-2xl bg-[#0064E0] hover:bg-[#0050B3] text-white font-semibold text-sm shadow-xl shadow-blue-200/60 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 gap-3"
             >
               {loading ? (
                 <div className="flex items-center gap-2">
-                   <div className="w-4 h-4 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                   <span>{isEditing ? 'Saving...' : 'Deploying...'}</span>
+                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                   <span>{isEditing ? (locale === 'de' ? 'Speichern…' : 'Saving...') : (locale === 'de' ? 'Erstellen…' : 'Deploying...')}</span>
                 </div>
               ) : (
                 <>
                   {isEditing ? <Pencil className="w-5 h-5 ml-[-4px]" /> : <Check className="w-6 h-6" />}
-                  {isEditing ? 'Save Changes' : 'Create Mission'}
+                  {isEditing ? (locale === 'de' ? 'Änderungen speichern' : 'Save Changes') : (locale === 'de' ? 'Plan erstellen' : 'Create Mission')}
                 </>
               )}
             </Button>

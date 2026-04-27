@@ -21,23 +21,16 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Loader2, UserPlus, Shield, Mail, Key, Eye, EyeOff } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 
 interface CreateUserModalProps {
   open: boolean
   onClose: (success?: boolean) => void
 }
 
-const ROLES = [
-  { value: 'admin', label: 'Administrator' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'disponent', label: 'Disponent (Dispatcher)' },
-  { value: 'technician', label: 'Technician' },
-  { value: 'partner_admin', label: 'Partner Admin' },
-  { value: 'partner_agent', label: 'Partner Agent' },
-  { value: 'viewer', label: 'Viewer' },
-]
-
 export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
@@ -47,10 +40,21 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
     password: '',
   })
 
+  // Locale-aware role labels (was a module-level constant before).
+  const ROLES = [
+    { value: 'admin',         label: L('Administrator',      'Administrator') },
+    { value: 'manager',       label: L('Manager',            'Manager') },
+    { value: 'disponent',     label: L('Disponent',          'Disponent (Dispatcher)') },
+    { value: 'technician',   label: L('Techniker',           'Technician') },
+    { value: 'partner_admin', label: L('Partner-Admin',      'Partner Admin') },
+    { value: 'partner_agent', label: L('Partner-Agent',      'Partner Agent') },
+    { value: 'viewer',        label: L('Betrachter',         'Viewer') },
+  ]
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.email || !formData.password || !formData.role) {
-      toast.error('Please fill in all required fields')
+      toast.error(L('Bitte alle Pflichtfelder ausfüllen', 'Please fill in all required fields'))
       return
     }
 
@@ -64,11 +68,11 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
 
       const data = await res.json()
       if (res.ok) {
-        toast.success(`User ${formData.email} created successfully`)
+        toast.success(L(`Benutzer ${formData.email} erfolgreich angelegt`, `User ${formData.email} created successfully`))
         setFormData({ email: '', fullName: '', role: 'viewer', password: '' })
         onClose(true)
       } else {
-        throw new Error(data.error || 'Failed to create user')
+        throw new Error(data.error || L('Benutzer konnte nicht angelegt werden', 'Failed to create user'))
       }
     } catch (err: any) {
       toast.error(err.message)
@@ -84,20 +88,23 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-purple-600" />
-              Create New User
+              {L('Neuen Benutzer anlegen', 'Create New User')}
             </DialogTitle>
             <DialogDescription>
-              Add a new member to the platform. They will be able to log in immediately.
+              {L(
+                'Fügen Sie ein neues Mitglied zur Plattform hinzu. Es kann sich sofort anmelden.',
+                'Add a new member to the platform. They will be able to log in immediately.',
+              )}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-sm font-semibold">Full Name</Label>
+              <Label htmlFor="fullName" className="text-sm font-semibold">{L('Vollständiger Name', 'Full Name')}</Label>
               <div className="relative">
                 <Input
                   id="fullName"
-                  placeholder="e.g. Max Mustermann"
+                  placeholder={L('z. B. Max Mustermann', 'e.g. Max Mustermann')}
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   className="pl-9"
@@ -107,13 +114,13 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-semibold">Email ADDRESS <span className="text-red-500">*</span></Label>
+              <Label htmlFor="email" className="text-sm font-semibold">{L('E-Mail-Adresse', 'Email Address')} <span className="text-red-500">*</span></Label>
               <div className="relative">
                 <Input
                   id="email"
                   type="email"
                   required
-                  placeholder="name@fixdone.de"
+                  placeholder="name@firma.de"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="pl-9"
@@ -123,13 +130,13 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="role" className="text-sm font-semibold">User Role <span className="text-red-500">*</span></Label>
+              <Label htmlFor="role" className="text-sm font-semibold">{L('Benutzerrolle', 'User Role')} <span className="text-red-500">*</span></Label>
               <Select
                 value={formData.role}
                 onValueChange={(v) => setFormData({ ...formData, role: v })}
               >
                 <SelectTrigger id="role" className="w-full bg-slate-50 border-slate-200">
-                  <SelectValue placeholder="Select a role" />
+                  <SelectValue placeholder={L('Rolle wählen', 'Select a role')} />
                 </SelectTrigger>
                 <SelectContent>
                   {ROLES.map((role) => (
@@ -142,7 +149,7 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-semibold">Initial Password <span className="text-red-500">*</span></Label>
+              <Label htmlFor="password" className="text-sm font-semibold">{L('Initial-Passwort', 'Initial Password')} <span className="text-red-500">*</span></Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -162,24 +169,24 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              <p className="text-[10px] text-muted-foreground italic">Must be at least 8 characters.</p>
+              <p className="text-[10px] text-muted-foreground italic">{L('Mindestens 8 Zeichen.', 'Must be at least 8 characters.')}</p>
             </div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onClose()}>Cancel</Button>
-            <Button 
-              type="submit" 
-              className="bg-purple-600 hover:bg-purple-700 text-white" 
+            <Button type="button" variant="outline" onClick={() => onClose()}>{L('Abbrechen', 'Cancel')}</Button>
+            <Button
+              type="submit"
+              className="bg-purple-600 hover:bg-purple-700 text-white"
               disabled={loading}
             >
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  {L('Wird angelegt…', 'Creating...')}
                 </>
               ) : (
-                'Create User Account'
+                L('Benutzerkonto anlegen', 'Create User Account')
               )}
             </Button>
           </DialogFooter>

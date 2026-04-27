@@ -4,6 +4,7 @@ import React from 'react'
 import { MessageSquare } from 'lucide-react'
 import { useConversations } from '@/lib/chat/useConversations'
 import { FabMenu } from '@/components/chat/FabMenu'
+import { useTranslation } from '@/lib/i18n'
 
 interface ChatListProps {
   userId: string
@@ -14,12 +15,14 @@ interface ChatListProps {
 
 export function ChatList({ userId, onOpenChat, onNewChat, onNewGroup }: ChatListProps) {
   const { conversations, loading } = useConversations(userId)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   return (
     <div className="flex-1 flex flex-col pt-6 pb-4 bg-white relative">
       <div className="px-6 mb-4">
-        <h1 className="text-[24px] font-bold text-gray-900 leading-tight">Chats</h1>
-        <p className="text-gray-500 text-[14px]">Your chat history will be displayed here</p>
+        <h1 className="text-[24px] font-bold text-[#0064E0] leading-tight">{L('Chats', 'Chats')}</h1>
+        <p className="text-gray-500 text-[14px]">{L('Ihr Chat-Verlauf wird hier angezeigt', 'Your chat history will be displayed here')}</p>
       </div>
 
       {loading ? (
@@ -31,7 +34,7 @@ export function ChatList({ userId, onOpenChat, onNewChat, onNewGroup }: ChatList
            <div className="w-48 h-48 bg-blue-50 rounded-full flex items-center justify-center mb-6">
              <MessageSquare className="w-24 h-24 text-blue-300" strokeWidth={1.5} />
            </div>
-           <p className="text-gray-400 font-medium">No messages yet</p>
+           <p className="text-gray-400 font-medium">{L('Noch keine Nachrichten', 'No messages yet')}</p>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto no-scrollbar pb-16 px-4 space-y-2 animate-in fade-in">
@@ -48,9 +51,9 @@ export function ChatList({ userId, onOpenChat, onNewChat, onNewGroup }: ChatList
                     </span>
                   </div>
                   <div className="text-left">
-                     <h3 className="font-bold text-gray-900 text-[16px]">{convo.name || 'User Name'}</h3>
+                     <h3 className="font-bold text-gray-900 text-[16px]">{convo.name || L('Benutzername', 'User Name')}</h3>
                      <p className="text-[13px] text-gray-500 font-medium break-all line-clamp-1">
-                       {convo.last_message?.content || 'Started a conversation'}
+                       {convo.last_message?.content || L('Unterhaltung gestartet', 'Started a conversation')}
                      </p>
                   </div>
                </div>

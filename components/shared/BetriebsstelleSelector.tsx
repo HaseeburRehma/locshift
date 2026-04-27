@@ -56,6 +56,21 @@ interface Props {
   disabled?: boolean
   locale?: 'de' | 'en'
   className?: string
+  /**
+   * When set, this id is removed from the dropdown options. Used to stop
+   * the user from picking the same Betriebsstelle as both start and
+   * destination (PlanForm passes the start id here for the destination
+   * selector and vice-versa).
+   */
+  excludeId?: string | null
+  /**
+   * Optional pre-fetched list. When PlanForm renders multiple selectors
+   * it fetches once at the top and passes the array in, so both
+   * dropdowns share a single source of truth (avoids the race where one
+   * instance finishes loading before the other and visually appears empty).
+   */
+  locations?: OperationalLocation[]
+  loading?: boolean
 }
 
 export function BetriebsstelleSelector({
@@ -67,15 +82,27 @@ export function BetriebsstelleSelector({
   disabled = false,
   locale = 'de',
   className = '',
+  excludeId,
+  locations: locationsProp,
+  loading: loadingProp,
 }: Props) {
-  const { locations, loading } = useOperationalLocations()
-  const t = (de: string, en: string) => (locale === 'de' ? de : en)
+  // Fall back to the hook only when the parent didn't pre-fetch.
+  const fallback = useOperationalLocations()
+  const locations = locationsProp ?? fallback.locations
+  const loading = loadingProp ?? fallback.loading
 
+  const t = (de: string, en: string) => (locale === 'de' ? de : en)
   const TYPE_LABELS = locale === 'de' ? TYPE_LABELS_DE : TYPE_LABELS_EN
 
   // Keep inactive rows in the list if they are the current value so
   // previously-selected (now archived) Betriebsstellen still render.
-  const visible = locations.filter(l => l.is_active || l.id === value)
+  // Also drop the excluded id (the OTHER side's selection) but always
+  // keep the row that's currently selected here.
+  const visible = locations.filter(l => {
+    if (l.id === value) return true
+    if (excludeId && l.id === excludeId) return false
+    return l.is_active
+  })
 
   const computedLabel =
     label ??
