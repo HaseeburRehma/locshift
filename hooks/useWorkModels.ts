@@ -5,12 +5,33 @@ import { createClient } from '@/lib/supabase/client'
 import { WorkingTimeModel } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
+
+/**
+ * Supabase PostgrestError uses non-enumerable properties — `console.error(err)`
+ * prints `{}` which is why the original log was useless. Pull the fields we
+ * actually care about into a plain object.
+ */
+function normalizeError(err: any): Record<string, unknown> {
+  if (!err) return { message: 'unknown error' }
+  if (typeof err === 'string') return { message: err }
+  return {
+    message: err.message ?? err.error_description ?? String(err),
+    code: err.code,
+    details: err.details,
+    hint: err.hint,
+    status: err.status,
+    statusText: err.statusText,
+  }
+}
 
 export function useWorkModels() {
   const [models, setModels] = useState<WorkingTimeModel[]>([])
   const [loading, setLoading] = useState(true)
   const { profile } = useUser()
   const supabase = createClient()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   const fetchModels = useCallback(async (isSilent = false) => {
     if (!profile?.organization_id) return
@@ -23,13 +44,20 @@ export function useWorkModels() {
       .order('name', { ascending: true })
 
     if (error) {
-      console.error('[useWorkModels] Fetch error:', error)
-      toast.error('Failed to load work models')
+      const detail = normalizeError(error)
+      console.error('[useWorkModels] Fetch error:', detail)
+      // Surface the most useful field to the user instead of a generic toast
+      const userMsg =
+        (detail.message as string) ||
+        (detail.hint as string) ||
+        (detail.code as string) ||
+        L('Arbeitszeitmodelle konnten nicht geladen werden', 'Failed to load work models')
+      toast.error(userMsg)
     } else {
       setModels(data || [])
     }
     setLoading(false)
-  }, [profile?.organization_id, supabase])
+  }, [profile?.organization_id, supabase, locale])
 
   useEffect(() => {
     fetchModels()
@@ -38,11 +66,11 @@ export function useWorkModels() {
 
     const channel = supabase
       .channel(`work-models-sync-${profile.organization_id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'working_time_models', 
-        filter: `organization_id=eq.${profile.organization_id}` 
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'working_time_models',
+        filter: `organization_id=eq.${profile.organization_id}`
       }, () => fetchModels(true))
       .subscribe()
 
@@ -57,19 +85,21 @@ export function useWorkModels() {
       const { data: newModel, error } = await supabase
         .from('working_time_models')
         .insert({
-           ...data,
-           organization_id: profile.organization_id
+          ...data,
+          organization_id: profile.organization_id
         })
         .select()
         .single()
 
       if (error) throw error
-      
-      setModels(prev => [...prev, newModel].sort((a,b) => a.name.localeCompare(b.name)))
-      toast.success('Work model created')
+
+      setModels(prev => [...prev, newModel].sort((a, b) => a.name.localeCompare(b.name)))
+      toast.success(L('Arbeitszeitmodell erstellt', 'Work model created'))
       return newModel
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create model')
+      const detail = normalizeError(err)
+      console.error('[useWorkModels] Create error:', detail)
+      toast.error((detail.message as string) || L('Erstellen fehlgeschlagen', 'Failed to create model'))
       return null
     }
   }
@@ -84,12 +114,14 @@ export function useWorkModels() {
         .single()
 
       if (error) throw error
-      
+
       setModels(prev => prev.map(m => m.id === id ? updatedModel : m))
-      toast.success('Work model updated')
+      toast.success(L('Arbeitszeitmodell aktualisiert', 'Work model updated'))
       return updatedModel
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update model')
+      const detail = normalizeError(err)
+      console.error('[useWorkModels] Update error:', detail)
+      toast.error((detail.message as string) || L('Aktualisierung fehlgeschlagen', 'Failed to update model'))
       return null
     }
   }
@@ -98,12 +130,14 @@ export function useWorkModels() {
     try {
       const { error } = await supabase.from('working_time_models').delete().eq('id', id)
       if (error) throw error
-      
+
       setModels(prev => prev.filter(m => m.id !== id))
-      toast.success('Work model deleted')
+      toast.success(L('Arbeitszeitmodell gelöscht', 'Work model deleted'))
       return true
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete model')
+      const detail = normalizeError(err)
+      console.error('[useWorkModels] Delete error:', detail)
+      toast.error((detail.message as string) || L('Löschen fehlgeschlagen', 'Failed to delete model'))
       return false
     }
   }

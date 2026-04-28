@@ -17,6 +17,7 @@ import { calculateSpesen, DEFAULT_SPESEN_RATES } from '@/lib/spesen'
 // Phase 5 #4/#5/#6 — PDF export from the Time Tracking section itself.
 import { exportWorkingTimePdf, slugify } from '@/lib/pdf/exportPdf'
 import { format } from 'date-fns'
+import { useTranslation } from '@/lib/i18n'
 
 export default function TimesPage() {
   const [view, setView] = useState<'list' | 'add' | 'details' | 'edit'>('list')
@@ -24,11 +25,13 @@ export default function TimesPage() {
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [customers, setCustomers] = useState<{ id: string, name: string }[]>([])
   const [fetching, setFetching] = useState(true)
-  
+
   const { user, profile, isAdmin, isDispatcher } = useUser()
   const { clockIn, clockOut } = useTimeTracking()
   const { profiles: employeeProfiles } = useProfiles()
   const supabase = createClient()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   const canAddManually = isAdmin || isDispatcher
 
@@ -43,11 +46,13 @@ export default function TimesPage() {
 
     if (!result.success) {
       console.error('Update status failed:', result.error)
-      toast.error('Statusaktualisierung fehlgeschlagen')
+      toast.error(L('Statusaktualisierung fehlgeschlagen', 'Status update failed'))
       // Revert on failure
       fetchData()
     } else {
-      toast.success(newStatus ? 'Zeiteintrag genehmigt' : 'Zeiteintrag auf ausstehend gesetzt')
+      toast.success(newStatus
+        ? L('Zeiteintrag genehmigt', 'Time entry approved')
+        : L('Zeiteintrag auf ausstehend gesetzt', 'Time entry marked pending'))
     }
   }
 
@@ -56,8 +61,12 @@ export default function TimesPage() {
   // to admin/dispatcher (see 20260424120000_security_baseline.sql).
   const handleDelete = async (entry: TimeEntry) => {
     if (!profile?.organization_id) return
+    const employeeLabel = entry.employee?.full_name ?? L('Mitarbeiter', 'Employee')
     const confirmed = window.confirm(
-      `Diesen Zeiteintrag wirklich löschen?\n\n${entry.date} · ${entry.employee?.full_name ?? 'Mitarbeiter'} · ${entry.net_hours?.toFixed?.(2) ?? '0.00'}h`,
+      L(
+        `Diesen Zeiteintrag wirklich löschen?\n\n${entry.date} · ${employeeLabel} · ${entry.net_hours?.toFixed?.(2) ?? '0.00'}h`,
+        `Really delete this time entry?\n\n${entry.date} · ${employeeLabel} · ${entry.net_hours?.toFixed?.(2) ?? '0.00'}h`,
+      ),
     )
     if (!confirmed) return
 
@@ -71,11 +80,11 @@ export default function TimesPage() {
 
     if (error) {
       console.error('[times] delete failed', error)
-      toast.error(error.message || 'Eintrag konnte nicht gelöscht werden')
+      toast.error(error.message || L('Eintrag konnte nicht gelöscht werden', 'Failed to delete entry'))
       setEntries(previous) // rollback
       return
     }
-    toast.success('Zeiteintrag gelöscht')
+    toast.success(L('Zeiteintrag gelöscht', 'Time entry deleted'))
   }
 
   // Phase 2 #3 — promote a planned entry to an actual (worked) one.
@@ -89,11 +98,11 @@ export default function TimesPage() {
       .eq('id', id)
     if (error) {
       console.error('[times] convert planned failed', error)
-      toast.error('Konnte nicht als tatsächlich markiert werden')
+      toast.error(L('Konnte nicht als tatsächlich markiert werden', 'Could not mark as actual'))
       fetchData()
       return
     }
-    toast.success('Als tatsächliche Zeit markiert')
+    toast.success(L('Als tatsächliche Zeit markiert', 'Marked as actual time'))
   }
 
   const fetchData = async () => {
@@ -113,7 +122,7 @@ export default function TimesPage() {
       ? entriesData 
       : (entriesData?.filter((e: TimeEntry) => e.employee_id === user.id) || [])
 
-    if (entriesError) toast.error('Zeiteinträge konnten nicht geladen werden')
+    if (entriesError) toast.error(L('Zeiteinträge konnten nicht geladen werden', 'Failed to load time entries'))
     else setEntries(filteredEntries || [])
 
     // Fetch customers
@@ -138,7 +147,10 @@ export default function TimesPage() {
     // themselves. Actual-time entries remain admin/dispatcher only
     // (live clock-in/out handles the employee actual-time flow).
     if (!canAddManually && !data.isPlanned) {
-      toast.error('Nur Admins können tatsächliche Zeiten manuell eintragen. Nutzen Sie den „Geplante Zeit"-Schalter, um eine Voranmeldung zu speichern.')
+      toast.error(L(
+        'Nur Admins können tatsächliche Zeiten manuell eintragen. Nutzen Sie den „Geplante Zeit"-Schalter, um eine Voranmeldung zu speichern.',
+        'Only admins can manually enter actual times. Use the "Planned time" toggle to save a pre-announcement.',
+      ))
       return
     }
 
@@ -179,11 +191,13 @@ export default function TimesPage() {
       })
 
     if (error) {
-      toast.error('Eintrag konnte nicht erstellt werden')
+      toast.error(L('Eintrag konnte nicht erstellt werden', 'Failed to create entry'))
       return
     }
 
-    toast.success(data.isPlanned ? 'Geplante Zeit gespeichert' : 'Zeiteintrag erstellt')
+    toast.success(data.isPlanned
+      ? L('Geplante Zeit gespeichert', 'Planned time saved')
+      : L('Zeiteintrag erstellt', 'Time entry created'))
     setView('list')
     fetchData()
   }
@@ -226,11 +240,11 @@ export default function TimesPage() {
       .eq('id', selectedEntryId)
 
     if (error) {
-      toast.error('Eintrag konnte nicht aktualisiert werden')
+      toast.error(L('Eintrag konnte nicht aktualisiert werden', 'Failed to update entry'))
       return
     }
 
-    toast.success('Zeiteintrag aktualisiert')
+    toast.success(L('Zeiteintrag aktualisiert', 'Time entry updated'))
     setView('details')
     fetchData()
   }
@@ -270,7 +284,7 @@ export default function TimesPage() {
               // currently-filtered rows. For employees the page already pre-
               // scopes entries to user.id, so this becomes a self-export.
               if (filtered.length === 0) {
-                toast.error('Keine Einträge zum Exportieren gefunden.')
+                toast.error(L('Keine Einträge zum Exportieren gefunden.', 'No entries to export.'))
                 return
               }
 
@@ -299,7 +313,7 @@ export default function TimesPage() {
                 locale: 'de',
               })
 
-              toast.success('PDF heruntergeladen.')
+              toast.success(L('PDF heruntergeladen.', 'PDF downloaded.'))
             }}
           />
         )}

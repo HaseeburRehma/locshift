@@ -103,7 +103,7 @@ export default async function SettingsHubPage() {
     {
       title: 'Lokalisierung',
       description: 'Sprachen, Zeitzone und Währung konfigurieren.',
-      href: '/dashboard/settings/company#localization',
+      href: '/dashboard/settings/localization',
       icon: Globe,
       color: 'bg-cyan-500',
       status: 'DE/EN'

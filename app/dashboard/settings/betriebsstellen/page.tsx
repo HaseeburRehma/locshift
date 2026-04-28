@@ -147,7 +147,7 @@ export default function BetriebsstellenPage() {
             Einstellungen
           </Link>
           <div className="space-y-2">
-            <h1 className="text-4xl font-black tracking-tighter flex items-center gap-4">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[#0064E0] flex items-center gap-4">
               <div className="h-12 w-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-xl">
                 <Building2 className="h-6 w-6" />
               </div>
@@ -282,13 +282,19 @@ export default function BetriebsstellenPage() {
                 Legen Sie Depots, Bahnhöfe oder weitere Standorte an.
               </p>
             </div>
-            <Button
-              variant="outline"
+            {/*
+              Use a native <button> with explicit hover colors instead of
+              <Button variant="outline">. The shadcn outline variant inherits
+              text-foreground which, combined with hover:bg-white on a white
+              background, was rendering the label invisible on hover.
+            */}
+            <button
+              type="button"
               onClick={openCreate}
-              className="rounded-xl border-slate-200 font-bold uppercase tracking-widest text-[10px] h-10 px-6 hover:bg-white"
+              className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 font-bold uppercase tracking-widest text-[10px] h-10 px-6 transition-colors"
             >
-              <Plus className="h-3.5 w-3.5 mr-2" /> Erste Betriebsstelle anlegen
-            </Button>
+              <Plus className="h-3.5 w-3.5" /> Erste Betriebsstelle anlegen
+            </button>
           </div>
         )}
       </div>

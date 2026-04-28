@@ -2,17 +2,29 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft, LogOut, Loader2, ImagePlus } from 'lucide-react'
+import { ChevronLeft, LogOut, Loader2, Camera } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { useUser } from '@/lib/user-context'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 
+/**
+ * Personal Data — own-profile editor.
+ * Layout: constrained max-w-2xl card; on desktop labels sit in a 1/3 column,
+ * inputs in a 2/3 column. On mobile labels stack above inputs. Buttons are
+ * inline-auto-width (not full-bleed) to match the rest of the dashboard
+ * design language.
+ * i18n: every visible string runs through the inline L() helper so the page
+ * follows the global DE/EN toggle.
+ */
 export default function PersonalDataPage() {
   const router = useRouter()
   const { profile, refreshUser } = useUser()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -32,7 +44,7 @@ export default function PersonalDataPage() {
     async function loadData() {
       if (!profile) return
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('profiles')
           .select('first_name, last_name, phone, gender, bio, email, avatar_url')
           .eq('id', profile.id)
@@ -58,7 +70,7 @@ export default function PersonalDataPage() {
     loadData()
   }, [profile, supabase])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
@@ -69,7 +81,6 @@ export default function PersonalDataPage() {
     try {
       const { error } = await supabase
         .from('profiles')
-        // Automatically rebuild full_name if first/last changes
         .update({
           ...formData,
           full_name: `${formData.first_name} ${formData.last_name}`.trim(),
@@ -77,11 +88,11 @@ export default function PersonalDataPage() {
         .eq('id', profile.id)
 
       if (error) throw error
-      
-      toast.success('Profile updated successfully')
+
+      toast.success(L('Profil aktualisiert', 'Profile updated'))
       await refreshUser()
     } catch (err: any) {
-      toast.error('Failed to update profile: ' + err.message)
+      toast.error(L('Profil konnte nicht aktualisiert werden: ', 'Failed to update profile: ') + err.message)
     } finally {
       setSaving(false)
     }
@@ -95,7 +106,7 @@ export default function PersonalDataPage() {
       setUploadingAvatar(true)
       const fileExt = file.name.split('.').pop()
       const fileName = `${profile.id}-${Math.random()}.${fileExt}`
-      const filePath = `public/${fileName}` // Must be unique across users or grouped by folder
+      const filePath = `public/${fileName}`
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -115,10 +126,10 @@ export default function PersonalDataPage() {
       if (updateError) throw updateError
 
       setAvatarUrl(publicUrl)
-      toast.success('Profile picture updated successfully')
+      toast.success(L('Profilbild aktualisiert', 'Profile picture updated'))
       refreshUser()
     } catch (error: any) {
-      toast.error('Error uploading image: ' + error.message)
+      toast.error(L('Fehler beim Hochladen: ', 'Error uploading image: ') + error.message)
     } finally {
       setUploadingAvatar(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -126,145 +137,176 @@ export default function PersonalDataPage() {
   }
 
   if (loading) {
-    return <div className="h-screen w-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
+    return (
+      <div className="h-[60vh] w-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    )
   }
 
+  // Reusable label/input row — labels narrow & right-aligned on desktop,
+  // stacked above on mobile.
+  const Field = ({
+    label,
+    children,
+  }: {
+    label: string
+    children: React.ReactNode
+  }) => (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 md:items-center border-b border-slate-100 py-4">
+      <label className="text-sm font-semibold text-slate-700 md:col-span-1">{label}</label>
+      <div className="md:col-span-2">{children}</div>
+    </div>
+  )
+
   return (
-    <div className="bg-white md:bg-transparent flex flex-col relative -mx-4 -mt-8 px-4 py-6">
-      
-      {/* Header */}
-      <div className="flex items-center justify-center relative mb-8">
-        <button onClick={() => router.back()} className="absolute left-0 w-8 h-8 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+    <div className="max-w-2xl mx-auto pb-12">
+      {/* Header — back button + page title in brand blue */}
+      <div className="flex items-center gap-3 mb-8">
+        <button
+          onClick={() => router.back()}
+          className="w-9 h-9 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center hover:bg-blue-100 transition-colors"
+          aria-label={L('Zurück', 'Back')}
+        >
           <ChevronLeft className="w-5 h-5 -ml-0.5" />
         </button>
-        <h1 className="text-sm font-bold text-slate-800">Personal Data</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-[#0064E0]">
+          {L('Stammdaten', 'Personal Data')}
+        </h1>
       </div>
 
-      {/* Avatar Section */}
-      <div className="flex flex-col items-center justify-center mb-8">
-        <div className="relative w-24 h-24 rounded-full bg-amber-400 overflow-hidden mb-3 border-[3px] border-white shadow-sm shrink-0">
-          {avatarUrl ? (
-            <Image src={avatarUrl} alt="Avatar" width={96} height={96} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white bg-blue-500">
-              {formData.first_name.charAt(0) || profile?.full_name?.charAt(0) || '?'}
-            </div>
-          )}
-          {uploadingAvatar && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-               <Loader2 className="w-6 h-6 animate-spin text-white" />
-            </div>
-          )}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 md:p-10">
+        {/* Avatar */}
+        <div className="flex flex-col items-center justify-center mb-8">
+          <div className="relative w-28 h-28 rounded-full overflow-hidden mb-3 border-[3px] border-white shadow-md ring-1 ring-slate-100 shrink-0">
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt={L('Profilbild', 'Avatar')} width={112} height={112} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white bg-blue-500">
+                {formData.first_name.charAt(0) || profile?.full_name?.charAt(0) || '?'}
+              </div>
+            )}
+            {uploadingAvatar && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-white" />
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="inline-flex items-center gap-1.5 text-blue-600 font-semibold text-sm hover:text-blue-700 transition-colors disabled:opacity-50"
+          >
+            <Camera className="w-4 h-4" />
+            {L('Profilbild ändern', 'Edit profile picture')}
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*"
+            className="hidden"
+          />
         </div>
-        <button 
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploadingAvatar}
-          className="text-blue-600 font-bold text-sm"
-        >
-          Edit profile picture
-        </button>
-        <input 
-          type="file" 
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept="image/*"
-          className="hidden"
-        />
+
+        {/* Form fields — uniform input styling, label/input grid */}
+        <div className="border-t border-slate-100">
+          <Field label={L('Vorname', 'First name')}>
+            <input
+              type="text"
+              name="first_name"
+              value={formData.first_name}
+              onChange={handleInputChange}
+              className="w-full text-sm bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 font-medium placeholder:text-slate-300"
+              placeholder={L('Vorname', 'First name')}
+            />
+          </Field>
+
+          <Field label={L('Nachname', 'Last name')}>
+            <input
+              type="text"
+              name="last_name"
+              value={formData.last_name}
+              onChange={handleInputChange}
+              className="w-full text-sm bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 font-medium placeholder:text-slate-300"
+              placeholder={L('Nachname', 'Last name')}
+            />
+          </Field>
+
+          <Field label={L('E-Mail', 'Email')}>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              disabled
+              className="w-full text-sm bg-slate-100 px-3 py-2 rounded-lg border border-slate-200 outline-none text-slate-500 font-medium cursor-not-allowed"
+              placeholder="email@example.com"
+            />
+          </Field>
+
+          <Field label={L('Telefon', 'Phone')}>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleInputChange}
+              className="w-full text-sm bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 font-medium placeholder:text-slate-300"
+              placeholder="0175..."
+            />
+          </Field>
+
+          <Field label={L('Geschlecht', 'Gender')}>
+            <select
+              name="gender"
+              value={formData.gender}
+              onChange={handleInputChange}
+              className="w-full text-sm bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 font-medium"
+            >
+              <option value="">{L('Bitte wählen', 'Please choose')}</option>
+              <option value="male">{L('Männlich', 'Male')}</option>
+              <option value="female">{L('Weiblich', 'Female')}</option>
+              <option value="other">{L('Divers', 'Other')}</option>
+            </select>
+          </Field>
+
+          <Field label={L('Über mich', 'Bio')}>
+            <textarea
+              name="bio"
+              rows={3}
+              value={formData.bio}
+              onChange={handleInputChange}
+              className="w-full text-sm bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700 font-medium placeholder:text-slate-300 resize-none"
+              placeholder={L('Kurze Beschreibung', 'Short description')}
+            />
+          </Field>
+        </div>
+
+        {/* Buttons — auto-width, side-by-side on desktop */}
+        <div className="mt-8 flex flex-col sm:flex-row sm:justify-end gap-3">
+          <form action="/auth/signout" method="post" className="sm:order-1">
+            <button
+              type="submit"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl border border-red-200 bg-white text-red-600 font-semibold text-sm hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="w-4 h-4" /> {L('Abmelden', 'Logout')}
+            </button>
+          </form>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full sm:w-auto sm:order-2 inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm shadow-sm hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {L('Speichert…', 'Saving…')}
+              </>
+            ) : (
+              L('Profil speichern', 'Save profile')
+            )}
+          </button>
+        </div>
       </div>
-
-      {/* Form Fields container mimicking mobile list layout */}
-      <div className="space-y-0.5 border-t border-slate-100 flex-1">
-        
-        <div className="flex items-center border-b border-slate-100 py-4">
-          <label className="w-24 text-sm font-medium text-slate-800">First Name</label>
-          <input 
-            type="text" 
-            name="first_name" 
-            value={formData.first_name} 
-            onChange={handleInputChange}
-            className="flex-1 text-sm bg-transparent outline-none text-slate-500 font-medium placeholder:text-slate-300"
-            placeholder="First Name"
-          />
-        </div>
-
-        <div className="flex items-center border-b border-slate-100 py-4">
-          <label className="w-24 text-sm font-medium text-slate-800">Last Name</label>
-          <input 
-            type="text" 
-            name="last_name" 
-            value={formData.last_name} 
-            onChange={handleInputChange}
-            className="flex-1 text-sm bg-transparent outline-none text-slate-500 font-medium placeholder:text-slate-300"
-            placeholder="Last Name"
-          />
-        </div>
-
-        <div className="flex items-center border-b border-slate-100 py-4">
-          <label className="w-24 text-sm font-medium text-slate-800">E-mail</label>
-          <input 
-            type="email" 
-            name="email" 
-            value={formData.email}
-            disabled
-            className="flex-1 text-sm bg-transparent outline-none text-slate-400 font-medium"
-            placeholder="email@example.com"
-          />
-        </div>
-
-        <div className="flex items-center border-b border-slate-100 py-4">
-          <label className="w-24 text-sm font-medium text-slate-800">Mobile</label>
-          <input 
-            type="tel" 
-            name="phone" 
-            value={formData.phone} 
-            onChange={handleInputChange}
-            className="flex-1 text-sm bg-transparent outline-none text-slate-500 font-medium placeholder:text-slate-300"
-            placeholder="0175..."
-          />
-        </div>
-
-        <div className="flex items-center border-b border-slate-100 py-4">
-          <label className="w-24 text-sm font-medium text-slate-800">Gender</label>
-          <input 
-            type="text" 
-            name="gender" 
-            value={formData.gender} 
-            onChange={handleInputChange}
-            className="flex-1 text-sm bg-transparent outline-none text-slate-500 font-medium placeholder:text-slate-300"
-            placeholder="Male / Female / Other"
-          />
-        </div>
-
-        <div className="flex items-center border-b border-slate-100 py-4">
-          <label className="w-24 text-sm font-medium text-slate-800">Bio</label>
-          <input 
-            type="text" 
-            name="bio" 
-            value={formData.bio} 
-            onChange={handleInputChange}
-            className="flex-1 text-sm bg-transparent outline-none text-slate-500 font-medium placeholder:text-slate-300"
-            placeholder="Bio"
-          />
-        </div>
-
-      </div>
-
-      <div className="mt-8 flex flex-col gap-4">
-         <button 
-           onClick={handleSave} 
-           disabled={saving}
-           className="w-full bg-blue-600 text-white py-4 rounded-xl flex items-center justify-center font-bold text-lg active:scale-[0.98] transition-transform shadow-sm"
-         >
-           {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Profile'}
-         </button>
-         
-         <form action="/auth/signout" method="post">
-           <button type="submit" className="w-full bg-[#E71A1A] text-white py-4 rounded-xl flex items-center justify-center gap-2 font-bold text-lg active:scale-[0.98] transition-transform shadow-sm">
-             <LogOut className="w-5 h-5" /> Logout
-           </button>
-         </form>
-      </div>
-
     </div>
   )
 }

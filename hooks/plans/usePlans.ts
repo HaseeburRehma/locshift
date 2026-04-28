@@ -8,11 +8,15 @@ import { actionToasts } from '@/lib/toast/actionToasts'
 import { sendNotification } from '@/lib/notifications/service'
 import { toast } from 'sonner'
 
+import { useTranslation } from '@/lib/i18n'
+
 export function usePlans() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
   const { profile, isAdmin, isDispatcher, user } = useUser()
   const supabase = createClient()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   const fetchPlans = useCallback(async (isSilent = false) => {
     if (!profile) return
@@ -69,9 +73,9 @@ export function usePlans() {
 
         // Notify current user if they are the assigned employee
         if (payload.new.employee_id === profile.id) {
-          toast.info('📋 Neue Schicht zugewiesen', {
-            description: 'Details im Einsatzplan einsehen.',
-            action: { label: 'Anzeigen', onClick: () => window.location.href = '/dashboard/plans' }
+          toast.info(L('📋 Neue Schicht zugewiesen', '📋 New shift assigned to you'), {
+            description: L('Details im Einsatzplan einsehen.', 'Check your schedule for details.'),
+            action: { label: L('Anzeigen', 'View'), onClick: () => window.location.href = '/dashboard/plans' }
           })
         }
       })
@@ -88,7 +92,7 @@ export function usePlans() {
         
         const { old: old_, new: new_ } = payload
         if (old_?.status === 'assigned' && new_?.status === 'confirmed') {
-          toast.success('✅ Einsatzplan vom Mitarbeiter bestätigt')
+          toast.success(L('✅ Einsatzplan vom Mitarbeiter bestätigt', '✅ Plan confirmed by employee'))
         }
       })
       .on('postgres_changes', {
@@ -135,7 +139,7 @@ export function usePlans() {
       setPlans(prev => prev.map(p =>
         p.id === planId ? { ...p, status: previous?.status || 'assigned', _updating: false } : p
       ))
-      actionToasts.genericError('Planstatus konnte nicht aktualisiert werden')
+      actionToasts.genericError(L('Planstatus konnte nicht aktualisiert werden', 'Failed to update plan status'))
       throw error
     }
 
@@ -206,7 +210,7 @@ export function usePlans() {
     if (error) {
       // Rollback if delete fails
       if (previous) setPlans(prev => [...prev, previous].sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()))
-      actionToasts.genericError('Einsatzplan konnte nicht gelöscht werden')
+      actionToasts.genericError(L('Einsatzplan konnte nicht gelöscht werden', 'Failed to delete plan'))
       return
     }
     actionToasts.planDeleted()

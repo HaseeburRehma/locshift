@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CalendarEvent, EVENT_COLORS } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 
 /**
  * Supabase PostgrestError uses non-enumerable properties — spreading it
@@ -29,6 +30,7 @@ export function useCalendarEvents(year: number, month: number) {
   const [isLoading, setIsLoading] = useState(true)
   const { profile } = useUser()
   const supabase = createClient()
+  const { locale } = useTranslation()
 
   const isAdminOrDispatcher = profile?.role === 'admin' || profile?.role === 'dispatcher'
   const orgId = profile?.organization_id
@@ -78,7 +80,9 @@ export function useCalendarEvents(year: number, month: number) {
           })
           // Common case: RLS policy not applied yet → point the user to the fix
           if (error.code === '42501') {
-            toast.error('Keine Berechtigung zum Laden der Termine. Bitte Administrator kontaktieren.')
+            toast.error(locale === 'de'
+              ? 'Keine Berechtigung zum Laden der Termine. Bitte Administrator kontaktieren.'
+              : 'You don\'t have permission to load events. Please contact your administrator.')
           }
         } else {
           calData = data ?? []
@@ -163,7 +167,9 @@ export function useCalendarEvents(year: number, month: number) {
         setIsLoading(false)
         if (hadError) {
           // Non-blocking user signal so the screen isn't silently empty
-          toast.error('Kalender konnte nicht vollständig geladen werden. Details in der Konsole.')
+          toast.error(locale === 'de'
+            ? 'Kalender konnte nicht vollständig geladen werden. Details in der Konsole.'
+            : 'The calendar could not be loaded completely. Details in the console.')
         }
       }
     }

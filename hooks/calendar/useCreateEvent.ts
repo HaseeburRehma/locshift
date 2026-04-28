@@ -4,6 +4,7 @@ import { CalendarEventFormData } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { toast } from 'sonner'
 import { sendNotification } from '@/lib/notifications/service'
+import { useTranslation } from '@/lib/i18n'
 
 /**
  * Supabase PostgrestError uses non-enumerable properties — passing it directly
@@ -28,10 +29,12 @@ export function useCreateEvent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { user, profile } = useUser()
   const supabase = createClient()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   const createEvent = async (data: CalendarEventFormData) => {
     if (!user || !profile?.organization_id) {
-      toast.error('Sie müssen angemeldet sein, um Termine zu erstellen')
+      toast.error(L('Sie müssen angemeldet sein, um Termine zu erstellen', 'You must be logged in to create events'))
       return null
     }
 
@@ -41,7 +44,7 @@ export function useCreateEvent() {
       if (data.event_type === 'shift') {
         const employeeId = data.member_ids[0]
         if (!employeeId) {
-          toast.error('Bitte einen Mitarbeiter für die Schicht auswählen')
+          toast.error(L('Bitte einen Mitarbeiter für die Schicht auswählen', 'Please select an employee for the shift'))
           setIsSubmitting(false)
           return null
         }
@@ -64,16 +67,18 @@ export function useCreateEvent() {
 
         if (planError) throw planError
 
-        // 1b. Notify Assigned Employee through the canonical notification service
+        // 1b. Notify Assigned Employee through the canonical notification service.
+        // Notifications are stored in German; the renderer flips them to EN
+        // at view time (see translateNotification in NotificationPanel.tsx).
         await sendNotification({
           userId: employeeId,
-          title: '📋 New Shift Assigned',
-          message: `You have been assigned to: ${data.title}`,
+          title: '📋 Neue Schicht zugewiesen',
+          message: `Sie wurden zugewiesen: ${data.title}`,
           module: 'plans',
           moduleId: plan.id,
         })
 
-        toast.success('Schicht erfolgreich zugewiesen')
+        toast.success(L('Schicht erfolgreich zugewiesen', 'Shift assigned successfully'))
         return plan
       }
 
@@ -113,8 +118,10 @@ export function useCreateEvent() {
 
         if (memberError) throw memberError
 
-        // Fire notifications via the canonical helper (single source of truth)
-        const startLabel = new Date(data.start_time).toLocaleString(undefined, {
+        // Fire notifications via the canonical helper (single source of truth).
+        // Stored in German — translateNotification() in NotificationPanel
+        // flips known patterns to English at render time.
+        const startLabel = new Date(data.start_time).toLocaleString('de-DE', {
           weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
         })
         await Promise.all(
@@ -123,8 +130,8 @@ export function useCreateEvent() {
             .map(uid =>
               sendNotification({
                 userId: uid,
-                title: `📅 Added to event: ${data.title}`,
-                message: `You have been invited to "${data.title}" on ${startLabel}${data.location ? ` · ${data.location}` : ''}.`,
+                title: `📅 Hinzugefügt zu Termin: ${data.title}`,
+                message: `Sie wurden zu "${data.title}" am ${startLabel} eingeladen${data.location ? ` · ${data.location}` : ''}.`,
                 module: 'calendar',
                 moduleId: event.id,
               })
@@ -132,7 +139,7 @@ export function useCreateEvent() {
         )
       }
 
-      toast.success('Termin erfolgreich erstellt')
+      toast.success(L('Termin erfolgreich erstellt', 'Event created successfully'))
       return event
     } catch (err: any) {
       const detail = normalizeError(err)
@@ -202,11 +209,12 @@ export function useCreateEvent() {
           }))
           await supabase.from('calendar_event_members').insert(memberInserts)
 
-          // Notify newcomers only (people that weren't already invited)
+          // Notify newcomers only (people that weren't already invited).
+          // German source-of-truth — see translateNotification().
           const newcomers = data.member_ids.filter(uid => !existingIds.has(uid) && uid !== user?.id)
           if (newcomers.length > 0 && data.title) {
             const startLabel = data.start_time
-              ? new Date(data.start_time).toLocaleString(undefined, {
+              ? new Date(data.start_time).toLocaleString('de-DE', {
                   weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                 })
               : ''
@@ -214,8 +222,8 @@ export function useCreateEvent() {
               newcomers.map(uid =>
                 sendNotification({
                   userId: uid,
-                  title: `📅 Added to event: ${data.title}`,
-                  message: `You have been invited to "${data.title}"${startLabel ? ` on ${startLabel}` : ''}${data.location ? ` · ${data.location}` : ''}.`,
+                  title: `📅 Hinzugefügt zu Termin: ${data.title}`,
+                  message: `Sie wurden zu "${data.title}"${startLabel ? ` am ${startLabel}` : ''} eingeladen${data.location ? ` · ${data.location}` : ''}.`,
                   module: 'calendar',
                   moduleId: id,
                 })
@@ -225,7 +233,7 @@ export function useCreateEvent() {
         }
       }
 
-      toast.success('Termin aktualisiert')
+      toast.success(L('Termin aktualisiert', 'Event updated'))
       return true
     } catch (err: any) {
       const detail = normalizeError(err)
@@ -242,7 +250,7 @@ export function useCreateEvent() {
     try {
       const { error } = await supabase.from('calendar_events').delete().eq('id', id)
       if (error) throw error
-      toast.success('Termin gelöscht')
+      toast.success(L('Termin gelöscht', 'Event deleted'))
       return true
     } catch (err: any) {
       const detail = normalizeError(err)
