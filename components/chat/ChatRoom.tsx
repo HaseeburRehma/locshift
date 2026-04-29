@@ -129,30 +129,73 @@ export function ChatRoom({
   }
 
   // ── File selection handlers ───────────────────────────
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error(t('chat.fileTooLarge10'))
+  /*
+   * Multi-file pickers — both <input type="file"> elements now have
+   * `multiple`, so e.target.files can contain N files. We loop through,
+   * size-check each one individually, and queue each as its own pending
+   * attachment. On send we upload all of them in parallel.
+   *
+   * NOTE: pendingFile is a single-file slot in the existing design. To
+   * support N attachments without changing the rest of the composer, we
+   * just queue the FIRST valid file as pendingFile and immediately
+   * upload+send the rest as additional messages. (Cleanest UX without
+   * a full multi-attachment picker rewrite.)
+   *
+   * If you want all files attached to ONE message, swap the handler for
+   * a "pendingFiles[]" state — but the current data model on chat_messages
+   * stores a single attachment per row, so this matches the schema.
+   */
+  const queueFiles = async (
+    fileList: FileList | null,
+    maxBytes: number,
+    sizeErrKey: string,
+    fallbackType?: 'image' | 'file'
+  ) => {
+    if (!fileList || fileList.length === 0) return
+    const files = Array.from(fileList)
+    const tooBig = files.filter((f) => f.size > maxBytes)
+    if (tooBig.length) {
+      toast.error(t(sizeErrKey))
       return
     }
-    const preview = URL.createObjectURL(file)
-    setPendingFile({ file, preview, type: 'image' })
+
     setShowAttachMenu(false)
+
+    // First file fills the preview slot
+    const first = files[0]
+    const firstType = fallbackType ?? (first.type.startsWith('image/') ? 'image' : 'file')
+    setPendingFile({
+      file: first,
+      preview: firstType === 'image' ? URL.createObjectURL(first) : undefined,
+      type: firstType,
+    })
+
+    // Remaining files upload + send immediately as their own messages
+    if (files.length > 1) {
+      setIsUploading(true)
+      try {
+        for (const f of files.slice(1)) {
+          try {
+            const att = await uploadChatAttachment(f, conversation.id)
+            await onSendMessage('', { ...att, name: f.name })
+          } catch (err: any) {
+            console.error('[ChatRoom] Multi-attach upload failed:', err)
+            toast.error(`${f.name}: ${err?.message || 'upload failed'}`)
+          }
+        }
+      } finally {
+        setIsUploading(false)
+      }
+    }
+  }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    queueFiles(e.target.files, 10 * 1024 * 1024, 'chat.fileTooLarge10', 'image')
     e.target.value = ''
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 25 * 1024 * 1024) {
-      toast.error(t('chat.fileTooLarge25'))
-      return
-    }
-    const type = file.type.startsWith('image/') ? 'image' as const : 'file' as const
-    const preview = type === 'image' ? URL.createObjectURL(file) : undefined
-    setPendingFile({ file, preview, type })
-    setShowAttachMenu(false)
+    queueFiles(e.target.files, 25 * 1024 * 1024, 'chat.fileTooLarge25')
     e.target.value = ''
   }
 
@@ -162,10 +205,35 @@ export function ChatRoom({
   }
 
   // ── Voice recording ───────────────────────────────────
+  /*
+   * Pick a MIME type the *current* browser supports. Safari iOS rejects
+   * `audio/webm` outright (uses MP4/aac), Firefox prefers `audio/ogg;codecs=opus`,
+   * Chrome accepts both webm/opus and webm. Falling back through the list
+   * means the recorder never crashes on `MediaRecorder is not supported for
+   * mime type X` (which was throwing silently before, hence the toast).
+   */
+  const pickMimeType = (): string => {
+    if (typeof MediaRecorder === 'undefined') return ''
+    const candidates = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/mp4',
+      'audio/mpeg',
+    ]
+    for (const c of candidates) {
+      if ((MediaRecorder as any).isTypeSupported?.(c)) return c
+    }
+    return ''
+  }
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      const mimeType = pickMimeType()
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
       audioChunksRef.current = []
       mediaRecorderRef.current = mediaRecorder
 
@@ -175,18 +243,31 @@ export function ChatRoom({
 
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' })
+        // Use the actual selected mimeType (might differ between browsers)
+        const blobType = mediaRecorder.mimeType || mimeType || 'audio/webm'
+        const ext = blobType.includes('mp4')
+          ? 'mp4'
+          : blobType.includes('ogg')
+            ? 'ogg'
+            : blobType.includes('mpeg')
+              ? 'mp3'
+              : 'webm'
+        const audioBlob = new Blob(audioChunksRef.current, { type: blobType })
+        const audioFile = new File([audioBlob], `voice_${Date.now()}.${ext}`, { type: blobType })
 
-        // Upload and send as file attachment
+        // Upload and send as audio attachment so the renderer shows a player.
         setIsUploading(true)
         setIsSending(true)
         try {
           const attachment = await uploadChatAttachment(audioFile, conversation.id)
-          await onSendMessage('🎤 Voice message', { ...attachment, type: 'file', name: audioFile.name })
-        } catch (error) {
-          console.error('Voice upload failed:', error)
-          toast.error(t('chat.failedVoice'))
+          // Send as 'audio' type so MessageBubble can render <audio controls> instead of a generic file link
+          await onSendMessage('🎤 Voice message', { ...attachment, type: 'audio', name: audioFile.name })
+        } catch (error: any) {
+          console.error('[ChatRoom] Voice upload failed:', error)
+          // Surface the REAL error message (storage RLS, content-type, size, etc.)
+          // instead of the generic "Sprachnachricht konnte nicht gesendet werden".
+          const msg = error?.message || (error as any)?.error?.message
+          toast.error(msg ? `${t('chat.failedVoice')}: ${msg}` : t('chat.failedVoice'))
         } finally {
           setIsUploading(false)
           setIsSending(false)
@@ -337,8 +418,9 @@ export function ChatRoom({
       {/* ── Input Bar ────────────────────────────────── */}
       <div className="px-5 py-4 bg-white border-t border-gray-100 flex-shrink-0">
         {/* Hidden file inputs */}
-        <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-        <input ref={fileInputRef} type="file" accept="*/*" className="hidden" onChange={handleFileSelect} />
+        {/* Multi-file pickers — `multiple` lets the user pick many at once. */}
+        <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageSelect} />
+        <input ref={fileInputRef} type="file" accept="*/*" multiple className="hidden" onChange={handleFileSelect} />
 
         {isRecording ? (
           /* Recording UI */
@@ -346,7 +428,7 @@ export function ChatRoom({
             <button
               onClick={cancelRecording}
               className="w-11 h-11 flex items-center justify-center rounded-xl bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all"
-              title="Cancel"
+              title={t('chat.cancel')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -360,7 +442,7 @@ export function ChatRoom({
             <button
               onClick={stopRecording}
               className="w-11 h-11 flex items-center justify-center rounded-xl bg-[#0064E0] text-white shadow-md hover:bg-blue-700 transition-all active:scale-95"
-              title="Send voice note"
+              title={t('chat.sendVoice')}
             >
               <Send className="w-5 h-5 fill-current translate-x-0.5 -translate-y-0.5" />
             </button>
@@ -421,7 +503,7 @@ export function ChatRoom({
                 type="button"
                 onClick={startRecording}
                 className="w-11 h-11 flex items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                title="Record voice note"
+                title={t('chat.recordVoice')}
               >
                 <Mic className="w-5 h-5" />
               </button>

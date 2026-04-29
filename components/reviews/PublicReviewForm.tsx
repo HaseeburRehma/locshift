@@ -59,10 +59,10 @@ export function PublicReviewForm({ job, reviewId }: { job: any, reviewId?: strin
 
       if (!res.ok) throw new Error('Failed to submit review')
 
-      toast.success('Thank you for your feedback!')
+      toast.success('Vielen Dank für Ihr Feedback!')
       router.refresh()
     } catch (err) {
-      toast.error('Submission failed')
+      toast.error('Senden fehlgeschlagen')
     } finally {
       setIsSubmitting(false)
     }
@@ -80,7 +80,7 @@ export function PublicReviewForm({ job, reviewId }: { job: any, reviewId?: strin
               name="rating"
               render={({ field }) => (
                 <FormItem className="space-y-4 text-center">
-                  <FormLabel className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">Rate your experience</FormLabel>
+                  <FormLabel className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">Erfahrung bewerten</FormLabel>
                   <FormControl>
                     <div className="flex justify-center gap-2">
                        {[1, 2, 3, 4, 5].map((star) => (
@@ -107,7 +107,7 @@ export function PublicReviewForm({ job, reviewId }: { job: any, reviewId?: strin
                   <div className="h-6">
                     {field.value > 0 && (
                       <p className="text-sm font-black text-amber-600 uppercase tracking-widest animate-in fade-in slide-in-from-top-1">
-                        {field.value === 5 ? 'Excellent!' : field.value === 4 ? 'Great!' : field.value === 3 ? 'Good' : field.value === 2 ? 'Fair' : 'Poor'}
+                        {field.value === 5 ? 'Ausgezeichnet!' : field.value === 4 ? 'Sehr gut!' : field.value === 3 ? 'Gut' : field.value === 2 ? 'Mittelmäßig' : 'Schlecht'}
                       </p>
                     )}
                   </div>
@@ -124,11 +124,11 @@ export function PublicReviewForm({ job, reviewId }: { job: any, reviewId?: strin
                 <FormItem className="space-y-4">
                   <FormLabel className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400 flex items-center gap-2">
                     <MessageSquare className="h-3 w-3" />
-                    Share your thoughts
+                    Ihre Meinung teilen
                   </FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Tell us about the quality of work, cleanliness, and professionalism..." 
+                    <Textarea
+                      placeholder="Erzählen Sie uns von der Arbeitsqualität, Sauberkeit und Professionalität..."
                       className="min-h-[160px] rounded-[2rem] p-6 bg-zinc-50 border-zinc-100 text-zinc-900 placeholder:text-zinc-400 focus:ring-blue-500/10 focus:border-blue-500 resize-none text-lg"
                       {...field} 
                     />
@@ -144,9 +144,9 @@ export function PublicReviewForm({ job, reviewId }: { job: any, reviewId?: strin
               disabled={isSubmitting || !rating}
             >
               {isSubmitting ? (
-                <><Loader2 className="h-6 w-6 animate-spin" /> Submitting...</>
+                <><Loader2 className="h-6 w-6 animate-spin" /> Wird gesendet...</>
               ) : (
-                <><Send className="h-6 w-6" /> Send Review</>
+                <><Send className="h-6 w-6" /> Bewertung absenden</>
               )}
             </Button>
           </form>

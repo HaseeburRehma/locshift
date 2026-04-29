@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, Users, Navigation } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 import 'leaflet/dist/leaflet.css'
 
 // Dynamic import for Leaflet elements (no SSR)
@@ -20,6 +21,10 @@ interface MapProps {
 }
 
 const LiveOperationsMap = ({ upcomingShifts, activeShifts, className }: MapProps) => {
+  const { locale } = useTranslation()
+  // NB: this component already uses the variable `L` for the Leaflet library
+  // import. Use `tr` for the locale-switch helper so the two don't collide.
+  const tr = (de: string, en: string) => (locale === 'de' ? de : en)
   // Fix for Leaflet marker icons in Next.js
   const L = typeof window !== 'undefined' ? require('leaflet') : null
 
@@ -70,20 +75,23 @@ const LiveOperationsMap = ({ upcomingShifts, activeShifts, className }: MapProps
         <div className="space-y-1">
           <CardTitle className="text-xl font-bold flex items-center gap-2">
             <Navigation className="h-5 w-5 text-blue-500" />
-            Live Operations
+            {tr('Live-Betrieb', 'Live operations')}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Real-time tracking of active missions and upcoming assignments
+            {tr(
+              'Echtzeit-Verfolgung aktiver Einsätze und anstehender Schichten',
+              'Real-time tracking of active missions and upcoming assignments'
+            )}
           </p>
         </div>
         <div className="flex gap-2">
           <Badge variant="outline" className="flex gap-1 items-center border-blue-200 bg-blue-50 text-blue-700">
             <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-            {activeShifts.length} Active
+            {activeShifts.length} {tr('Aktiv', 'Active')}
           </Badge>
           <Badge variant="outline" className="flex gap-1 items-center bg-slate-50">
             <span className="h-2 w-2 rounded-full bg-slate-400" />
-            {upcomingShifts.length} Upcoming
+            {upcomingShifts.length} {tr('Anstehend', 'Upcoming')}
           </Badge>
         </div>
       </CardHeader>
@@ -113,9 +121,11 @@ const LiveOperationsMap = ({ upcomingShifts, activeShifts, className }: MapProps
                   <Popup>
                     <div className="p-1">
                       <p className="font-bold text-sm mb-1">{shift.employee.full_name}</p>
-                      <p className="text-xs text-slate-500 mb-2">Active Shift @ {shift.customer?.name || 'Unknown'}</p>
+                      <p className="text-xs text-slate-500 mb-2">
+                        {tr('Aktive Schicht', 'Active shift')} @ {shift.customer?.name || tr('Unbekannt', 'Unknown')}
+                      </p>
                       <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-none text-[10px]">
-                        Clocked in: {new Date(shift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {tr('Eingestempelt:', 'Clocked in:')} {new Date(shift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </Badge>
                     </div>
                   </Popup>
@@ -134,9 +144,11 @@ const LiveOperationsMap = ({ upcomingShifts, activeShifts, className }: MapProps
                   <Popup>
                     <div className="p-1">
                       <p className="font-bold text-sm mb-1">{plan.employee?.full_name}</p>
-                      <p className="text-xs text-slate-500 mb-2">Assigned Mission @ {plan.customer?.name}</p>
+                      <p className="text-xs text-slate-500 mb-2">
+                        {tr('Zugewiesener Einsatz', 'Assigned mission')} @ {plan.customer?.name}
+                      </p>
                       <Badge variant="outline" className="text-[10px]">
-                        Starts: {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {tr('Beginn:', 'Starts:')} {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </Badge>
                     </div>
                   </Popup>
@@ -146,7 +158,7 @@ const LiveOperationsMap = ({ upcomingShifts, activeShifts, className }: MapProps
           </MapContainer>
         ) : (
           <div className="w-full h-full bg-slate-100 flex items-center justify-center animate-pulse">
-            <span className="text-slate-400">Loading live operational map...</span>
+            <span className="text-slate-400">{tr('Live-Karte wird geladen…', 'Loading live operational map…')}</span>
           </div>
         )}
       </CardContent>

@@ -11,6 +11,9 @@ import { toast } from 'sonner'
 
 export default function LoginPage() {
   const { t, locale, setLocale } = useTranslation()
+  // Inline DE/EN switch — every visible string flips with the global locale
+  // so the language toggle in the top-right works on this page too.
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const [showLanguageMenu, setShowLanguageMenu] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [email, setEmail] = useState('')
@@ -59,7 +62,7 @@ export default function LoginPage() {
       
     } catch (err: any) {
       console.error('[Login] Caught error:', err)
-      toast.error(err.message || 'Invalid credentials')
+      toast.error(err.message || L('Ungültige Zugangsdaten', 'Invalid credentials'))
     } finally {
       // ALWAYS reset loading state if we haven't redirected yet
       setLoading(false)
@@ -111,10 +114,14 @@ export default function LoginPage() {
 
           <div className="mt-8 text-center space-y-4 pb-8">
             <p className="text-[10px] text-white/60 max-w-[280px] mx-auto leading-tight">
-              By signing up, you agree to the <span className="underline cursor-pointer">Privacy Notice</span> & <span className="underline cursor-pointer">Privacy Policy</span>
+              {locale === 'de' ? (
+                <>Mit der Registrierung stimmen Sie unserem <span className="underline cursor-pointer">Datenschutzhinweis</span> &amp; unserer <span className="underline cursor-pointer">Datenschutzerklärung</span> zu</>
+              ) : (
+                <>By signing up, you agree to the <span className="underline cursor-pointer">Privacy Notice</span> &amp; <span className="underline cursor-pointer">Privacy Policy</span></>
+              )}
             </p>
             <button className="text-xs text-white/80 hover:text-white font-medium transition-colors">
-              {t('auth.problems')}
+              {L('Probleme bei der Anmeldung?', 'Problems signing in?')}
             </button>
           </div>
         </div>
@@ -122,34 +129,41 @@ export default function LoginPage() {
         <div className="flex-1 w-full max-w-sm flex flex-col pt-12 animate-in slide-in-from-right duration-300">
           <div className="text-left w-full mb-8">
             <h1 className="text-[26px] font-bold text-white mb-2 leading-tight">
-              Continue Signing in
+              {L('Anmeldung fortsetzen', 'Continue signing in')}
             </h1>
             <p className="text-white/80 text-[14px]">
-              Please enter your details to sign in into your account
+              {L(
+                'Bitte geben Sie Ihre Zugangsdaten ein, um sich anzumelden.',
+                'Please enter your details to sign in into your account'
+              )}
             </p>
           </div>
 
           <form onSubmit={handleLoginSubmit} className="space-y-5 w-full">
             <div className="space-y-1.5 w-full">
-              <label className="text-[13px] font-medium text-white ml-1">Email</label>
+              <label className="text-[13px] font-medium text-white ml-1">
+                {L('E-Mail', 'Email')}
+              </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
+                placeholder={L('E-Mail eingeben', 'Enter your email')}
                 className="w-full h-14 px-4 bg-white border-none rounded-xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-white/50 transition-all outline-none"
                 required
               />
             </div>
 
             <div className="space-y-1.5 w-full">
-              <label className="text-[13px] font-medium text-white ml-1">Password</label>
+              <label className="text-[13px] font-medium text-white ml-1">
+                {L('Passwort', 'Password')}
+              </label>
               <div className="relative">
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={L('Passwort eingeben', 'Enter your password')}
                   className="w-full h-14 pl-4 pr-12 bg-white border-none rounded-xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-white/50 transition-all outline-none"
                   required
                 />
@@ -157,6 +171,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  aria-label={showPassword ? L('Passwort verbergen', 'Hide password') : L('Passwort anzeigen', 'Show password')}
                 >
                   {showPassword ? (
                     <EyeOff size={20} className="w-5 h-5 flex-shrink-0" />
@@ -172,15 +187,15 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full h-14 mt-6 bg-white text-[#0064E0] rounded-xl font-bold text-[16px] hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              {loading ? 'Signing In...' : 'Sign In'}
+              {loading ? L('Anmeldung läuft…', 'Signing in…') : L('Anmelden', 'Sign in')}
             </button>
           </form>
-          
-          <button 
+
+          <button
             onClick={() => setShowForm(false)}
             className="mt-8 text-white/80 hover:text-white font-medium text-sm transition-colors"
           >
-            ← Back
+            {L('← Zurück', '← Back')}
           </button>
         </div>
       )}

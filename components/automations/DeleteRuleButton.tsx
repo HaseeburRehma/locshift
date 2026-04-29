@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Trash2, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +27,8 @@ export function DeleteRuleButton({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   const handleDelete = () => {
     startTransition(async () => {
@@ -34,11 +37,11 @@ export function DeleteRuleButton({
           method: 'DELETE',
         })
         if (!res.ok) throw new Error('Delete failed')
-        toast.success(`"${ruleName}" deleted`)
+        toast.success(`"${ruleName}" ${L('gelöscht', 'deleted')}`)
         setOpen(false)
         router.refresh()
       } catch {
-        toast.error('Failed to delete rule')
+        toast.error(L('Regel konnte nicht gelöscht werden', 'Failed to delete rule'))
       }
     })
   }
@@ -59,21 +62,20 @@ export function DeleteRuleButton({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500" />
-              Delete Automation Rule
+              {L('Automatisierungsregel löschen', 'Delete Automation Rule')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>&ldquo;{ruleName}&rdquo;</strong>? This action cannot be
-              undone.
+              {L('Soll', 'Are you sure you want to delete')} <strong>&ldquo;{ruleName}&rdquo;</strong> {L('wirklich gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden.', 'permanently? This action cannot be undone.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{L('Abbrechen', 'Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isPending}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
             >
-              {isPending ? 'Deleting...' : 'Delete Rule'}
+              {isPending ? L('Wird gelöscht…', 'Deleting...') : L('Regel löschen', 'Delete Rule')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

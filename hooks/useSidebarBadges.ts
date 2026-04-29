@@ -122,15 +122,15 @@ export function useSidebarBadges() {
           .from('plans')
           .select('id', { count: 'exact', head: true })
           .eq('employee_id', user.id)
-          .gte('start_date', startOfDay)
-          .lt('start_date', endOfDay)
+          .gte('start_time', startOfDay)
+          .lt('start_time', endOfDay)
         calendarCount = count || 0
       } else {
         const { count } = await supabase
           .from('plans')
           .select('id', { count: 'exact', head: true })
-          .gte('start_date', startOfDay)
-          .lt('start_date', endOfDay)
+          .gte('start_time', startOfDay)
+          .lt('start_time', endOfDay)
         calendarCount = count || 0
       }
     } catch { /* ignore */ }

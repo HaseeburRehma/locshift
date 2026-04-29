@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChevronLeft, Search, User, Users } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 
 interface ContactPickerProps {
   userId: string
@@ -18,6 +19,8 @@ export function ContactPicker({ userId, isGroup, onBack, onChatCreated }: Contac
   const [selected, setSelected] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
   const supabase = createClient()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   useEffect(() => {
     async function fetchProfiles() {
@@ -87,7 +90,7 @@ export function ContactPicker({ userId, isGroup, onBack, onChatCreated }: Contac
                <ChevronLeft size={28} />
             </button>
             <h1 className="text-[24px] font-bold text-gray-900 ml-2">
-               {isGroup ? 'New Group' : 'New Chat'}
+               {isGroup ? L('Neue Gruppe', 'New group') : L('Neuer Chat', 'New chat')}
             </h1>
          </div>
 
@@ -98,7 +101,7 @@ export function ContactPicker({ userId, isGroup, onBack, onChatCreated }: Contac
               type="text" 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="search here..." 
+              placeholder={L('Hier suchen…', 'Search here…')}
               className="w-full h-12 bg-gray-50 border-none rounded-xl pl-12 pr-4 outline-none text-[15px] placeholder:text-gray-400 focus:ring-2 focus:ring-blue-100 transition-all font-medium"
             />
          </div>
@@ -126,7 +129,7 @@ export function ContactPicker({ userId, isGroup, onBack, onChatCreated }: Contac
                          <User className={isSel ? "text-[#0064E0]" : "text-gray-400"} size={26} strokeWidth={1.5} />
                       </button>
                       <span className="text-[12px] font-semibold text-gray-700 truncate w-full flex justify-center mt-1">
-                         {p.full_name?.split(' ')[0] || 'Unknown'} {isSel && <span className="text-[#0064E0] ml-0.5 mt-[-2px] text-xs">✓</span>}
+                         {p.full_name?.split(' ')[0] || L('Unbekannt', 'Unknown')} {isSel && <span className="text-[#0064E0] ml-0.5 mt-[-2px] text-xs">✓</span>}
                       </span>
                    </div>
                  )
@@ -144,7 +147,7 @@ export function ContactPicker({ userId, isGroup, onBack, onChatCreated }: Contac
              className="w-full bg-[#0064E0] text-white py-4 rounded-xl font-semibold text-[16px] hover:bg-[#0050B3] transition-colors shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
            >
              <Users size={20} />
-             {creating ? 'Creating...' : 'Create Group'}
+             {creating ? L('Wird erstellt…', 'Creating…') : L('Gruppe erstellen', 'Create group')}
            </button>
          </div>
       )}

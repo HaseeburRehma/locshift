@@ -27,12 +27,13 @@ function formatCurrency(amount: number, locale: string): string {
   }).format(amount)
 }
 
-function exportBonusesCSV(bonuses: HolidayBonus[], profiles: Record<string, Profile>) {
+function exportBonusesCSV(bonuses: HolidayBonus[], profiles: Record<string, Profile>, locale: string) {
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   if (bonuses.length === 0) {
-    toast.error('No bonuses to export.')
+    toast.error(L('Keine Bonusdaten zum Exportieren.', 'No bonuses to export.'))
     return
   }
-  const headers = ['Employee', 'Amount', 'Description', 'Date Paid']
+  const headers = [L('Mitarbeiter', 'Employee'), L('Betrag', 'Amount'), L('Beschreibung', 'Description'), L('Auszahlungsdatum', 'Date Paid')]
   const rows = bonuses.map(b => [
     profiles[b.employee_id]?.full_name || b.employee_id,
     b.amount.toFixed(2),
@@ -47,25 +48,27 @@ function exportBonusesCSV(bonuses: HolidayBonus[], profiles: Record<string, Prof
   a.download = `holiday_bonuses_${new Date().toISOString().split('T')[0]}.csv`
   a.click()
   URL.revokeObjectURL(url)
-  toast.success('CSV exported successfully.')
+  toast.success(L('CSV erfolgreich exportiert.', 'CSV exported successfully.'))
 }
 
 // ─── Delete Confirm Inline ──────────────────────────────────
 function InlineDeleteConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   return (
     <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-150">
-      <span className="text-xs font-semibold text-gray-500">Delete?</span>
+      <span className="text-xs font-semibold text-gray-500">{L('Löschen?', 'Delete?')}</span>
       <button
         onClick={onConfirm}
         className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
       >
-        Yes
+        {L('Ja', 'Yes')}
       </button>
       <button
         onClick={onCancel}
         className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors"
       >
-        No
+        {L('Nein', 'No')}
       </button>
     </div>
   )
@@ -297,7 +300,7 @@ export default function HolidayBonusPage() {
             variant="outline"
             size="sm"
             className="h-9 rounded-xl text-xs font-medium gap-1.5 text-gray-600"
-            onClick={() => exportBonusesCSV(filteredBonuses, employeeProfiles)}
+            onClick={() => exportBonusesCSV(filteredBonuses, employeeProfiles, locale)}
           >
             <Download className="w-3.5 h-3.5" />
             {locale === 'de' ? 'CSV Export' : 'Export CSV'}

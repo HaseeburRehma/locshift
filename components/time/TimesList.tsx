@@ -167,7 +167,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                 }}
                 variant="outline"
                 disabled={filteredEntries.length === 0}
-                className="font-bold rounded-xl shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50 min-w-[140px] px-6 disabled:opacity-50"
+                className="font-bold rounded-xl shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 min-w-[140px] px-6 disabled:opacity-50"
                 title={
                   filteredEntries.length === 0
                     ? L('Keine Einträge zum Exportieren', 'No entries to export')

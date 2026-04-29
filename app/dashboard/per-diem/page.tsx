@@ -355,14 +355,14 @@ export default function PerDiemPage() {
                           <button
                             onClick={() => updatePerDiemStatus(pd.id, 'approved')}
                             className="h-7 w-7 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
-                            title="Approve"
+                            title={locale === 'de' ? 'Genehmigen' : 'Approve'}
                           >
                             <CheckCircle2 className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => updatePerDiemStatus(pd.id, 'rejected')}
                             className="h-7 w-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
-                            title="Reject"
+                            title={locale === 'de' ? 'Ablehnen' : 'Reject'}
                           >
                             <XCircle className="h-4 w-4" />
                           </button>
@@ -371,7 +371,7 @@ export default function PerDiemPage() {
                       <button
                         onClick={() => setSelectedPd(pd)}
                         className="h-7 w-7 flex items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
-                        title="View details"
+                        title={locale === 'de' ? 'Details anzeigen' : 'View details'}
                       >
                         <Eye className="h-4 w-4" />
                       </button>

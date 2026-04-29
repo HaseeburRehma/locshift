@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useCustomers } from '@/hooks/useCustomers'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n'
 
 interface CustomerDetailsProps {
   customer: Customer | null
@@ -38,6 +39,11 @@ export function CustomerDetails({ customer, open, onOpenChange, onEdit }: Custom
   const { getCustomerStats } = useCustomers()
   const [stats, setStats] = useState({ totalShifts: 0, totalHours: 0 })
   const [loadingStats, setLoadingStats] = useState(false)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  // German short form for "hour" is "Std." (Stunde) — use it everywhere we
+  // render a numeric hour count when locale is DE.
+  const hr = L('Std.', 'h')
 
   useEffect(() => {
     if (customer && open) {
@@ -82,7 +88,7 @@ export function CustomerDetails({ customer, open, onOpenChange, onEdit }: Custom
                     customer.is_active ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
                  )}>
                     {customer.is_active ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                    {customer.is_active ? 'Status: Active Mission' : 'Status: Inactive'}
+                    {customer.is_active ? L('Status: Aktiv', 'Status: Active Mission') : L('Status: Inaktiv', 'Status: Inactive')}
                  </div>
               </div>
            </div>
@@ -93,34 +99,34 @@ export function CustomerDetails({ customer, open, onOpenChange, onEdit }: Custom
            {/* Section: Stats Grid */}
            <div className="grid grid-cols-2 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-slate-100 shadow-sm space-y-2 group hover:border-blue-200 transition-all">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">TOTAL SHIFTS</p>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{L('Schichten gesamt', 'Total shifts')}</p>
                  <h3 className="text-2xl font-black text-slate-900 tabular-nums leading-none">
                     {loadingStats ? '...' : stats.totalShifts}
                  </h3>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-100 shadow-sm space-y-2 group hover:border-emerald-200 transition-all">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">TOTAL HOURS</p>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{L('Stunden gesamt', 'Total hours')}</p>
                  <h3 className="text-2xl font-black text-emerald-600 tabular-nums leading-none">
                     {loadingStats ? '...' : stats.totalHours.toFixed(1)}
-                    <span className="text-xs ml-0.5 opacity-60">h</span>
+                    <span className="text-xs ml-0.5 opacity-60">{hr}</span>
                  </h3>
               </div>
            </div>
 
            {/* Section: Contact Details */}
            <div className="space-y-6">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Contact Information</h3>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{L('Kontaktdaten', 'Contact information')}</h3>
               <div className="space-y-6">
                  <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0">
                        <MapPin className="w-5 h-5 text-slate-400" />
                     </div>
                     <div>
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">Operational Address</p>
-                       <p className="text-sm font-bold text-slate-900 leading-relaxed max-w-[200px]">{customer.address || 'No Address Logged'}</p>
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{L('Einsatzadresse', 'Operational address')}</p>
+                       <p className="text-sm font-bold text-slate-900 leading-relaxed max-w-[200px]">{customer.address || L('Keine Adresse hinterlegt', 'No address logged')}</p>
                        {customer.address && (
                           <a href={`https://maps.google.com/?q=${encodeURIComponent(customer.address)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest mt-2 hover:underline">
-                             View on Map <ExternalLink className="w-3 h-3" />
+                             {L('Auf Karte anzeigen', 'View on map')} <ExternalLink className="w-3 h-3" />
                           </a>
                        )}
                     </div>
@@ -131,8 +137,8 @@ export function CustomerDetails({ customer, open, onOpenChange, onEdit }: Custom
                        <User className="w-5 h-5 text-slate-400" />
                     </div>
                     <div>
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">Key Contact Person</p>
-                       <p className="text-sm font-bold text-slate-900">{customer.contact_person || 'Undefined'}</p>
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{L('Hauptansprechpartner', 'Key contact person')}</p>
+                       <p className="text-sm font-bold text-slate-900">{customer.contact_person || L('Nicht angegeben', 'Not specified')}</p>
                     </div>
                  </div>
 
@@ -141,8 +147,8 @@ export function CustomerDetails({ customer, open, onOpenChange, onEdit }: Custom
                        <Mail className="w-5 h-5 text-slate-400" />
                     </div>
                     <div>
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">Primary Email</p>
-                       <p className="text-sm font-bold text-blue-600 hover:underline cursor-pointer">{customer.email || 'No Email Logged'}</p>
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{L('Primäre E-Mail', 'Primary email')}</p>
+                       <p className="text-sm font-bold text-blue-600 hover:underline cursor-pointer">{customer.email || L('Keine E-Mail hinterlegt', 'No email logged')}</p>
                     </div>
                  </div>
 
@@ -151,8 +157,8 @@ export function CustomerDetails({ customer, open, onOpenChange, onEdit }: Custom
                        <Phone className="w-5 h-5 text-slate-400" />
                     </div>
                     <div>
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">Secondary Contact</p>
-                       <p className="text-sm font-bold text-slate-900">{customer.phone || 'No Phone Logged'}</p>
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{L('Telefon', 'Secondary contact')}</p>
+                       <p className="text-sm font-bold text-slate-900">{customer.phone || L('Keine Telefonnummer hinterlegt', 'No phone logged')}</p>
                     </div>
                  </div>
               </div>
@@ -161,11 +167,14 @@ export function CustomerDetails({ customer, open, onOpenChange, onEdit }: Custom
            {/* Section: Operational Notes */}
            <div className="space-y-4">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                 <FileText className="w-4 h-4" /> Operational Notes
+                 <FileText className="w-4 h-4" /> {L('Betriebliche Notizen', 'Operational notes')}
               </h3>
               <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 italic">
                  <p className="text-xs font-semibold text-slate-500 leading-relaxed">
-                    {customer.notes || 'No mission-specific notes recorded for this customer account.'}
+                    {customer.notes || L(
+                      'Keine einsatzspezifischen Notizen für diesen Kunden hinterlegt.',
+                      'No mission-specific notes recorded for this customer account.'
+                    )}
                  </p>
               </div>
            </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslation } from '@/lib/i18n'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -34,6 +35,8 @@ interface ReviewCardProps {
 }
 
 export function ReviewCard({ review, onUpdate }: ReviewCardProps) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   const [isResponding, setIsResponding] = useState(false)
   const [response, setResponse] = useState(review.admin_response || '')
   const [isLoading, setIsLoading] = useState(false)
@@ -48,9 +51,9 @@ export function ReviewCard({ review, onUpdate }: ReviewCardProps) {
       })
       if (!res.ok) throw new Error()
       onUpdate({ is_published: !review.is_published })
-      toast.success(review.is_published ? 'Review hidden' : 'Review published')
+      toast.success(review.is_published ? L('Bewertung ausgeblendet', 'Review hidden') : L('Bewertung veröffentlicht', 'Review published'))
     } catch {
-      toast.error('Failed to update visibility')
+      toast.error(L('Sichtbarkeit konnte nicht aktualisiert werden', 'Failed to update visibility'))
     } finally {
       setIsLoading(false)
     }
@@ -68,9 +71,9 @@ export function ReviewCard({ review, onUpdate }: ReviewCardProps) {
       if (!res.ok) throw new Error()
       onUpdate({ admin_response: response, admin_response_at: new Date().toISOString() })
       setIsResponding(false)
-      toast.success('Response saved')
+      toast.success(L('Antwort gespeichert', 'Response saved'))
     } catch {
-      toast.error('Failed to save response')
+      toast.error(L('Antwort konnte nicht gespeichert werden', 'Failed to save response'))
     } finally {
       setIsLoading(false)
     }
@@ -111,11 +114,11 @@ export function ReviewCard({ review, onUpdate }: ReviewCardProps) {
               <DropdownMenuContent align="end" className="rounded-xl">
                 <DropdownMenuItem className="gap-2 font-bold cursor-pointer" onClick={handlePublishToggle}>
                   {review.is_published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  {review.is_published ? 'Hide Review' : 'Publish Review'}
+                  {review.is_published ? L('Bewertung ausblenden', 'Hide Review') : L('Bewertung veröffentlichen', 'Publish Review')}
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2 font-bold cursor-pointer text-destructive focus:text-destructive">
                   <Trash2 className="h-4 w-4" />
-                  Delete Review
+                  {L('Bewertung löschen', 'Delete Review')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -147,7 +150,7 @@ export function ReviewCard({ review, onUpdate }: ReviewCardProps) {
              <div className="flex gap-3 pl-4 animate-in fade-in slide-in-from-left-2 duration-300">
                 <CornerDownRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
                 <div className="flex-1 p-3 bg-blue-50/50 border border-blue-100 rounded-xl relative">
-                   <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-1">Company Response</p>
+                   <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-1">{L('Unternehmensantwort', 'Company Response')}</p>
                    <p className="text-xs text-zinc-600 font-medium">"{review.admin_response}"</p>
                    <Button 
                     variant="ghost" 
@@ -155,7 +158,7 @@ export function ReviewCard({ review, onUpdate }: ReviewCardProps) {
                     className="absolute top-1 right-1 h-6 px-2 text-[8px] font-black uppercase text-blue-600 hover:bg-blue-100 rounded-full"
                     onClick={() => setIsResponding(true)}
                    >
-                     Edit
+                     {L('Bearbeiten', 'Edit')}
                    </Button>
                 </div>
              </div>
@@ -169,7 +172,7 @@ export function ReviewCard({ review, onUpdate }: ReviewCardProps) {
                onClick={() => setIsResponding(true)}
              >
                <MessageSquare className="h-3.5 w-3.5" />
-               Add Response
+               {L('Antwort hinzufügen', 'Add Response')}
              </Button>
            )}
 
@@ -180,17 +183,17 @@ export function ReviewCard({ review, onUpdate }: ReviewCardProps) {
                    <Textarea 
                      value={response}
                      onChange={(e) => setResponse(e.target.value)}
-                     placeholder="Type your response to the customer..."
+                     placeholder={L('Antwort an den Kunden eingeben...', 'Type your response to the customer...')}
                      className="min-h-[100px] rounded-xl text-xs bg-white border-primary/20 focus:ring-primary/10"
                    />
                 </div>
                 <div className="flex justify-end gap-2 pr-4">
                    <Button variant="ghost" size="sm" className="h-8 rounded-full text-[10px] font-bold" onClick={() => setIsResponding(false)} disabled={isLoading}>
-                      Cancel
+                      {L('Abbrechen', 'Cancel')}
                    </Button>
                    <Button size="sm" className="h-8 rounded-full text-[10px] font-black gap-2 bg-primary text-white" onClick={handleResponseSubmit} disabled={isLoading || !response.trim()}>
                       {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                      Save Response
+                      {L('Antwort speichern', 'Save Response')}
                    </Button>
                 </div>
              </div>

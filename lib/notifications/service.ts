@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 
-export type NotificationModule = 'plans' | 'customers' | 'calendar' | 'shifts' | 'system'
+export type NotificationModule = 'plans' | 'customers' | 'calendar' | 'shifts' | 'system' | 'chat'
 
 export interface CreateNotificationParams {
   userId: string

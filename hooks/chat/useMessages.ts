@@ -1,6 +1,40 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChatMessage } from '@/lib/types'
+import { sendNotification } from '@/lib/notifications/service'
+
+/**
+ * Fire a native browser notification for a new chat message — but only when
+ * the tab is hidden / the user isn't actively looking at this conversation.
+ * Silently no-ops if the user hasn't granted Notification permission.
+ */
+function fireBrowserNotification(opts: {
+  title: string
+  body: string
+  conversationId: string
+}) {
+  if (typeof window === 'undefined') return
+  if (typeof Notification === 'undefined') return
+  if (Notification.permission !== 'granted') return
+  // Only show when the page is in the background — avoids double-popping
+  // when the user is already in the conversation.
+  if (!document.hidden) return
+  try {
+    const n = new Notification(opts.title, {
+      body: opts.body,
+      icon: '/logo.png',
+      tag: `chat:${opts.conversationId}`, // collapses repeat alerts from same convo
+      badge: '/logo.png',
+    })
+    n.onclick = () => {
+      window.focus()
+      window.location.href = `/dashboard/chat/${opts.conversationId}`
+      n.close()
+    }
+  } catch {
+    /* noop — Safari iOS rejects some notification options */
+  }
+}
 
 export function useMessages(conversationId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -112,6 +146,36 @@ export function useMessages(conversationId: string | null) {
           addMessage(newMsg)
           hydrateSender(newMsg.id, newMsg.sender_id)
           markAsRead()
+
+          // ── Browser/desktop notification when tab is hidden ─────
+          // The receiver gets a native popup if they granted permission;
+          // ignored otherwise. Skips messages the user sent themselves.
+          if (newMsg.sender_id !== userIdRef.current) {
+            // Look up sender's display name for the notification title
+            supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', newMsg.sender_id)
+              .single()
+              .then(({ data: sender }: { data: any }) => {
+                const senderName = sender?.full_name || 'Mitarbeiter'
+                const body =
+                  newMsg.content && newMsg.content.trim()
+                    ? newMsg.content
+                    : newMsg.attachment_type === 'image'
+                      ? '📷 Bild'
+                      : newMsg.attachment_type === 'audio'
+                        ? '🎤 Sprachnachricht'
+                        : newMsg.attachment_name
+                          ? `📎 ${newMsg.attachment_name}`
+                          : ''
+                fireBrowserNotification({
+                  title: `💬 Neue Nachricht von ${senderName}`,
+                  body,
+                  conversationId: newMsg.conversation_id,
+                })
+              })
+          }
         }
       )
       .on(
@@ -240,6 +304,61 @@ export function useMessages(conversationId: string | null) {
         payload: inserted,
       })
       supabase.removeChannel(broadcastChannel)
+
+      // ── Fan-out in-app notifications to other members ─────
+      // Inserts a row into `notifications` for every recipient so they see
+      // the chat in their bell dropdown — works whether they're online or
+      // not. Browser/desktop notifications are fired separately by the
+      // realtime listener on the receiver side (see fireBrowserNotification).
+      try {
+        const { data: members } = await supabase
+          .from('chat_members')
+          .select('user_id')
+          .eq('conversation_id', conversationId)
+
+        const recipients = (members ?? [])
+          .map(m => m.user_id)
+          .filter((uid: string) => uid !== userIdRef.current)
+
+        if (recipients.length > 0) {
+          // Get sender's name for the notification title
+          const { data: senderProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', userIdRef.current!)
+            .single()
+          const senderName = senderProfile?.full_name || 'Mitarbeiter'
+
+          // Build a short body from the message content (truncate, fall back
+          // to attachment label if no text)
+          const body = (() => {
+            if (content && content.trim()) {
+              return content.length > 80 ? content.slice(0, 77) + '…' : content
+            }
+            if (attachment?.type === 'image') return '📷 Bild'
+            if (attachment?.type === 'audio') return '🎤 Sprachnachricht'
+            if (attachment?.type === 'file') return `📎 ${attachment.name}`
+            return ''
+          })()
+
+          // Fire notifications in parallel — service uses one INSERT each,
+          // failures are logged but don't block the send.
+          await Promise.all(
+            recipients.map((uid: string) =>
+              sendNotification({
+                userId: uid,
+                title: `💬 Neue Nachricht von ${senderName}`,
+                message: body,
+                module: 'chat',
+                moduleId: conversationId,
+              })
+            )
+          )
+        }
+      } catch (notifErr) {
+        // Notifications are best-effort — never block message delivery.
+        console.warn('[useMessages] Failed to fan out chat notifications:', notifErr)
+      }
     }
 
     // Also update conversation's updated_at to trigger re-sort in sidebar

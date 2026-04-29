@@ -3,6 +3,7 @@
 import React from 'react'
 import { cn } from '@/lib/utils'
 import { CalendarEvent } from '@/lib/types'
+import { useTranslation } from '@/lib/i18n'
 
 interface CalendarDayCellProps {
   day: number
@@ -21,7 +22,7 @@ export function CalendarDayCell({
   events,
   onClick
 }: CalendarDayCellProps) {
-  // Use real conflict detection from the hook
+  const { locale } = useTranslation()
   const hasConflict = events.some((e: any) => e.hasConflict);
 
   return (
@@ -46,7 +47,7 @@ export function CalendarDayCell({
         </span>
         
         {hasConflict && (
-          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Schedule Conflict detected" />
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title={locale === 'de' ? 'Terminkonflikt erkannt' : 'Schedule Conflict detected'} />
         )}
       </div>
 

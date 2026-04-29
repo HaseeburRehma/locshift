@@ -33,6 +33,7 @@ import { ClockInOutCard } from '@/components/time/ClockInOutCard'
 import { ActiveShiftsDashboard } from '@/components/time/ActiveShiftsDashboard'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
+import { de as deLocale } from 'date-fns/locale'
 import { Progress } from '@/components/ui/progress'
 import LiveOperationsMap from '@/components/dashboard/LiveOperationsMap'
 
@@ -52,6 +53,7 @@ export default function DashboardPage() {
 
 function AdminDashboard({ profile, locale, stats, loading }: { profile: any, locale: string, stats: any, loading: boolean }) {
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const hr = L('Std.', 'h')
   if (loading || !stats) {
     return (
       <div className="space-y-8 animate-pulse p-6">
@@ -67,7 +69,7 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
     <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-700">
       {/* Header Section */}
       <div className="space-y-1">
-        <h1 className="text-[32px] font-bold text-[#0064E0] tracking-tight leading-none">Dashboard</h1>
+        <h1 className="text-[32px] font-bold text-[#0064E0] tracking-tight leading-none">{L('Übersicht', 'Dashboard')}</h1>
         <p className="text-slate-400 text-sm font-medium">
           {L(
             `Willkommen zurück, ${profile.full_name?.split(' ')[0]}! Hier ist Ihre heutige Übersicht.`,
@@ -83,8 +85,8 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         <StatItem label={L('Aktive Mitarbeiter', 'Active Employees')} value={stats.activeEmployees || 0} />
         <StatItem label={L('Offene Einsatzpläne', 'Pending Plans')} value={stats.openPlans || 0} />
-        <StatItem label={L('Stunden diese Woche', 'Hours This Week')} value={`${stats.totalHours || 0}h`} />
-        <StatItem label={L('Heutige Schichten', "Today's Shifts")} value={stats.activeShiftsCount || 0} />
+        <StatItem label={L('Stunden diese Woche', 'Hours this week')} value={`${stats.totalHours || 0}${hr}`} />
+        <StatItem label={L('Heutige Schichten', "Today's shifts")} value={stats.activeShiftsCount || 0} />
       </div>
 
       {/* Quick Actions */}
@@ -155,15 +157,15 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
                       {entry.employee?.full_name}
                     </td>
                     <td className="px-6 py-4 text-[13px] font-medium text-slate-500">
-                      {entry.customer?.name || 'N/A'}
+                      {entry.customer?.name || L('—', 'N/A')}
                     </td>
                     <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
-                      {entry.net_hours}h
+                      {entry.net_hours}{hr}
                     </td>
                     <td className="px-6 py-4">
                       <Badge className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-lg border-none", 
                         entry.is_verified ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
-                        {entry.is_verified ? 'Approved' : 'Pending'}
+                        {entry.is_verified ? L('Genehmigt', 'Approved') : L('Ausstehend', 'Pending')}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -189,28 +191,28 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
       {/* Upcoming Shifts */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900 tracking-tight">Upcoming Shifts</h3>
-          <Link href="/dashboard/plans" className="text-xs font-bold text-blue-600 hover:underline">View All</Link>
+          <h3 className="text-sm font-bold text-slate-900 tracking-tight">{L('Anstehende Schichten', 'Upcoming shifts')}</h3>
+          <Link href="/dashboard/plans" className="text-xs font-bold text-blue-600 hover:underline">{L('Alle anzeigen', 'View all')}</Link>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {(stats.upcomingShifts || []).slice(0, 3).map((shift: any) => (
             <div key={shift.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm border-l-4 border-l-blue-600 flex flex-col gap-4">
               <div className="space-y-1">
                 <p className="text-[13px] font-bold text-slate-900">
-                  {format(new Date(shift.start_time), 'EEEE - MMM d')}
+                  {format(new Date(shift.start_time), locale === 'de' ? 'EEEE - d. MMM' : 'EEEE - MMM d', { locale: locale === 'de' ? deLocale : undefined })}
                 </p>
                 <p className="text-[11px] font-medium text-slate-400">
                   {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
                 </p>
               </div>
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">
-                {shift.customer?.name || L('Einsatzort', 'Mission Site')} • {shift.location || 'Ops Base'}
+                {shift.customer?.name || L('Einsatzort', 'Mission site')} • {shift.location || L('Einsatzbasis', 'Ops base')}
               </div>
             </div>
           ))}
           {(!stats.upcomingShifts || stats.upcomingShifts.length === 0) && (
             <div className="col-span-full py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl text-slate-300 font-medium">
-              No upcoming shifts scheduled.
+              {L('Keine anstehenden Schichten geplant.', 'No upcoming shifts scheduled.')}
             </div>
           )}
         </div>
@@ -246,6 +248,7 @@ function QuickActionItem({ icon, label, href, color }: { icon: React.ReactNode, 
 function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, locale: string, stats: any, loading: boolean }) {
   const { clockIn, activeEntry } = useTimeTracking()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const hr = L('Std.', 'h')
 
   if (loading || !stats) {
     return (
@@ -262,7 +265,7 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
     <div className="p-6 md:p-10 max-w-[1600px] mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-700">
       {/* Header Section */}
       <div className="space-y-1">
-        <h1 className="text-[32px] font-bold text-[#0064E0] tracking-tight leading-none">{L('Persönliches Dashboard', 'Personal Dashboard')}</h1>
+        <h1 className="text-[32px] font-bold text-[#0064E0] tracking-tight leading-none">{L('Meine Übersicht', 'Personal Dashboard')}</h1>
         <p className="text-slate-400 text-sm font-medium">
           {L(
             `Willkommen zurück, ${profile.full_name?.split(' ')[0]}! Hier ist Ihre persönliche Übersicht.`,
@@ -276,8 +279,8 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatItem label={L('Stunden diese Woche', 'Hours This Week')} value={`${stats.weeklyHours || 0}h`} />
-        <StatItem label={L('Saldo', 'Balance')} value={`${stats.hoursBalance || 0}h`} />
+        <StatItem label={L('Stunden diese Woche', 'Hours this week')} value={`${stats.weeklyHours || 0}${hr}`} />
+        <StatItem label={L('Saldo', 'Balance')} value={`${stats.hoursBalance || 0}${hr}`} />
         <StatItem label={L('Spesen (Monat)', 'Monthly Per Diem')} value={`${stats.monthlyPerDiem || 0}€`} />
         <StatItem label={L('Aktiver Einsatz', 'Active Mission')} value={stats.activeShiftsCount > 0 ? L('Aktiv', 'Active') : L('Keiner', 'None')} />
       </div>
@@ -342,7 +345,7 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
                       {entry.customer?.name || L('Standardeinsatz', 'Standard Protocol')}
                     </td>
                     <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
-                      {entry.net_hours}h
+                      {entry.net_hours}{hr}
                     </td>
                     <td className="px-6 py-4">
                       <Badge className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-lg border-none",

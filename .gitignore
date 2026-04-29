@@ -26,6 +26,7 @@ yarn-error.log*
 .env
 .env.local
 .env.development.local
+.env.test
 .env.test.local
 .env.production.local
 
@@ -35,3 +36,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# playwright
+playwright-report/
+test-results/
+blob-report/
+e2e/screenshots/
+e2e/videos/
+**/*.webm
+**/*.mp4
+
+# pnpm
+pnpm-debug.log*

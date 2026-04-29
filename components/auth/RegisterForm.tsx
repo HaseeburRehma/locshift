@@ -9,6 +9,7 @@ import { ChevronLeft, CheckCircle2 } from 'lucide-react'
 import OtpInput from './OtpInput'
 import PasswordInput from './PasswordInput'
 import type { Session } from '@supabase/supabase-js'
+import { useTranslation } from '@/lib/i18n'
 
 export default function RegisterForm() {
   const [step, setStep] = useState(1)
@@ -20,6 +21,8 @@ export default function RegisterForm() {
   // Store the FULL session from verifyOtp — not just userId
   const [verifiedSession, setVerifiedSession] = useState<Session | null>(null)
   const supabase = createClient()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   const handleSendOtp = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -32,9 +35,9 @@ export default function RegisterForm() {
       })
       if (error) throw error
       setStep(2)
-      toast.success('Code sent! Check your email.')
+      toast.success(L('Code gesendet! Bitte E-Mail prüfen.', 'Code sent! Check your email.'))
     } catch (err: any) {
-      toast.error(err.message || 'Error sending code')
+      toast.error(err.message || L('Code konnte nicht gesendet werden', 'Error sending code'))
     } finally {
       setLoading(false)
     }
@@ -48,7 +51,7 @@ export default function RegisterForm() {
     let settled = false
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => {
-        if (!settled) reject(new Error('Verification timed out. Please try again.'))
+        if (!settled) reject(new Error(L('Verifizierung abgelaufen. Bitte erneut versuchen.', 'Verification timed out. Please try again.')))
       }, 15000)
     )
 
@@ -69,7 +72,7 @@ export default function RegisterForm() {
       })
       if (!error2 && data2.session) return data2.session
 
-      throw error2 || error || new Error('Code is invalid or has expired.')
+      throw error2 || error || new Error(L('Code ist ungültig oder abgelaufen.', 'Code is invalid or has expired.'))
     }
 
     try {
@@ -77,10 +80,10 @@ export default function RegisterForm() {
       settled = true
       setVerifiedSession(session)
       setStep(3)
-      toast.success('Email confirmed!')
+      toast.success(L('E-Mail bestätigt!', 'Email confirmed!'))
     } catch (err: any) {
       settled = true
-      toast.error(err?.message || 'Invalid or expired code.')
+      toast.error(err?.message || L('Ungültiger oder abgelaufener Code.', 'Invalid or expired code.'))
     } finally {
       setLoading(false)
     }
@@ -92,8 +95,6 @@ export default function RegisterForm() {
     setLoading(true)
 
     try {
-      // Delegate EVERYTHING to the server — no browser auth locks, no RLS, no timing issues.
-      // The admin client on the server sets the password and upserts the profile directly.
       const res = await fetch('/api/auth/complete-registration', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,15 +109,15 @@ export default function RegisterForm() {
       const body = await res.json()
 
       if (!res.ok) {
-        throw new Error(body.error || 'Setup failed. Please try again.')
+        throw new Error(body.error || L('Einrichtung fehlgeschlagen. Bitte erneut versuchen.', 'Setup failed. Please try again.'))
       }
 
-      toast.success('Welcome to LokShift!')
+      toast.success(L('Willkommen bei LokShift!', 'Welcome to LokShift!'))
       // Short delay so the session cookie from verifyOtp has time to propagate
       setTimeout(() => { window.location.replace('/dashboard') }, 600)
 
     } catch (err: any) {
-      toast.error(err.message || 'Error completing setup. Please try again.')
+      toast.error(err.message || L('Einrichtung fehlgeschlagen. Bitte erneut versuchen.', 'Error completing setup. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -130,18 +131,39 @@ export default function RegisterForm() {
           : password.length < 14 ? 3
             : 4
 
+  const TermsLine = (
+    <p className="text-[12px] text-gray-400 text-center leading-relaxed px-4">
+      {locale === 'de' ? (
+        <>
+          Mit der Registrierung akzeptiere ich die LokShift{' '}
+          <Link href="/terms" className="text-[#0064E0] font-medium hover:underline">Nutzungsbedingungen</Link>{' '}
+          und erkenne die{' '}
+          <Link href="/privacy" className="text-[#0064E0] font-medium hover:underline">Datenschutzerklärung</Link> an.
+        </>
+      ) : (
+        <>
+          By signing up, I accept the LokShift{' '}
+          <Link href="/terms" className="text-[#0064E0] font-medium hover:underline">Terms of Services</Link>{' '}
+          and acknowledge the{' '}
+          <Link href="/privacy" className="text-[#0064E0] font-medium hover:underline">Privacy Policy</Link>.
+        </>
+      )}
+    </p>
+  )
+
   return (
     <div className="w-full max-w-md mx-auto flex flex-col min-h-[100dvh] bg-white pt-4">
       <div className="flex items-center justify-between px-4 h-12">
         <button
           onClick={() => (step > 1 ? setStep(step - 1) : window.history.back())}
           className="w-10 h-10 flex items-center justify-center text-[#0064E0] bg-blue-50/50 rounded-full hover:bg-blue-50 transition-colors"
+          aria-label={L('Zurück', 'Back')}
         >
           <ChevronLeft className="h-6 w-6" />
         </button>
         <button onClick={() => { window.location.href = '/' }}
           className="text-[#0064E0] text-[15px] font-semibold px-4 py-2 hover:bg-blue-50 rounded-full transition-colors">
-          Cancel
+          {L('Abbrechen', 'Cancel')}
         </button>
       </div>
 
@@ -155,22 +177,19 @@ export default function RegisterForm() {
         {step === 1 && (
           <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center">
-              <h2 className="text-[22px] font-bold text-gray-900 tracking-tight">Signup to continue</h2>
+              <h2 className="text-[22px] font-bold text-gray-900 tracking-tight">
+                {L('Registrieren, um fortzufahren', 'Sign up to continue')}
+              </h2>
             </div>
             <form onSubmit={handleSendOtp} className="space-y-6 w-full">
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
+                placeholder={L('E-Mail eingeben', 'Enter your email')}
                 className="w-full h-[58px] px-5 text-[16px] bg-white border border-gray-200 rounded-xl outline-none focus:border-[#0064E0] focus:ring-1 focus:ring-[#0064E0] transition-all placeholder:text-gray-400"
                 required />
-              <p className="text-[12px] text-gray-400 text-center leading-relaxed px-4">
-                By signing up, I accept the LokShift{' '}
-                <Link href="/terms" className="text-[#0064E0] font-medium hover:underline">Terms of Services</Link>{' '}
-                and acknowledge the{' '}
-                <Link href="/privacy" className="text-[#0064E0] font-medium hover:underline">Privacy Policy</Link>.
-              </p>
+              {TermsLine}
               <button type="submit" disabled={loading || !email}
                 className="w-full h-[56px] bg-[#0064E0] text-white rounded-[12px] font-bold text-[17px] hover:bg-[#0050B3] active:scale-[0.98] transition-all disabled:opacity-50">
-                {loading ? 'Sending...' : 'Sign up'}
+                {loading ? L('Senden…', 'Sending…') : L('Registrieren', 'Sign up')}
               </button>
             </form>
           </div>
@@ -179,19 +198,23 @@ export default function RegisterForm() {
         {step === 2 && (
           <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center space-y-2">
-              <h2 className="text-[22px] font-bold text-gray-900 tracking-tight">We&apos;ve emailed you a code</h2>
-              <p className="text-[14px] text-gray-500 leading-relaxed">Enter the 6-digit code we sent to:</p>
+              <h2 className="text-[22px] font-bold text-gray-900 tracking-tight">
+                {L('Wir haben Ihnen einen Code gesendet', 'We\u2019ve emailed you a code')}
+              </h2>
+              <p className="text-[14px] text-gray-500 leading-relaxed">
+                {L('Geben Sie den 6-stelligen Code ein, den wir gesendet haben an:', 'Enter the 6-digit code we sent to:')}
+              </p>
               <p className="text-[14px] font-bold text-gray-900">{email}</p>
             </div>
             <form onSubmit={handleVerifyOtp} className="space-y-10 w-full pt-4">
               <OtpInput value={otp} onChange={setOtp} disabled={loading} />
               <button type="submit" disabled={loading || otp.length < 6}
                 className="w-full h-[56px] bg-[#0064E0] text-white rounded-[12px] font-bold text-[17px] hover:bg-[#0050B3] active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-blue-100">
-                {loading ? 'Verifying...' : 'Verify Code'}
+                {loading ? L('Wird geprüft…', 'Verifying…') : L('Code bestätigen', 'Verify code')}
               </button>
               <button type="button" onClick={() => handleSendOtp()} disabled={loading}
                 className="w-full text-center text-[14px] text-[#0064E0] font-semibold py-2 hover:underline disabled:opacity-50">
-                Didn&apos;t receive a code? Resend
+                {L('Keinen Code erhalten? Erneut senden', 'Didn\u2019t receive a code? Resend')}
               </button>
             </form>
           </div>
@@ -201,54 +224,59 @@ export default function RegisterForm() {
           <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center space-y-2">
               <div className="flex items-center justify-center gap-2 mb-1">
-                <h2 className="text-[22px] font-bold text-gray-900 tracking-tight">Email address confirmed</h2>
+                <h2 className="text-[22px] font-bold text-gray-900 tracking-tight">
+                  {L('E-Mail bestätigt', 'Email address confirmed')}
+                </h2>
                 <div className="bg-emerald-500 rounded-full p-0.5">
                   <CheckCircle2 className="h-5 w-5 text-white" />
                 </div>
               </div>
-              <p className="text-[14px] text-gray-500 font-medium">Finish setting up your account</p>
+              <p className="text-[14px] text-gray-500 font-medium">
+                {L('Konto fertig einrichten', 'Finish setting up your account')}
+              </p>
             </div>
             <form onSubmit={handleCompleteSetup} className="space-y-6 w-full">
               <div className="space-y-1.5">
-                <label className="text-[13px] font-bold text-gray-900 ml-1">Email</label>
+                <label className="text-[13px] font-bold text-gray-900 ml-1">{L('E-Mail', 'Email')}</label>
                 <input type="email" value={email} disabled
                   className="w-full h-[54px] px-5 text-[15px] bg-gray-50 border border-gray-100 rounded-xl text-gray-500 cursor-not-allowed" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-bold text-gray-900 ml-1">Full Name</label>
+                <label className="text-[13px] font-bold text-gray-900 ml-1">{L('Vollständiger Name', 'Full name')}</label>
                 <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter your full name"
+                  placeholder={L('Ihren vollständigen Namen eingeben', 'Enter your full name')}
                   className="w-full h-[54px] px-5 text-[15px] border border-gray-200 rounded-xl outline-none focus:border-[#0064E0] focus:ring-1 focus:ring-[#0064E0] transition-all"
                   required />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-bold text-gray-900 ml-1">Password</label>
+                <label className="text-[13px] font-bold text-gray-900 ml-1">{L('Passwort', 'Password')}</label>
                 <PasswordInput id="reg-pass" label="" value={password} onChange={setPassword}
-                  placeholder="Create a secure password" required />
+                  placeholder={L('Sicheres Passwort erstellen', 'Create a secure password')} required />
                 <div className="flex gap-1.5 px-0.5 pt-1">
                   {[1, 2, 3, 4].map((level) => (
                     <div key={level} className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${passwordStrength >= level
-                        ? level <= 1 ? 'bg-red-400' : level <= 2 ? 'bg-yellow-400' : level <= 3 ? 'bg-blue-400' : 'bg-emerald-500'
-                        : 'bg-gray-100'
+                      ? level <= 1 ? 'bg-red-400' : level <= 2 ? 'bg-yellow-400' : level <= 3 ? 'bg-blue-400' : 'bg-emerald-500'
+                      : 'bg-gray-100'
                       }`} />
                   ))}
                 </div>
                 {password.length > 0 && (
                   <p className={`text-[11px] font-bold text-center mt-1 ${passwordStrength <= 1 ? 'text-red-500' : passwordStrength <= 2 ? 'text-yellow-600' : passwordStrength <= 3 ? 'text-blue-600' : 'text-emerald-600'
                     }`}>
-                    {passwordStrength <= 1 ? 'Too short' : passwordStrength <= 2 ? 'Fair' : passwordStrength <= 3 ? 'Good' : 'Strong'}
+                    {passwordStrength <= 1
+                      ? L('Zu kurz', 'Too short')
+                      : passwordStrength <= 2
+                        ? L('Mittel', 'Fair')
+                        : passwordStrength <= 3
+                          ? L('Gut', 'Good')
+                          : L('Stark', 'Strong')}
                   </p>
                 )}
               </div>
-              <p className="text-[11px] text-gray-400 text-center leading-relaxed pt-2">
-                By signing up, I accept the LokShift{' '}
-                <Link href="/terms" className="text-[#0064E0] font-medium hover:underline">Terms of Services</Link>{' '}
-                and acknowledge the{' '}
-                <Link href="/privacy" className="text-[#0064E0] font-medium hover:underline">Privacy Policy</Link>.
-              </p>
+              {TermsLine}
               <button type="submit" disabled={loading || !fullName || password.length < 6}
                 className="w-full h-[56px] bg-[#0064E0] text-white rounded-[12px] font-bold text-[17px] hover:bg-[#0050B3] active:scale-[0.98] transition-all disabled:opacity-50">
-                {loading ? 'Saving...' : 'Continue'}
+                {loading ? L('Speichern…', 'Saving…') : L('Weiter', 'Continue')}
               </button>
             </form>
           </div>

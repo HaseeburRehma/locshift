@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 
 interface UploadBottomSheetProps {
   isOpen: boolean
@@ -15,6 +16,8 @@ export function UploadBottomSheet({ isOpen, onClose, shiftId }: UploadBottomShee
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const supabase = createClient()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   if (!isOpen) return null
 
@@ -40,10 +43,10 @@ export function UploadBottomSheet({ isOpen, onClose, shiftId }: UploadBottomShee
         throw uploadError
       }
 
-      toast.success('Attachment uploaded successfully')
+      toast.success(L('Anhang erfolgreich hochgeladen', 'Attachment uploaded successfully'))
       onClose()
     } catch (error: any) {
-      toast.error(error.message || 'Error uploading file')
+      toast.error(error.message || L('Fehler beim Hochladen der Datei', 'Error uploading file'))
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''

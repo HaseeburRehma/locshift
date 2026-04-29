@@ -284,7 +284,7 @@ export function TechniciansPanel({ technicians, jobs, onRefresh }: TechniciansPa
                 id="name"
                 value={newTechData.name || ''}
                 onChange={(e) => setNewTechData({ ...newTechData, name: e.target.value })}
-                placeholder="Max Mustermann"
+                placeholder={locale === 'de' ? 'Max Mustermann' : 'John Doe'}
               />
             </div>
             <div className="grid gap-2">
@@ -312,7 +312,7 @@ export function TechniciansPanel({ technicians, jobs, onRefresh }: TechniciansPa
                 id="areas"
                 value={toArray(newTechData.service_area).join(', ')}
                 onChange={(e) => setNewTechData({ ...newTechData, service_area: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                placeholder="Berlin, Hamburg"
+                placeholder={locale === 'de' ? 'Berlin, Hamburg' : 'Berlin, Hamburg'}
               />
             </div>
             <div className="grid gap-2">
@@ -321,7 +321,7 @@ export function TechniciansPanel({ technicians, jobs, onRefresh }: TechniciansPa
                 id="skills"
                 value={toArray(newTechData.skills).join(', ')}
                 onChange={(e) => setNewTechData({ ...newTechData, skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                placeholder="Electrician, Plumbing"
+                placeholder={locale === 'de' ? 'Elektriker, Klempner' : 'Electrician, Plumbing'}
               />
             </div>
             <div className="flex items-center gap-2 mt-2">

@@ -65,23 +65,81 @@ export function useConversations() {
   useEffect(() => {
     fetchConversations()
 
-    // Re-fetch when any conversation or message changes
-    const convChannel = supabase
-      .channel('chat_convs_realtime')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'chat_conversations'
-      }, () => fetchConversations(true))
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages'
-      }, () => fetchConversations(true))
-      .subscribe()
+    /*
+     * Realtime triggers — re-fetch the conversation list whenever:
+     *   1. A chat_conversation row changes (created / updated / deleted)
+     *   2. A new chat_message arrives (so the last-message preview + sort order update)
+     *   3. A chat_members row is INSERTED — CRITICAL for the recipient: when an
+     *      admin creates a new direct chat, the conversation row appears first
+     *      but the recipient isn't a member yet, so RLS hides it. The
+     *      chat_members INSERT (where user_id = self) is the moment the
+     *      recipient gains visibility — we must re-fetch then.
+     *   4. A chat_members row is DELETED — covers leave-chat cleanup.
+     *
+     * postgres_changes filters use `=eq.<value>` syntax; we filter the
+     * chat_members events to ones where THIS user is the new/old member.
+     */
+    let userId: string | null = null
+
+    const setupChannel = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      userId = user?.id || null
+      if (!userId) return null
+
+      return supabase
+        .channel(`chat_convs_realtime:${userId}`)
+        // (1) Any conversation change in the user's org
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'chat_conversations'
+        }, () => fetchConversations(true))
+        // (2) Any new message
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages'
+        }, () => fetchConversations(true))
+        // (3) THIS user added to a conversation — fixes the "doesn't appear
+        //     until reload" bug on the recipient side.
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_members',
+          filter: `user_id=eq.${userId}`,
+        }, () => fetchConversations(true))
+        // (4) THIS user removed from a conversation
+        .on('postgres_changes', {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'chat_members',
+          filter: `user_id=eq.${userId}`,
+        }, () => fetchConversations(true))
+        // (5) last_read_at updates (so the unread badge ticks down)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chat_members',
+          filter: `user_id=eq.${userId}`,
+        }, () => fetchConversations(true))
+        .subscribe()
+    }
+
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    setupChannel().then((c) => { channel = c })
+
+    /*
+     * Belt-and-suspenders: also poll every 15s. If realtime drops (mobile
+     * background tab, network blip, RLS-hidden row briefly invisible), the
+     * poll catches new conversations that the user IS a member of.
+     */
+    const pollInterval = setInterval(() => {
+      fetchConversations(true)
+    }, 15000)
 
     return () => {
-      supabase.removeChannel(convChannel)
+      if (channel) supabase.removeChannel(channel)
+      clearInterval(pollInterval)
     }
   }, [supabase, fetchConversations])
 

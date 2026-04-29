@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { RuleBuilder } from './RuleBuilder'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from '@/lib/i18n'
 
 interface AutomationsClientProps {
   initialRules: AutomationRuleRow[]
@@ -21,6 +22,8 @@ interface AutomationsClientProps {
 
 export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }: AutomationsClientProps) {
   const router = useRouter()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   const [builderOpen, setBuilderOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutomationRuleRow | null>(null)
   const [seeding, setSeeding] = useState(false)
@@ -42,7 +45,7 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
       if (res.ok) {
         router.refresh()
       } else {
-        toast.error('Failed to update rule status')
+        toast.error(L('Regelstatus konnte nicht aktualisiert werden', 'Failed to update rule status'))
       }
     } catch (err) {
       console.error(err)
@@ -50,7 +53,7 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this rule?')) return
+    if (!confirm(L('Diese Regel wirklich löschen?', 'Are you sure you want to delete this rule?'))) return
     try {
       const res = await fetch('/api/automations/rules', {
         method: 'DELETE',
@@ -58,10 +61,10 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
         body: JSON.stringify({ id })
       })
       if (res.ok) {
-        toast.success('Rule deleted')
+        toast.success(L('Regel gelöscht', 'Rule deleted'))
         router.refresh()
       } else {
-        toast.error('Failed to delete rule')
+        toast.error(L('Regel konnte nicht gelöscht werden', 'Failed to delete rule'))
       }
     } catch (err) {
       console.error(err)
@@ -73,10 +76,10 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
     try {
       const res = await fetch('/api/automations/seed', { method: 'POST' })
       if (res.ok) {
-        toast.success('Default rules seeded successfully')
+        toast.success(L('Standardregeln erfolgreich eingerichtet', 'Default rules seeded successfully'))
         router.refresh()
       } else {
-        toast.error('Failed to seed rules. Check permissions.')
+        toast.error(L('Einrichten fehlgeschlagen. Berechtigungen prüfen.', 'Failed to seed rules. Check permissions.'))
       }
     } catch (err) {
       console.error(err)
@@ -107,19 +110,19 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Automations</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">{L('Automatisierungen', 'Automations')}</h1>
           <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 rounded-full px-3 py-1">
-            {activeRules.length} rules active
+            {activeRules.length} {L('Regeln aktiv', 'rules active')}
           </Badge>
         </div>
         <div className="flex gap-2">
           {initialRules.length === 0 && (
             <Button variant="outline" onClick={handleSeed} disabled={seeding}>
-              {seeding ? 'Seeding...' : 'Seed Default Rules'}
+              {seeding ? L('Wird eingerichtet...', 'Seeding...') : L('Standardregeln einrichten', 'Seed Default Rules')}
             </Button>
           )}
           <Button onClick={() => { setEditingRule(null); setBuilderOpen(true) }}>
-            <Plus className="w-4 h-4 mr-2" /> New Rule
+            <Plus className="w-4 h-4 mr-2" /> {L('Neue Regel', 'New Rule')}
           </Button>
         </div>
       </div>
@@ -142,12 +145,12 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
                 )}
               </h2>
               <p className="text-sm text-slate-500">
-                {activeRules.length} active. Fired {firedTodayCount} times today.
+                {activeRules.length} {L('aktiv. Heute', 'active. Fired')} {firedTodayCount} {L('mal ausgeführt.', 'times today.')}
               </p>
             </div>
           </div>
           <div className="w-full sm:w-auto">
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Top Active Models</h4>
+            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{L('Top-Aktive Modelle', 'Top Active Models')}</h4>
             <div className="space-y-1">
               {activeRules.slice(0, 3).map(r => (
                 <div key={r.id} className="text-sm flex items-center gap-2 text-slate-700">
@@ -155,11 +158,11 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
                   {r.name}
                 </div>
               ))}
-              {activeRules.length === 0 && <div className="text-sm text-slate-400 italic">No active models found</div>}
+              {activeRules.length === 0 && <div className="text-sm text-slate-400 italic">{L('Keine aktiven Modelle gefunden', 'No active models found')}</div>}
             </div>
             {lastFiredAt.getFullYear() > 1970 && (
               <div className="text-xs text-slate-400 mt-2 flex items-center gap-1">
-                <Timer className="w-3 h-3" /> Last execution: {formatDistanceToNow(lastFiredAt, { addSuffix: true })}
+                <Timer className="w-3 h-3" /> {L('Letzte Ausführung:', 'Last execution:')} {formatDistanceToNow(lastFiredAt, { addSuffix: true })}
               </div>
             )}
           </div>
@@ -173,25 +176,25 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div className="space-y-1">
                 <CardTitle className="text-lg">{rule.name}</CardTitle>
-                <CardDescription>{rule.description || 'No description provided'}</CardDescription>
+                <CardDescription>{rule.description || L('Keine Beschreibung vorhanden', 'No description provided')}</CardDescription>
               </div>
               <Switch checked={rule.is_active} onCheckedChange={() => handleToggleActive(rule.id, rule.is_active)} />
             </CardHeader>
             <CardContent className="flex-1 flex flex-col justify-between pt-4">
               <div className="space-y-4">
                 <div>
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Trigger</div>
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{L('Auslöser', 'Trigger')}</div>
                   <Badge variant="secondary" className={getTriggerColor(rule.trigger_event)}>
                     {rule.trigger_event.replace(/_/g, ' ')}
                   </Badge>
                   {Object.keys(rule.trigger_conditions || {}).length > 0 && (
                     <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                      <Layers className="w-3 h-3" /> With conditions
+                      <Layers className="w-3 h-3" /> {L('Mit Bedingungen', 'With conditions')}
                     </div>
                   )}
                 </div>
                 <div>
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Actions</div>
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{L('Aktionen', 'Actions')}</div>
                   <div className="flex flex-wrap gap-2">
                     {rule.actions?.map((act, i) => (
                       <Badge key={i} variant="outline" className="flex items-center gap-1.5 text-slate-600 border-slate-200">
@@ -205,11 +208,11 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
               
               <div className="mt-6 pt-4 border-t flex items-center justify-between text-sm text-slate-500">
                 <div className="flex items-center justify-center gap-3">
-                  <span>Fired {rule.execution_count} times</span>
+                  <span>{rule.execution_count}× {L('ausgeführt', 'fired')}</span>
                 </div>
                 <div className="flex gap-2 text-slate-400">
-                  <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => { setEditingRule(rule); setBuilderOpen(true) }}>Edit</Button>
-                  <Button variant="ghost" size="sm" className="h-8 px-2 hover:text-red-600" onClick={() => handleDelete(rule.id)}>Delete</Button>
+                  <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => { setEditingRule(rule); setBuilderOpen(true) }}>{L('Bearbeiten', 'Edit')}</Button>
+                  <Button variant="ghost" size="sm" className="h-8 px-2 hover:text-red-600" onClick={() => handleDelete(rule.id)}>{L('Löschen', 'Delete')}</Button>
                 </div>
               </div>
             </CardContent>
@@ -218,22 +221,22 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
         {initialRules.length === 0 && (
           <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed rounded-xl">
             <Zap className="w-12 h-12 mx-auto mb-4 opacity-20" />
-            <h3 className="text-lg font-medium text-slate-900">No automation rules</h3>
-            <p className="mt-1">Seed default rules or create a new one to get started.</p>
+            <h3 className="text-lg font-medium text-slate-900">{L('Keine Automatisierungsregeln', 'No automation rules')}</h3>
+            <p className="mt-1">{L('Standardregeln einrichten oder eine neue Regel erstellen.', 'Seed default rules or create a new one to get started.')}</p>
           </div>
         )}
       </div>
 
       {/* Execution Log */}
-      <h3 className="text-xl font-bold tracking-tight text-slate-900 mt-12 mb-4">Recent Automation Activity</h3>
+      <h3 className="text-xl font-bold tracking-tight text-slate-900 mt-12 mb-4">{L('Letzte Automatisierungsaktivität', 'Recent Automation Activity')}</h3>
       <Card>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Time</TableHead>
-              <TableHead>Rule</TableHead>
-              <TableHead>Trigger</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>{L('Zeit', 'Time')}</TableHead>
+              <TableHead>{L('Regel', 'Rule')}</TableHead>
+              <TableHead>{L('Auslöser', 'Trigger')}</TableHead>
+              <TableHead>{L('Status', 'Status')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -249,16 +252,16 @@ export function AutomationsClient({ initialRules, initialLogs, firedTodayCount }
                   </div>
                 </TableCell>
                 <TableCell>
-                  {log.status === 'success' && <Badge variant="secondary" className="bg-green-100 text-green-700">Success</Badge>}
-                  {log.status === 'partial' && <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Partial</Badge>}
-                  {log.status === 'failed' && <Badge variant="secondary" className="bg-red-100 text-red-700">Failed</Badge>}
+                  {log.status === 'success' && <Badge variant="secondary" className="bg-green-100 text-green-700">{L('Erfolgreich', 'Success')}</Badge>}
+                  {log.status === 'partial' && <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">{L('Teilweise', 'Partial')}</Badge>}
+                  {log.status === 'failed' && <Badge variant="secondary" className="bg-red-100 text-red-700">{L('Fehlgeschlagen', 'Failed')}</Badge>}
                 </TableCell>
               </TableRow>
             ))}
             {initialLogs.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="h-24 text-center text-slate-500">
-                  No automation activity recorded recently
+                  {L('Keine Automatisierungsaktivität in letzter Zeit', 'No automation activity recorded recently')}
                 </TableCell>
               </TableRow>
             )}

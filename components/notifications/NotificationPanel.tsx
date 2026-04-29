@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Bell, CheckCheck, Calendar, FileText, Users, X } from 'lucide-react'
+import { Bell, CheckCheck, Calendar, FileText, Users, X, MessageCircle } from 'lucide-react'
 import { useNotifications } from '@/hooks/useNotifications'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
@@ -12,13 +12,14 @@ import { useTranslation } from '@/lib/i18n'
 // gets a meaningful icon and we never fall back to a "lightning bolt" that
 // looks like noise in the panel.
 const moduleIcons: Record<string, React.ReactNode> = {
-  plans:        <FileText className="w-4 h-4 text-blue-600" />,
-  calendar:     <Calendar className="w-4 h-4 text-purple-600" />,
-  customers:    <Users    className="w-4 h-4 text-emerald-600" />,
-  shifts:       <FileText className="w-4 h-4 text-amber-600" />,
-  system:       <Bell     className="w-4 h-4 text-gray-500" />,
-  new_lead:     <Users    className="w-4 h-4 text-blue-600" />,
-  job_assigned: <FileText className="w-4 h-4 text-amber-600" />,
+  plans:        <FileText      className="w-4 h-4 text-blue-600" />,
+  calendar:     <Calendar      className="w-4 h-4 text-purple-600" />,
+  customers:    <Users         className="w-4 h-4 text-emerald-600" />,
+  shifts:       <FileText      className="w-4 h-4 text-amber-600" />,
+  system:       <Bell          className="w-4 h-4 text-gray-500" />,
+  new_lead:     <Users         className="w-4 h-4 text-blue-600" />,
+  job_assigned: <FileText      className="w-4 h-4 text-amber-600" />,
+  chat:         <MessageCircle className="w-4 h-4 text-indigo-600" />,
 }
 
 const moduleBg: Record<string, string> = {
@@ -27,6 +28,7 @@ const moduleBg: Record<string, string> = {
   customers: 'bg-emerald-50',
   shifts:    'bg-amber-50',
   system:    'bg-gray-50',
+  chat:      'bg-indigo-50',
 }
 
 const moduleRoutes: Record<string, string> = {
@@ -35,6 +37,7 @@ const moduleRoutes: Record<string, string> = {
   customers: '/dashboard/customers',
   shifts:    '/dashboard/times',
   system:    '/dashboard',
+  chat:      '/dashboard/chat',
 }
 
 /**
@@ -77,6 +80,8 @@ function translateNotification(title: string, body: string | null | undefined, l
       nextTitle = title.replace('📅 Added to event:', '📅 Hinzugefügt zu Termin:')
     } else if (title.startsWith('⏰ Reminder:')) {
       nextTitle = title.replace('⏰ Reminder:', '⏰ Erinnerung:')
+    } else if (title.startsWith('💬 New message from ')) {
+      nextTitle = title.replace('💬 New message from ', '💬 Neue Nachricht von ')
     }
 
     let nextBody = (body ?? '')
@@ -118,6 +123,8 @@ function translateNotification(title: string, body: string | null | undefined, l
     nextTitle = title.replace('📅 Hinzugefügt zu Termin:', '📅 Added to event:')
   } else if (title.startsWith('⏰ Erinnerung:')) {
     nextTitle = title.replace('⏰ Erinnerung:', '⏰ Reminder:')
+  } else if (title.startsWith('💬 Neue Nachricht von ')) {
+    nextTitle = title.replace('💬 Neue Nachricht von ', '💬 New message from ')
   }
 
   // Body — replace the most common German phrases with English equivalents.

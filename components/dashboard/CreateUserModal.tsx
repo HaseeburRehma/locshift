@@ -42,7 +42,7 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
 
   // Locale-aware role labels (was a module-level constant before).
   const ROLES = [
-    { value: 'admin',         label: L('Administrator',      'Administrator') },
+    { value: 'admin',         label: L('Verwalter',          'Administrator') },
     { value: 'manager',       label: L('Manager',            'Manager') },
     { value: 'disponent',     label: L('Disponent',          'Disponent (Dispatcher)') },
     { value: 'technician',   label: L('Techniker',           'Technician') },

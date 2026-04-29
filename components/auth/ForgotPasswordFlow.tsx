@@ -11,7 +11,8 @@ import PasswordInput from './PasswordInput'
 import { useTranslation } from '@/lib/i18n'
 
 export default function ForgotPasswordFlow() {
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const [step, setStep] = useState(1) // 1: Verify Identity, 2: OTP, 3: New Password, 4: Success
   const [method, setMethod] = useState<'email' | 'phone' | null>(null)
   const [email, setEmail] = useState('')
@@ -29,20 +30,20 @@ export default function ForgotPasswordFlow() {
 
   const handleSendResetEmail = async () => {
     if (!email) {
-      toast.info('Please enter your email first.')
+      toast.info(L('Bitte zuerst E-Mail eingeben.', 'Please enter your email first.'))
       setStep(1)
       return
     }
-    
+
     setLoading(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/callback?next=/forgot-password`,
       })
       if (error) throw error
-      toast.success('Verification code sent!')
+      toast.success(L('Bestätigungscode gesendet!', 'Verification code sent!'))
     } catch (err: any) {
-      toast.error(err.message || 'Error sending reset email')
+      toast.error(err.message || L('Fehler beim Senden der Zurücksetzungs-Mail', 'Error sending reset email'))
     } finally {
       setLoading(false)
     }
@@ -51,7 +52,7 @@ export default function ForgotPasswordFlow() {
   const handleVerifyOtp = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (otp.length < 6) return
-    
+
     setLoading(true)
     try {
       const { error } = await supabase.auth.verifyOtp({
@@ -60,11 +61,11 @@ export default function ForgotPasswordFlow() {
         type: 'recovery'
       })
       if (error) throw error
-      
+
       setStep(3)
-      toast.success('OTP verified!')
+      toast.success(L('Code bestätigt!', 'OTP verified!'))
     } catch (err: any) {
-      toast.error(err.message || 'Invalid code')
+      toast.error(err.message || L('Ungültiger Code', 'Invalid code'))
     } finally {
       setLoading(false)
     }
@@ -72,18 +73,18 @@ export default function ForgotPasswordFlow() {
 
   const handleUpdatePassword = async () => {
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords must match')
+      toast.error(L('Passwörter müssen übereinstimmen', 'Passwords must match'))
       return
     }
-    
+
     setLoading(true)
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) throw error
       setStep(4)
-      toast.success('Password updated successfully!')
+      toast.success(L('Passwort erfolgreich aktualisiert!', 'Password updated successfully!'))
     } catch (err: any) {
-      toast.error(err.message || 'Error updating password')
+      toast.error(err.message || L('Aktualisierung fehlgeschlagen', 'Error updating password'))
     } finally {
       setLoading(false)
     }
@@ -99,11 +100,11 @@ export default function ForgotPasswordFlow() {
         >
           <ChevronLeft className="h-6 w-6" />
         </button>
-        <button 
+        <button
           onClick={() => window.location.href = '/'}
           className="text-[#0064E0] text-[15px] font-medium px-4 py-2 hover:bg-blue-50 rounded-full transition-colors"
         >
-          Cancel
+          {L('Abbrechen', 'Cancel')}
         </button>
       </div>
 
@@ -141,7 +142,7 @@ export default function ForgotPasswordFlow() {
                 <div className="p-2 bg-gray-50 rounded-lg group-hover:bg-[#0064E0]/10">
                   <Mail size={20} className="text-gray-400 group-hover:text-[#0064E0]" />
                 </div>
-                <span className="font-semibold text-gray-700 group-hover:text-gray-900">Email</span>
+                <span className="font-semibold text-gray-700 group-hover:text-gray-900">{L('E-Mail', 'Email')}</span>
               </div>
               <ChevronRight size={20} className="text-gray-300 group-hover:text-[#0064E0]" />
             </button>
@@ -166,7 +167,7 @@ export default function ForgotPasswordFlow() {
               disabled={loading || otp.length < 6}
               className="w-full h-14 bg-[#0064E0] text-white rounded-[12px] font-semibold text-lg hover:bg-[#0050B3] transition-all disabled:opacity-50"
             >
-              {loading ? 'Verifying...' : t('auth.continue')}
+              {loading ? L('Wird geprüft…', 'Verifying…') : t('auth.continue')}
             </button>
           </form>
         </div>
@@ -184,7 +185,7 @@ export default function ForgotPasswordFlow() {
           <form onSubmit={handleUpdatePassword} className="space-y-6 flex flex-col items-center w-full">
             <PasswordInput
               id="new-password"
-              label="New Password"
+              label={L('Neues Passwort', 'New password')}
               value={newPassword}
               onChange={setNewPassword}
               placeholder="********"
@@ -192,7 +193,7 @@ export default function ForgotPasswordFlow() {
 
             <PasswordInput
               id="confirm-password"
-              label="Confirm New Password"
+              label={L('Passwort bestätigen', 'Confirm new password')}
               value={confirmPassword}
               onChange={setConfirmPassword}
               placeholder="********"
@@ -203,18 +204,18 @@ export default function ForgotPasswordFlow() {
               disabled={loading || !newPassword || newPassword !== confirmPassword}
               className="w-full h-14 bg-[#0064E0] text-white rounded-xl font-bold text-[16px] hover:bg-[#0050B3] transition-all disabled:opacity-50"
             >
-              {loading ? 'Updating...' : t('auth.continue')}
+              {loading ? L('Aktualisierung…', 'Updating…') : t('auth.continue')}
             </button>
           </form>
         </div>
       )}
 
       <div className="mt-8 text-center pt-6 border-t border-gray-100 w-full">
-        <button 
+        <button
           onClick={() => step > 1 ? setStep(step - 1) : window.history.back()}
           className="text-gray-500 hover:text-[#0064E0] font-medium text-sm transition-colors"
         >
-          {step > 1 ? 'Go Back' : 'Cancel'}
+          {step > 1 ? L('Zurück', 'Go back') : L('Abbrechen', 'Cancel')}
         </button>
       </div>
       </div>

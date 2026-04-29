@@ -362,7 +362,7 @@ export function Dashboard() {
 
   const viewLabels: Record<string, { title: string; subtitle: string }> = {
     dashboard: {
-      title: locale === 'en' ? 'Dashboard' : 'Dashboard',
+      title: locale === 'en' ? 'Dashboard' : 'Übersicht',
       subtitle: locale === 'en' ? 'Overview of your operations' : 'Gesamtübersicht Ihres Betriebs'
     },
     leads: {

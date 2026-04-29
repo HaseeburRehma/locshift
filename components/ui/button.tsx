@@ -14,12 +14,19 @@ const buttonVariants = cva(
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive:
           'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
+        // NOTE — hover styles deliberately AVOID setting text-accent-foreground.
+        // The project's --accent is brand blue (#0064E0) and its
+        // --accent-foreground is white; combined with a per-call
+        // `hover:bg-slate-XX` className override (which wins over hover:bg-accent
+        // but leaves the white-text rule intact) the result was invisible
+        // text on hover. Using a soft slate background + keeping the resting
+        // text color makes outline / ghost behave predictably everywhere.
         outline:
-          'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
+          'border border-slate-200 bg-background shadow-xs hover:bg-slate-50 hover:border-slate-300 dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost:
-          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
+          'hover:bg-slate-100 dark:hover:bg-accent/50',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

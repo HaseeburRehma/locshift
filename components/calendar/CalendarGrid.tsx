@@ -4,6 +4,7 @@ import React from 'react'
 import { CalendarDayCell } from './CalendarDayCell'
 import { CalendarEvent } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n'
 
 interface CalendarGridProps {
   currentDate: Date
@@ -18,7 +19,12 @@ export function CalendarGrid({
   selectedDate,
   onSelectDate
 }: CalendarGridProps) {
-  const daysOfWeek = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+  const { locale } = useTranslation()
+  // Localized 3-letter weekday headers — Sunday-first layout to match the
+  // existing grid algorithm (firstDayOfMonth uses .getDay() = 0 for Sun).
+  const daysOfWeek = locale === 'de'
+    ? ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA']
+    : ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()

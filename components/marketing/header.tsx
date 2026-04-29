@@ -61,7 +61,7 @@ export function MarketingHeader() {
                     <button
                         onClick={() => setLocale(locale === 'de' ? 'en' : 'de')}
                         className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
-                        title="Toggle language"
+                        title={locale === 'de' ? 'Sprache wechseln' : 'Toggle language'}
                     >
                         <Globe className="h-3.5 w-3.5" />
                         <span className="uppercase">{mounted ? locale : 'de'}</span>

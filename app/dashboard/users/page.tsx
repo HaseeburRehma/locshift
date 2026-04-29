@@ -17,7 +17,7 @@ export default async function UsersManagementPage() {
   return (
     <div className="space-y-8 pb-10">
       <nav className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link href="/dashboard" className="hover:text-primary transition-colors">Dashboard</Link>
+        <Link href="/dashboard" className="hover:text-primary transition-colors">Übersicht</Link>
         <ChevronRight className="h-4 w-4" />
         <span className="text-foreground font-medium">Benutzerverwaltung</span>
       </nav>

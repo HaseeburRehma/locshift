@@ -19,6 +19,7 @@ import {
   ShoppingCart, Zap, Plus, Trash2, Check, ArrowLeft, ArrowRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 import type { AutomationRuleRow, TriggerEvent, ActionType } from '@/lib/types/database.types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -114,6 +115,8 @@ function ActionConfigFields({
 }: {
   action: any; index: number; onChange: (updates: any) => void
 }) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   switch (action.type as ActionType) {
     case 'send_whatsapp':
       return (
@@ -125,14 +128,14 @@ function ActionConfigFields({
               <SelectContent>
                 <SelectItem value="customer">Customer</SelectItem>
                 <SelectItem value="technician">Technician</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="admin">Verwalter</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label className="text-xs">Message</Label>
             <Textarea
-              placeholder="Your message..."
+              placeholder={L('Ihre Nachricht...', 'Your message...')}
               value={action.message ?? ''}
               onChange={(e) => onChange({ message: e.target.value })}
               className="text-xs min-h-[60px] mt-1"
@@ -149,14 +152,14 @@ function ActionConfigFields({
               <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="customer">Customer</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="admin">Verwalter</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label className="text-xs">Template</Label>
             <Select value={action.template ?? ''} onValueChange={(v) => onChange({ template: v })}>
-              <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select template" /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder={L('Vorlage auswählen', 'Select template')} /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="review_request">Review Request</SelectItem>
                 <SelectItem value="job_confirmation">Job Confirmation</SelectItem>
@@ -171,7 +174,7 @@ function ActionConfigFields({
         <div className="mt-2">
           <Label className="text-xs">New Status</Label>
           <Select value={action.status ?? ''} onValueChange={(v) => onChange({ status: v })}>
-            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select status" /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder={L('Status auswählen', 'Select status')} /></SelectTrigger>
             <SelectContent>
               {LEAD_STATUSES.map((s) => (
                 <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
@@ -185,7 +188,7 @@ function ActionConfigFields({
         <div className="mt-2">
           <Label className="text-xs">Message</Label>
           <Textarea
-            placeholder="Alert message..."
+            placeholder={L('Hinweistext...', 'Alert message...')}
             value={action.message ?? ''}
             onChange={(e) => onChange({ message: e.target.value })}
             className="text-xs min-h-[60px] mt-1"
@@ -204,7 +207,7 @@ function ActionConfigFields({
           <div>
             <Label className="text-xs">Title</Label>
             <Input
-              placeholder="Notification title..."
+              placeholder={L('Benachrichtigungstitel...', 'Notification title...')}
               value={action.title ?? ''}
               onChange={(e) => onChange({ title: e.target.value })}
               className="h-8 text-xs mt-1"
@@ -213,7 +216,7 @@ function ActionConfigFields({
           <div>
             <Label className="text-xs">Body</Label>
             <Textarea
-              placeholder="Notification body..."
+              placeholder={L('Benachrichtigungstext...', 'Notification body...')}
               value={action.body ?? ''}
               onChange={(e) => onChange({ body: e.target.value })}
               className="text-xs min-h-[60px] mt-1"
@@ -237,6 +240,8 @@ interface RuleBuilderProps {
 export function RuleBuilder({ open, onClose, initialRule }: RuleBuilderProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   // Wizard state
   const [step, setStep] = useState(1)
@@ -274,8 +279,8 @@ export function RuleBuilder({ open, onClose, initialRule }: RuleBuilderProps) {
   }
 
   const handleSave = () => {
-    if (!name.trim()) { toast.error('Rule name is required'); return }
-    if (actions.length === 0) { toast.error('Add at least one action'); return }
+    if (!name.trim()) { toast.error(L('Regelname ist erforderlich', 'Rule name is required')); return }
+    if (actions.length === 0) { toast.error(L('Mindestens eine Aktion hinzufügen', 'Add at least one action')); return }
 
     const builtConditions = skipConditions
       ? {}
@@ -304,11 +309,11 @@ export function RuleBuilder({ open, onClose, initialRule }: RuleBuilderProps) {
           const err = await res.json().catch(() => ({}))
           throw new Error(err?.error ?? 'Failed to save rule')
         }
-        toast.success(initialRule ? 'Automation updated!' : 'Automation created!')
+        toast.success(initialRule ? L('Automatisierung aktualisiert!', 'Automation updated!') : L('Automatisierung erstellt!', 'Automation created!'))
         handleClose()
         router.refresh()
       } catch (err: any) {
-        toast.error(err?.message ?? 'Failed to save rule')
+        toast.error(err?.message ?? L('Regel konnte nicht gespeichert werden', 'Failed to save rule'))
       }
     })
   }

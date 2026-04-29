@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 import { Badge } from '@/components/ui/badge'
 
 interface CommissionData {
@@ -25,6 +26,8 @@ interface CommissionData {
 export function CommissionsList({ initialData }: { initialData: CommissionData[] }) {
   const [data, setData] = useState(initialData)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   const handleMarkPaid = async (techId: string) => {
     const unpaidJobs = data.find(d => d.id === techId)?.jobs.filter(j => j.status === 'completed' && !j.commission_paid) || []
@@ -51,9 +54,9 @@ export function CommissionsList({ initialData }: { initialData: CommissionData[]
         return d
       }))
       
-      toast.success(`Commission paid for ${unpaidJobs.length} jobs`)
+      toast.success(L(`Provision für ${unpaidJobs.length} Aufträge bezahlt`, `Commission paid for ${unpaidJobs.length} jobs`))
     } catch {
-      toast.error('Failed to update commission status')
+      toast.error(L('Provisionsstatus konnte nicht aktualisiert werden', 'Failed to update commission status'))
     } finally {
       setIsProcessing(null)
     }

@@ -31,6 +31,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 
 interface Integration {
   id: string
@@ -52,6 +53,8 @@ const INTEGRATIONS: Integration[] = [
 export function IntegrationsList({ initialConfigs }: { initialConfigs: any[] }) {
   const [configs, setConfigs] = useState(initialConfigs)
   const [testingId, setTestingId] = useState<string | null>(null)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   const isConnected = (id: string) => configs.some(c => c.provider === id && c.is_active)
 
@@ -65,16 +68,16 @@ export function IntegrationsList({ initialConfigs }: { initialConfigs: any[] }) 
       })
       const data = await res.json()
       if (data.success) {
-        toast.success(`${id} connection verified!`, {
+        toast.success(`${id} ${L('Verbindung erfolgreich!', 'connection verified!')}`, {
           description: data.message
         })
       } else {
-        toast.error(`${id} connection failed`, {
+        toast.error(`${id} ${L('Verbindung fehlgeschlagen', 'connection failed')}`, {
           description: data.error
         })
       }
     } catch {
-      toast.error('Test request failed')
+      toast.error(L('Testanfrage fehlgeschlagen', 'Test request failed'))
     } finally {
       setTestingId(null)
     }
@@ -93,7 +96,7 @@ export function IntegrationsList({ initialConfigs }: { initialConfigs: any[] }) 
                 "rounded-full px-3 py-1 font-black text-[10px] uppercase tracking-widest",
                 isConnected(integ.id) ? "border-emerald-500 text-emerald-600 bg-emerald-50" : "bg-zinc-100 text-zinc-500"
               )}>
-                {isConnected(integ.id) ? "Connected" : "Disconnected"}
+                {isConnected(integ.id) ? L('Verbunden', 'Connected') : L('Getrennt', 'Disconnected')}
               </Badge>
             </div>
 
@@ -142,6 +145,8 @@ function IntegrationSettingsDialog({ integration, config, onSave }: { integratio
   const [url, setUrl] = useState(config?.api_url || '')
   const [showKey, setShowKey] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -159,10 +164,10 @@ function IntegrationSettingsDialog({ integration, config, onSave }: { integratio
       if (!res.ok) throw new Error()
       const data = await res.json()
       onSave(data.config)
-      toast.success(`${integration.name} configuration saved`)
+      toast.success(`${integration.name} ${L('Konfiguration gespeichert', 'configuration saved')}`)
       setOpen(false)
     } catch {
-      toast.error('Failed to save configuration')
+      toast.error(L('Konfiguration konnte nicht gespeichert werden', 'Failed to save configuration'))
     } finally {
       setIsSaving(false)
     }
@@ -172,7 +177,7 @@ function IntegrationSettingsDialog({ integration, config, onSave }: { integratio
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="rounded-xl h-10 font-bold px-4 gap-2 border-border/50">
-          Configure
+          {L('Konfigurieren', 'Configure')}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] rounded-[2rem]">
@@ -180,8 +185,8 @@ function IntegrationSettingsDialog({ integration, config, onSave }: { integratio
           <div className={cn("h-12 w-12 rounded-2xl bg-zinc-50 flex items-center justify-center mb-4", integration.color)}>
             <integration.icon className="h-6 w-6" />
           </div>
-          <DialogTitle className="text-2xl font-black">Configure {integration.name}</DialogTitle>
-          <DialogDescription>Enter your credentials to connect {integration.name}.</DialogDescription>
+          <DialogTitle className="text-2xl font-black">{L('Konfigurieren', 'Configure')} {integration.name}</DialogTitle>
+          <DialogDescription>{L('Geben Sie Ihre Zugangsdaten ein, um', 'Enter your credentials to connect')} {integration.name} {L('zu verbinden.', '.')}</DialogDescription>
         </DialogHeader>
         
         <div className="grid gap-6 py-6 border-y border-border/50 my-6">
@@ -224,13 +229,13 @@ function IntegrationSettingsDialog({ integration, config, onSave }: { integratio
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="ghost" className="rounded-xl font-bold" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button 
+          <Button variant="ghost" className="rounded-xl font-bold" onClick={() => setOpen(false)}>{L('Abbrechen', 'Cancel')}</Button>
+          <Button
              className="rounded-xl font-black px-8 bg-zinc-900 text-white hover:bg-zinc-800"
              onClick={handleSave}
              disabled={isSaving || !apiKey}
           >
-             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Connection"}
+             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : L('Verbindung speichern', 'Save Connection')}
           </Button>
         </DialogFooter>
       </DialogContent>

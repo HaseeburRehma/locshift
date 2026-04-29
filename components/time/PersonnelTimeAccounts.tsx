@@ -59,6 +59,9 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
   const { locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  // German short for "hour" — Std. (Stunde). Apply to every numeric hour
+  // suffix below so the unit reads correctly when locale === 'de'.
+  const hr = L('Std.', 'h')
 
   useEffect(() => { setCurrentPage(1) }, [searchTerm])
 
@@ -134,7 +137,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                     ? 'text-blue-200'
                     : acc.balance >= 0 ? 'text-emerald-500' : 'text-red-400'
                 )}>
-                  {acc.balance >= 0 ? `+${acc.balance.toFixed(1)}h` : `${acc.balance.toFixed(1)}h`}
+                  {acc.balance >= 0 ? `+${acc.balance.toFixed(1)}${hr}` : `${acc.balance.toFixed(1)}${hr}`}
                 </span>
               </button>
             ))}
@@ -160,7 +163,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                   const val = selectedEmployeeId ? selectedAccount?.balance ?? totalOrgBalance : totalOrgBalance
                   return val >= 0 ? `+${val.toFixed(1)}` : val.toFixed(1)
                 })()}
-                <span className="text-[20px] font-medium text-slate-500 ml-1">h</span>
+                <span className="text-[20px] font-medium text-slate-500 ml-1">{hr}</span>
               </div>
               <p className="text-[12px] text-slate-400 leading-relaxed max-w-[180px]">
                 {selectedEmployeeId
@@ -179,7 +182,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
             </p>
             <div className="text-[36px] font-bold text-slate-900 leading-none tabular-nums">
               {selectedEmployeeId
-                ? `${selectedAccount?.actual_hours.toFixed(1) ?? '0'}h`
+                ? `${selectedAccount?.actual_hours.toFixed(1) ?? '0'}${hr}`
                 : accounts.length}
             </div>
             <div className="flex items-center gap-2">
@@ -199,7 +202,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
             <div className="flex items-baseline gap-1 leading-none">
               {selectedEmployeeId ? (
                 <span className="text-[36px] font-bold text-blue-600 tabular-nums">
-                  {selectedAccount?.target_hours ?? 0}h
+                  {selectedAccount?.target_hours ?? 0}{hr}
                 </span>
               ) : (
                 <>
@@ -295,7 +298,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                       </div>
                       <div className="col-span-3 text-right">
                         <span className="text-[14px] font-medium text-slate-600 tabular-nums">
-                          {account.target_hours}h
+                          {account.target_hours}{hr}
                         </span>
                       </div>
                       <div className="col-span-3 text-right">
@@ -303,7 +306,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                           'inline-block text-[13px] font-semibold tabular-nums px-3 py-1 rounded-lg',
                           account.balance >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
                         )}>
-                          {account.balance >= 0 ? `+${account.balance.toFixed(1)}h` : `${account.balance.toFixed(1)}h`}
+                          {account.balance >= 0 ? `+${account.balance.toFixed(1)}${hr}` : `${account.balance.toFixed(1)}${hr}`}
                         </span>
                       </div>
                       <div className="col-span-1 flex justify-end">
@@ -330,7 +333,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                           )}>
                             {account.full_name}
                           </p>
-                          <p className="text-[12px] text-slate-400">{L('Soll', 'Target')}: {account.target_hours}h/mo</p>
+                          <p className="text-[12px] text-slate-400">{L('Soll', 'Target')}: {account.target_hours}{hr}{L('/Monat', '/mo')}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -338,7 +341,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                           'text-[13px] font-semibold tabular-nums px-3 py-1 rounded-lg',
                           account.balance >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
                         )}>
-                          {account.balance >= 0 ? `+${account.balance.toFixed(1)}h` : `${account.balance.toFixed(1)}h`}
+                          {account.balance >= 0 ? `+${account.balance.toFixed(1)}${hr}` : `${account.balance.toFixed(1)}${hr}`}
                         </span>
                         {isActive
                           ? <ChevronDown className="h-4 w-4 text-blue-400" />
@@ -407,6 +410,7 @@ function EmployeeMonthlyPanel({
 }) {
   const { data, loading } = useEmployeeMonthly(employeeId)
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const hr = L('Std.', 'h')
 
   return (
     <div className="bg-white border border-blue-200 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
@@ -474,17 +478,17 @@ function EmployeeMonthlyPanel({
                       <span className="text-[13px] text-slate-500 tabular-nums">{month.workingDays}d</span>
                     </div>
                     <div className="col-span-2 text-right">
-                      <span className="text-[13px] text-slate-500 tabular-nums">{month.scheduledHours.toFixed(1)}h</span>
+                      <span className="text-[13px] text-slate-500 tabular-nums">{month.scheduledHours.toFixed(1)}{hr}</span>
                     </div>
                     <div className="col-span-2 text-right">
-                      <span className="text-[13px] font-semibold text-slate-900 tabular-nums">{month.actualHours.toFixed(1)}h</span>
+                      <span className="text-[13px] font-semibold text-slate-900 tabular-nums">{month.actualHours.toFixed(1)}{hr}</span>
                     </div>
                     <div className="col-span-2 text-right">
                       <span className={cn(
                         'text-[13px] font-semibold tabular-nums',
                         month.difference >= 0 ? 'text-emerald-500' : 'text-red-500'
                       )}>
-                        {month.difference >= 0 ? `+${month.difference.toFixed(1)}h` : `${month.difference.toFixed(1)}h`}
+                        {month.difference >= 0 ? `+${month.difference.toFixed(1)}${hr}` : `${month.difference.toFixed(1)}${hr}`}
                       </span>
                     </div>
                   </div>
@@ -493,7 +497,7 @@ function EmployeeMonthlyPanel({
                   <div className="md:hidden px-5 py-4 flex items-center justify-between">
                     <div>
                       <p className="text-[14px] font-semibold text-slate-900">{label}</p>
-                      <p className="text-[12px] text-slate-400">{month.workingDays} {L('Tage', 'days')} · {month.actualHours.toFixed(1)}h {L('tatsächlich', 'actual')}</p>
+                      <p className="text-[12px] text-slate-400">{month.workingDays} {L('Tage', 'days')} · {month.actualHours.toFixed(1)}{hr} {L('tatsächlich', 'actual')}</p>
                     </div>
                     <span className={cn(
                       'text-[14px] font-bold tabular-nums',

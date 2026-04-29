@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/lib/types'
 import { RoleBadge } from './RoleBadge'
 import { Search, Loader2, Check } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 
 interface ContactPickerGridProps {
   onSelect: (profile: Profile) => void
@@ -16,6 +17,8 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const supabase = createClient()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   useEffect(() => {
     const fetchContacts = async () => {
@@ -49,7 +52,7 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
     return (
       <div className="flex flex-col items-center justify-center p-12">
         <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
-        <p className="text-gray-500 font-medium">Loading organization contacts...</p>
+        <p className="text-gray-500 font-medium">{L('Kontakte werden geladen…', 'Loading organization contacts…')}</p>
       </div>
     )
   }
@@ -61,7 +64,7 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
           <input
             type="text"
-            placeholder="Search here..."
+            placeholder={L('Hier suchen…', 'Search here…')}
             value={search}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             className="w-full h-12 pl-10 pr-4 bg-gray-50 border border-gray-100 rounded-xl text-[14px] outline-none focus:bg-white focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all font-medium placeholder:text-gray-400"
@@ -110,7 +113,7 @@ export function ContactPickerGrid({ onSelect, currentUserId, organizationId, sel
 
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-gray-400 font-medium">No contacts found in your organization.</p>
+            <p className="text-gray-400 font-medium">{L('Keine Kontakte in Ihrer Organisation gefunden.', 'No contacts found in your organization.')}</p>
           </div>
         )}
       </div>

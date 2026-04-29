@@ -44,13 +44,13 @@ export function CalendarHeader({
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onToday}
             className="h-8 px-3 rounded-xl font-bold text-xs hover:bg-white transition-all mx-1"
           >
-            Today
+            {locale === 'de' ? 'Heute' : 'Today'}
           </Button>
           <Button 
             variant="ghost" 
@@ -70,7 +70,7 @@ export function CalendarHeader({
           className="h-11 rounded-xl px-4 border-gray-200 font-bold text-gray-600 hover:bg-gray-50 md:flex hidden gap-2"
         >
           <Filter className="w-4 h-4" />
-          Filter
+          {locale === 'de' ? 'Filtern' : 'Filter'}
         </Button>
         
         {isAdminOrDispatcher && (

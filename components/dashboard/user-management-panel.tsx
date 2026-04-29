@@ -137,7 +137,7 @@ export function UserManagementPanel() {
                       disabled={updating === user.id}
                     >
                       <option value="viewer">{locale === 'en' ? 'Viewer (Default)' : 'Betrachter (Standard)'}</option>
-                      <option value="admin">{locale === 'en' ? 'Admin' : 'Administrator'}</option>
+                      <option value="admin">{locale === 'en' ? 'Admin' : 'Verwalter'}</option>
                       <option value="manager">Manager</option>
                       <option value="disponent">{locale === 'en' ? 'Dispatcher' : 'Disponent'}</option>
                       <option value="technician">{locale === 'en' ? 'Technician' : 'Techniker'}</option>

@@ -30,6 +30,7 @@ import {
   Scale
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 
 const companySchema = z.object({
   name: z.string().min(2).max(100),
@@ -48,6 +49,8 @@ type CompanyFormValues = z.infer<typeof companySchema>
 export function CompanySettingsForm({ initialData }: { initialData: any }) {
   const router = useRouter()
   const [isPending, setIsPending] = useState(false)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema),
@@ -75,10 +78,10 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
 
       if (!res.ok) throw new Error('Failed to update settings')
 
-      toast.success('Company settings updated successfully')
+      toast.success(L('Unternehmenseinstellungen gespeichert', 'Company settings updated successfully'))
       router.refresh()
     } catch (err) {
-      toast.error('Failed to update')
+      toast.error(L('Speichern fehlgeschlagen', 'Failed to update'))
     } finally {
       setIsPending(false)
     }
@@ -91,7 +94,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
           <div className="lg:col-span-2 space-y-8">
             <Card className="border-border/50 shadow-sm rounded-3xl overflow-hidden">
               <CardHeader className="bg-muted/30 border-b pb-4">
-                <CardTitle className="text-lg font-bold">General Information</CardTitle>
+                <CardTitle className="text-lg font-bold">{L('Allgemeine Informationen', 'General Information')}</CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -100,7 +103,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Brand Name*</FormLabel>
+                        <FormLabel>{L('Markenname*', 'Brand Name*')}</FormLabel>
                         <FormControl>
                           <Input placeholder="LokShift" className="h-11 rounded-xl" {...field} />
                         </FormControl>
@@ -113,7 +116,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
                     name="legal_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Legal Entity Name</FormLabel>
+                        <FormLabel>{L('Rechtlicher Name', 'Legal Entity Name')}</FormLabel>
                         <FormControl>
                           <Input placeholder="LokShift GmbH" className="h-11 rounded-xl" {...field} />
                         </FormControl>
@@ -129,7 +132,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Business Email*</FormLabel>
+                        <FormLabel>{L('Geschäfts-E-Mail*', 'Business Email*')}</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -145,7 +148,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Support Phone*</FormLabel>
+                        <FormLabel>{L('Support-Telefon*', 'Support Phone*')}</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -179,7 +182,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
 
             <Card className="border-border/50 shadow-sm rounded-3xl overflow-hidden">
                <CardHeader className="bg-muted/30 border-b pb-4">
-                <CardTitle className="text-lg font-bold">Address & Taxation</CardTitle>
+                <CardTitle className="text-lg font-bold">{L('Adresse & Steuer', 'Address & Taxation')}</CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-6">
                  <FormField
@@ -187,7 +190,7 @@ export function CompanySettingsForm({ initialData }: { initialData: any }) {
                   name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Office Address*</FormLabel>
+                      <FormLabel>{L('Büroadresse*', 'Office Address*')}</FormLabel>
                       <FormControl>
                          <div className="relative">
                             <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />

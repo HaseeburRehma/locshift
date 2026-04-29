@@ -134,6 +134,7 @@ function ChangeRequestModal({ plan, onClose }: { plan: Plan; onClose: () => void
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const { profile } = useUser()
+  const { t } = useTranslation()
 
   const handleSend = async () => {
     if (!message.trim()) return
@@ -146,10 +147,10 @@ function ChangeRequestModal({ plan, onClose }: { plan: Plan; onClose: () => void
         module: 'plans',
         moduleId: plan.id,
       })
-      toast.success('Change request sent to your dispatcher')
+      toast.success(t('plans.requestSent'))
       onClose()
     } catch {
-      toast.error('Failed to send request')
+      toast.error(t('plans.requestFailed'))
     } finally {
       setSending(false)
     }
@@ -160,8 +161,8 @@ function ChangeRequestModal({ plan, onClose }: { plan: Plan; onClose: () => void
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between p-6 border-b border-gray-50">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Change Request</p>
-            <h3 className="text-lg font-black text-gray-900 leading-none mt-1">Request Modification</h3>
+            <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">{t('plans.changeRequest')}</p>
+            <h3 className="text-lg font-black text-gray-900 leading-none mt-1">{t('plans.requestModification')}</h3>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors">
             <X className="w-4 h-4 text-gray-400" />
@@ -169,7 +170,7 @@ function ChangeRequestModal({ plan, onClose }: { plan: Plan; onClose: () => void
         </div>
         <div className="p-6 space-y-4">
           <div className="bg-blue-50 rounded-2xl p-4 space-y-1">
-            <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Shift</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">{t('plans.shift')}</p>
             <p className="font-bold text-slate-900 text-sm">
               {new Date(plan.start_time).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' })}
             </p>
@@ -181,12 +182,12 @@ function ChangeRequestModal({ plan, onClose }: { plan: Plan; onClose: () => void
           <textarea
             value={message}
             onChange={e => setMessage(e.target.value)}
-            placeholder="Describe the change you need (e.g. 'I cannot make this shift, please reschedule')..."
+            placeholder={t('plans.changePlaceholder')}
             className="w-full h-28 rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-medium resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
           />
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1 h-12 rounded-2xl font-bold border-gray-200" onClick={onClose}>
-              Cancel
+              {t('plans.cancel')}
             </Button>
             <Button
               className="flex-1 h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 font-bold gap-2"

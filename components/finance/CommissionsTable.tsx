@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { CheckCircle, Circle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 
 interface Commission {
   id: string
@@ -24,6 +25,8 @@ export function CommissionsTable({ commissions: initial }: { commissions: Commis
   const [commissions, setCommissions] = useState(initial)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   const unpaid = commissions.filter((c) => !c.paid)
   const allSelected = unpaid.length > 0 && unpaid.every((c) => selected.has(c.id))
@@ -57,13 +60,12 @@ export function CommissionsTable({ commissions: initial }: { commissions: Commis
         body: JSON.stringify({ ids }),
       })
       if (!res.ok) throw new Error('Failed')
-      toast.success(`${ids.length} commission${ids.length > 1 ? 's' : ''} marked as paid`)
+      toast.success(L(`${ids.length} Provision${ids.length > 1 ? 'en' : ''} als bezahlt markiert`, `${ids.length} commission${ids.length > 1 ? 's' : ''} marked as paid`))
     } catch {
-      // Revert
       setCommissions((prev) =>
         prev.map((c) => (ids.includes(c.id) ? { ...c, paid: false } : c))
       )
-      toast.error('Failed to mark commission as paid')
+      toast.error(L('Provision konnte nicht als bezahlt markiert werden', 'Failed to mark commission as paid'))
     }
   }
 

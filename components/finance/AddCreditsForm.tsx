@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 
 const PRESETS = [50, 100, 250, 500]
 
@@ -23,10 +24,12 @@ export function AddCreditsForm({ currentBalance }: { currentBalance: number }) {
   const router = useRouter()
   const [amount, setAmount] = useState<number>(100)
   const [isPending, setIsPending] = useState(false)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   const handleDeposit = async () => {
     if (amount < 20) {
-      toast.error('Minimum deposit is 20€')
+      toast.error(L('Mindesteinzahlung beträgt 20 €', 'Minimum deposit is 20€'))
       return
     }
     
@@ -40,11 +43,11 @@ export function AddCreditsForm({ currentBalance }: { currentBalance: number }) {
 
       if (!res.ok) throw new Error()
 
-      toast.success(`Successfully added ${formatCurrency(amount)} to balance!`)
+      toast.success(L(`${formatCurrency(amount)} erfolgreich aufgeladen!`, `Successfully added ${formatCurrency(amount)} to balance!`))
       router.push('/dashboard/finance')
       router.refresh()
     } catch {
-      toast.error('Failed to process payment')
+      toast.error(L('Zahlung konnte nicht verarbeitet werden', 'Failed to process payment'))
     } finally {
       setIsPending(false)
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,6 +18,8 @@ interface TimeEntryFormProps {
 
 export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, initialData }: TimeEntryFormProps) {
   const { profile } = useUser()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   const [customers, setCustomers] = useState<Customer[]>([])
   
   const [formData, setFormData] = useState<TimeEntryFormData>({
@@ -49,7 +52,7 @@ export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, ini
     
     // Validations
     if (formData.endTime <= formData.startTime) {
-      alert('End time must be after start time')
+      alert(L('Endzeit muss nach Startzeit liegen', 'End time must be after start time'))
       return
     }
 
@@ -67,14 +70,14 @@ export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, ini
                 <Clock className="w-5 h-5 text-[#0064E0]" />
              </div>
              <div>
-                <h3 className="text-lg font-bold text-gray-900 leading-none">Shift Duration</h3>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Time & Date Logs</p>
+                <h3 className="text-lg font-bold text-gray-900 leading-none">{L('Schichtdauer', 'Shift Duration')}</h3>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{L('Zeit & Datumsprotokoll', 'Time & Date Logs')}</p>
              </div>
           </div>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">Date of Service</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">{L('Einsatzdatum', 'Date of Service')}</Label>
               <Input 
                 type="date" 
                 className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-all font-bold px-6 border-none shadow-sm"
@@ -86,7 +89,7 @@ export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, ini
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">Start Time</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">{L('Beginn', 'Start Time')}</Label>
                 <Input 
                   type="time" 
                   className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-all font-bold px-6 border-none shadow-sm"
@@ -96,7 +99,7 @@ export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, ini
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">End Time</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">{L('Ende', 'End Time')}</Label>
                 <Input 
                   type="time" 
                   className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-all font-bold px-6 border-none shadow-sm"
@@ -116,14 +119,14 @@ export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, ini
                 <MapPin className="w-5 h-5 text-orange-500" />
              </div>
              <div>
-                <h3 className="text-lg font-bold text-gray-900 leading-none">Operational Context</h3>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Projects & Breaks</p>
+                <h3 className="text-lg font-bold text-gray-900 leading-none">{L('Einsatzkontext', 'Operational Context')}</h3>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{L('Projekte & Pausen', 'Projects & Breaks')}</p>
              </div>
           </div>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">Break Duration (Minutes)</Label>
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">{L('Pausendauer (Minuten)', 'Break Duration (Minutes)')}</Label>
               <Input 
                 type="number" 
                 min="0"
@@ -135,13 +138,13 @@ export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, ini
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">Target Customer</Label>
-              <select 
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1">{L('Zielkunde', 'Target Customer')}</Label>
+              <select
                 className="w-full h-14 rounded-2xl border-gray-100 bg-gray-50/50 px-6 focus:bg-white transition-all font-bold appearance-none outline-none focus:ring-2 focus:ring-[#0064E0]/10 shadow-sm border-none"
                 value={formData.customerId}
                 onChange={e => setFormData({ ...formData, customerId: e.target.value })}
               >
-                <option value="">Select a customer...</option>
+                <option value="">{L('Kunde auswählen...', 'Select a customer...')}</option>
                 {customers.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -154,10 +157,10 @@ export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, ini
       {/* Notes Section: Full Width */}
       <div className="space-y-2 mt-8">
         <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 pl-1 flex items-center gap-2">
-          <FileText className="w-3 h-3" /> Notes & Deployment Details
+          <FileText className="w-3 h-3" /> {L('Notizen & Einsatzdetails', 'Notes & Deployment Details')}
         </Label>
         <textarea 
-          placeholder="Additional shift details or instructions..."
+          placeholder={L('Weitere Schichtdetails oder Anweisungen...', 'Additional shift details or instructions...')}
           className="w-full min-h-[120px] rounded-3xl border-none bg-gray-50/50 p-6 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0064E0]/10 transition-all font-bold text-sm shadow-sm"
           value={formData.notes}
           onChange={e => setFormData({ ...formData, notes: e.target.value })}
@@ -172,14 +175,14 @@ export function TimeEntryForm({ onSuccess, onCancel, isSubmitting, onSubmit, ini
           onClick={onCancel}
           className="w-full md:w-auto h-14 rounded-2xl px-10 font-bold text-gray-400 hover:text-gray-900"
         >
-          Cancel
+          {L('Abbrechen', 'Cancel')}
         </Button>
         <Button 
           type="submit" 
           disabled={isSubmitting}
           className="w-full md:flex-1 h-14 rounded-2xl bg-gray-900 hover:bg-black text-white font-bold transition-all shadow-xl active:scale-95 disabled:opacity-50"
         >
-          {isSubmitting ? 'Saving Entry...' : 'Confirm & Log Shift'}
+          {isSubmitting ? L('Wird gespeichert...', 'Saving Entry...') : L('Schicht bestätigen & erfassen', 'Confirm & Log Shift')}
         </Button>
       </div>
     </form>

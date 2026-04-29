@@ -43,7 +43,7 @@ const defaultSec: Sec = {
 }
 
 const ROLES = [
-  { key: 'admin', label: { de: 'Administrator', en: 'Administrator' } },
+  { key: 'admin', label: { de: 'Verwalter', en: 'Administrator' } },
   { key: 'dispatcher', label: { de: 'Disponent', en: 'Dispatcher' } },
   { key: 'employee', label: { de: 'Mitarbeiter', en: 'Employee' } },
 ] as const

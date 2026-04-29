@@ -12,8 +12,10 @@ const toggleVariants = cva(
     variants: {
       variant: {
         default: 'bg-transparent',
+        // Match the Button outline fix: keep text color stable on hover so a
+        // per-call hover:bg-* override can't strand white-on-light text.
         outline:
-          'border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground',
+          'border border-input bg-transparent shadow-xs hover:bg-slate-50 hover:border-slate-300',
       },
       size: {
         default: 'h-9 px-2 min-w-9',

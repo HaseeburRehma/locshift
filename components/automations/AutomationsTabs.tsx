@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from '@/lib/i18n'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -87,17 +88,20 @@ function iconBgClass(color: string) {
   return map[color] ?? 'bg-gray-100 text-gray-600'
 }
 
-function statusBadge(status: string | null) {
+function statusBadge(status: string | null, locale: string) {
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   if (status === 'success')
-    return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">Success</span>
+    return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">{L('Erfolgreich', 'Success')}</span>
   if (status === 'partial')
-    return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">Partial</span>
-  return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">Failed</span>
+    return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">{L('Teilweise', 'Partial')}</span>
+  return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">{L('Fehlgeschlagen', 'Failed')}</span>
 }
 
 // ─── History Tab ─────────────────────────────────────────────────────────────
 
 function HistoryTab({ initialLogs }: { initialLogs: AutomationLogRow[] }) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   const [logs, setLogs] = useState(initialLogs)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -129,8 +133,8 @@ function HistoryTab({ initialLogs }: { initialLogs: AutomationLogRow[] }) {
     return (
       <div className="text-center py-16">
         <History className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-        <p className="text-muted-foreground">No automation history yet.</p>
-        <p className="text-sm text-muted-foreground/60 mt-1">Logs will appear here when rules fire.</p>
+        <p className="text-muted-foreground">{L('Noch keine Automatisierungshistorie.', 'No automation history yet.')}</p>
+        <p className="text-sm text-muted-foreground/60 mt-1">{L('Protokolle erscheinen hier, wenn Regeln ausgelöst werden.', 'Logs will appear here when rules fire.')}</p>
       </div>
     )
   }
@@ -140,11 +144,11 @@ function HistoryTab({ initialLogs }: { initialLogs: AutomationLogRow[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-100 dark:border-gray-800">
-            <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time</th>
-            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rule</th>
-            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trigger</th>
-            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Actions</th>
-            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+            <th className="text-left px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{L('Zeit', 'Time')}</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{L('Regel', 'Rule')}</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{L('Auslöser', 'Trigger')}</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{L('Aktionen', 'Actions')}</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{L('Status', 'Status')}</th>
             <th className="w-8 px-4"></th>
           </tr>
         </thead>
@@ -168,10 +172,10 @@ function HistoryTab({ initialLogs }: { initialLogs: AutomationLogRow[] }) {
                 </td>
                 <td className="px-4 py-4">
                   <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-                    {Array.isArray(log.actions_executed) ? log.actions_executed.length : '–'} actions
+                    {Array.isArray(log.actions_executed) ? log.actions_executed.length : '–'} {L('Aktionen', 'actions')}
                   </span>
                 </td>
-                <td className="px-4 py-4">{statusBadge(log.status)}</td>
+                <td className="px-4 py-4">{statusBadge(log.status, locale)}</td>
                 <td className="px-4 py-4">
                   {expanded.has(log.id) ? (
                     <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -203,6 +207,8 @@ function HistoryTab({ initialLogs }: { initialLogs: AutomationLogRow[] }) {
 // ─── Templates Tab ───────────────────────────────────────────────────────────
 
 function TemplatesTab() {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   const [seeding, setSeeding] = useState<string | null>(null)
 
   const useTemplate = async (template: typeof TEMPLATES[number]) => {
@@ -221,9 +227,9 @@ function TemplatesTab() {
         }),
       })
       if (!res.ok) throw new Error('Failed to create rule')
-      toast.success(`"${template.name}" template applied!`)
+      toast.success(`"${template.name}" ${L('Vorlage angewendet!', 'template applied!')}`)
     } catch {
-      toast.error('Failed to create automation from template')
+      toast.error(L('Vorlage konnte nicht angewendet werden', 'Failed to create automation from template'))
     } finally {
       setSeeding(null)
     }
@@ -257,7 +263,7 @@ function TemplatesTab() {
               ) : (
                 <LayoutTemplate className="w-3 h-3" />
               )}
-              Use Template
+              {L('Vorlage verwenden', 'Use Template')}
             </Button>
           </div>
         )
@@ -275,6 +281,8 @@ export function AutomationsTabs({
   rules: AutomationRuleRow[]
   logs: AutomationLogRow[]
 }) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   const activeRules = rules.filter((r) => r.is_active)
   const allRules = rules
 
@@ -283,16 +291,16 @@ export function AutomationsTabs({
       <div className="flex items-center bg-white dark:bg-gray-900 p-2 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm mb-6">
         <TabsList className="bg-transparent h-10 gap-1 flex-1">
           <TabsTrigger value="rules" className="rounded-xl px-6 font-bold data-[state=active]:bg-zinc-100 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-none transition-all">
-            Active Rules
+            {L('Aktive Regeln', 'Active Rules')}
             {activeRules.length > 0 && (
               <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">{activeRules.length}</span>
             )}
           </TabsTrigger>
           <TabsTrigger value="history" className="rounded-xl px-6 font-bold data-[state=active]:bg-zinc-100 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-none transition-all">
-            History
+            {L('Verlauf', 'History')}
           </TabsTrigger>
           <TabsTrigger value="templates" className="rounded-xl px-6 font-bold data-[state=active]:bg-zinc-100 dark:data-[state=active]:bg-gray-800 data-[state=active]:shadow-none transition-all">
-            Templates
+            {L('Vorlagen', 'Templates')}
           </TabsTrigger>
         </TabsList>
       </div>
@@ -303,9 +311,9 @@ export function AutomationsTabs({
             <div className="w-16 h-16 rounded-3xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
               <Zap className="w-8 h-8 text-violet-400" />
             </div>
-            <h3 className="font-bold text-lg mb-2">No automations yet</h3>
+            <h3 className="font-bold text-lg mb-2">{L('Noch keine Automatisierungen', 'No automations yet')}</h3>
             <p className="text-muted-foreground text-sm mb-6">
-              Create your first automation to start saving time.
+              {L('Erste Automatisierung erstellen und Zeit sparen.', 'Create your first automation to start saving time.')}
             </p>
             <CreateRuleButton />
           </div>

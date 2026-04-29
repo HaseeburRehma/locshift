@@ -30,6 +30,8 @@ export function TimeAccountOverview({
   const { locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const dateLocaleTag = locale === 'de' ? 'de-DE' : 'en-US'
+  // German abbreviation for "hour" is "Std." (Stunde) — apply to every hour-suffix on this page.
+  const hr = L('Std.', 'h')
 
   const totalPages = Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE))
   const paginatedData = data.slice(
@@ -98,8 +100,8 @@ export function TimeAccountOverview({
               totalBalance >= 0 ? 'text-emerald-500' : 'text-red-500'
             )}>
               {totalBalance > 0
-                ? `+${totalBalance.toFixed(1)}h`
-                : `${totalBalance.toFixed(1)}h`}
+                ? `+${totalBalance.toFixed(1)}${hr}`
+                : `${totalBalance.toFixed(1)}${hr}`}
             </div>
             <p className="text-[12px] text-slate-500 font-normal leading-none">
               {L('Stundensaldo (lfd. Jahr)', 'Hours Balance (YTD)')}
@@ -109,7 +111,7 @@ export function TimeAccountOverview({
           {/* Overtime Paid */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all">
             <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-blue-600 leading-none tracking-tight">
-              {totalOvertimePaid.toFixed(1)}h
+              {totalOvertimePaid.toFixed(1)}{hr}
             </div>
             <p className="text-[12px] text-slate-500 font-normal leading-none">
               {L('Bezahlte Überstunden', 'Overtime Paid')}
@@ -119,7 +121,7 @@ export function TimeAccountOverview({
           {/* Total Hours */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all">
             <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-blue-600 leading-none tracking-tight">
-              {totalHours.toFixed(1)}h
+              {totalHours.toFixed(1)}{hr}
             </div>
             <p className="text-[12px] text-slate-500 font-normal leading-none">
               {L(`Gesamtstunden (${latestMonthLabel})`, `Total Hours (${latestMonthLabel})`)}
@@ -190,8 +192,8 @@ export function TimeAccountOverview({
                       month.difference >= 0 ? 'text-emerald-500' : 'text-red-500'
                     )}>
                       {month.difference >= 0
-                        ? `+${month.difference.toFixed(1)}h`
-                        : `${month.difference.toFixed(1)}h`}
+                        ? `+${month.difference.toFixed(1)}${hr}`
+                        : `${month.difference.toFixed(1)}${hr}`}
                     </span>
                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400 transition-colors" />
                   </div>

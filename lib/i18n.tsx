@@ -16,7 +16,7 @@ const translations = {
         'nav.pricing': 'Preise',
         'nav.about': 'Über uns',
         'nav.contact': 'Kontakt',
-        'nav.dashboard': 'Dashboard',
+        'nav.dashboard': 'Übersicht',
         'nav.login': 'Anmelden',
         'nav.signup': 'Registrieren',
         'nav.logout': 'Abmelden',
@@ -150,7 +150,11 @@ const translations = {
         'nav.search': 'Suche hier...',
 
         // ── Roles ────────────────────────────────────────
-        'role.admin': 'Administrator',
+        // "Verwalter" = native German for the admin role; differs visibly
+        // from the English "Administrator" so non-DE words don't leak through
+        // into the German UI. (Both Verwalter and Administrator are valid;
+        // the client asked for distinctly-German content.)
+        'role.admin': 'Verwalter',
         'role.dispatcher': 'Disponent',
         'role.employee': 'Mitarbeiter',
 

@@ -68,7 +68,7 @@ export default function CustomersPage() {
     if (!confirm(locale === 'en' ? `Permanently remove ${name}?` : `${name} endgültig entfernen?`)) return
     try {
       await deleteCustomer(id)
-      toast.success('Customer profile removed')
+      toast.success(locale === 'de' ? 'Kundenprofil entfernt' : 'Customer profile removed')
     } catch (err: any) {
       toast.error(err.message)
     }

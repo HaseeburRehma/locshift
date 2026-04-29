@@ -6,6 +6,7 @@ import { Gift, User, Euro, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import { Profile } from '@/lib/types'
+import { useTranslation } from '@/lib/i18n'
 
 interface HolidayBonusFormProps {
   onSubmit: (data: any) => Promise<boolean>
@@ -15,6 +16,8 @@ interface HolidayBonusFormProps {
 
 export function HolidayBonusForm({ onSubmit, onCancel, isSubmitting }: HolidayBonusFormProps) {
   const { profile } = useUser()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const [employees, setEmployees] = useState<Profile[]>([])
   const [formData, setFormData] = useState({
     employee_id: '',
@@ -56,15 +59,15 @@ export function HolidayBonusForm({ onSubmit, onCancel, isSubmitting }: HolidayBo
       <div className="space-y-4">
         <div className="space-y-2">
           <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-            <User className="w-3 h-3" /> Select Employee
+            <User className="w-3 h-3" /> {L('Mitarbeiter wählen', 'Select employee')}
           </Label>
-          <select 
+          <select
             className="w-full h-12 rounded-xl border border-gray-100 bg-gray-50/50 px-4 focus:bg-white transition-all font-bold appearance-none outline-none focus:ring-2 focus:ring-blue-500/10"
             value={formData.employee_id}
             onChange={e => setFormData({ ...formData, employee_id: e.target.value })}
             required
           >
-            <option value="">Select an employee...</option>
+            <option value="">{L('Mitarbeiter auswählen…', 'Select an employee…')}</option>
             {employees.map(emp => (
               <option key={emp.id} value={emp.id}>{emp.full_name}</option>
             ))}
@@ -73,7 +76,7 @@ export function HolidayBonusForm({ onSubmit, onCancel, isSubmitting }: HolidayBo
 
         <div className="space-y-2">
           <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-            <Euro className="w-3 h-3" /> Bonus Amount
+            <Euro className="w-3 h-3" /> {L('Bonusbetrag', 'Bonus amount')}
           </Label>
           <Input 
             type="number" 
@@ -89,10 +92,10 @@ export function HolidayBonusForm({ onSubmit, onCancel, isSubmitting }: HolidayBo
 
         <div className="space-y-2">
           <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-            <FileText className="w-3 h-3" /> Bonus Description
+            <FileText className="w-3 h-3" /> {L('Beschreibung', 'Bonus description')}
           </Label>
-          <textarea 
-            placeholder="Christmas Bonus, Summer Vacation, etc."
+          <textarea
+            placeholder={L('Weihnachtsbonus, Sommerurlaub, usw.', 'Christmas bonus, summer vacation, etc.')}
             className="w-full min-h-[100px] rounded-xl border border-gray-100 bg-gray-50/50 p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all font-medium"
             value={formData.notes}
             onChange={e => setFormData({ ...formData, notes: e.target.value })}
@@ -108,15 +111,15 @@ export function HolidayBonusForm({ onSubmit, onCancel, isSubmitting }: HolidayBo
           className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2"
         >
           <Gift className="w-4 h-4" />
-          {isSubmitting ? 'Processing...' : 'Distribute Bonus'}
+          {isSubmitting ? L('Wird verarbeitet…', 'Processing…') : L('Bonus vergeben', 'Distribute bonus')}
         </Button>
-        <Button 
-          type="button" 
-          variant="ghost" 
+        <Button
+          type="button"
+          variant="ghost"
           onClick={onCancel}
           className="w-full h-12 rounded-xl font-bold text-gray-400"
         >
-          Cancel
+          {L('Abbrechen', 'Cancel')}
         </Button>
       </div>
     </form>

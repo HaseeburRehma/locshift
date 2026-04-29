@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
 import type { AutomationRuleRow, AutomationAction } from '@/lib/types/database.types'
 
 const TRIGGER_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -70,6 +71,8 @@ function actionBgClass(color: string) {
 export function AutomationRuleCard({ rule }: { rule: AutomationRuleRow }) {
   const [isActive, setIsActive] = useState(rule.is_active)
   const [isToggling, setIsToggling] = useState(false)
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
 
   const trigger = TRIGGER_CONFIG[rule.trigger_event]
   const Icon = trigger?.icon
@@ -85,10 +88,10 @@ export function AutomationRuleCard({ rule }: { rule: AutomationRuleRow }) {
         body: JSON.stringify({ id: rule.id, is_active: !prev }),
       })
       if (!res.ok) throw new Error('Toggle failed')
-      toast.success(!prev ? 'Rule activated' : 'Rule paused')
+      toast.success(!prev ? L('Regel aktiviert', 'Rule activated') : L('Regel pausiert', 'Rule paused'))
     } catch {
       setIsActive(prev)
-      toast.error('Failed to update rule')
+      toast.error(L('Regel konnte nicht aktualisiert werden', 'Failed to update rule'))
     } finally {
       setIsToggling(false)
     }
@@ -168,7 +171,7 @@ export function AutomationRuleCard({ rule }: { rule: AutomationRuleRow }) {
       {/* Footer */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
         <div className="text-xs text-muted-foreground">
-          Fired <span className="font-semibold text-foreground">{rule.execution_count}</span> times
+          {L('Ausgeführt', 'Fired')} <span className="font-semibold text-foreground">{rule.execution_count}</span> {L('Mal', 'times')}
           {rule.last_executed_at && (
             <span className="ml-1">
               · {formatDistanceToNow(new Date(rule.last_executed_at), { addSuffix: true })}

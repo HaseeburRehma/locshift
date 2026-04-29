@@ -24,7 +24,7 @@ export function RoleBadge({ role }: RoleBadgeProps) {
   }
 
   const getRoleLabel = () => {
-    if (role === 'admin') return locale === 'de' ? 'Administrator' : 'Administrator'
+    if (role === 'admin') return locale === 'de' ? 'Verwalter' : 'Administrator'
     if (role === 'manager' || role === 'disponent') return locale === 'de' ? 'Disponent' : 'Dispatcher'
     return locale === 'de' ? 'Mitarbeiter' : 'Employee'
   }

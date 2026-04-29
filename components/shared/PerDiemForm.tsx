@@ -143,9 +143,16 @@ export function PerDiemForm({ onSubmit, onCancel, isSubmitting }: PerDiemFormPro
         <div className="space-y-2">
           <Label className="text-xs font-bold text-gray-500 ml-1">{L('Startdatum', 'Start Date')}</Label>
           <div className="relative group">
-            <Input 
-              type="date" 
-              className="h-12 rounded-xl border border-gray-200 bg-gray-50/50 font-medium focus:bg-white transition-all pl-4 text-sm"
+            {/*
+              Hide the native ::-webkit-calendar-picker-indicator so we don't
+              render two calendar glyphs (the browser's gray default + the
+              branded blue Calendar icon). The indicator is kept clickable
+              (opacity 0, not display:none) and stretched to cover the icon
+              area so the system date picker still opens on icon-area clicks.
+            */}
+            <Input
+              type="date"
+              className="h-12 rounded-xl border border-gray-200 bg-gray-50/50 font-medium focus:bg-white transition-all pl-4 pr-10 text-sm [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               value={formData.start_date}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, start_date: e.target.value })}
               required
@@ -158,9 +165,9 @@ export function PerDiemForm({ onSubmit, onCancel, isSubmitting }: PerDiemFormPro
         <div className="space-y-2">
           <Label className="text-xs font-bold text-gray-500 ml-1">{L('Enddatum', 'End Date')}</Label>
           <div className="relative group">
-            <Input 
-              type="date" 
-              className="h-12 rounded-xl border border-gray-200 bg-gray-50/50 font-medium focus:bg-white transition-all pl-4 text-sm"
+            <Input
+              type="date"
+              className="h-12 rounded-xl border border-gray-200 bg-gray-50/50 font-medium focus:bg-white transition-all pl-4 pr-10 text-sm [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               value={formData.end_date}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, end_date: e.target.value })}
               required

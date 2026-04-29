@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslation } from '@/lib/i18n'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,8 @@ interface ReviewManagementProps {
 }
 
 export function ReviewManagement({ initialReviews }: ReviewManagementProps) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => locale === 'de' ? de : en
   const [reviews, setReviews] = useState(initialReviews)
   const [filterRating, setFilterRating] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -55,10 +58,10 @@ export function ReviewManagement({ initialReviews }: ReviewManagementProps) {
   })
 
   const stats = [
-    { label: 'Avg. Rating', value: (reviews.reduce((acc, r) => acc + r.rating, 0) / (reviews.length || 1)).toFixed(1), icon: Star, color: 'text-amber-500' },
-    { label: 'Total Reviews', value: reviews.length, icon: MessageSquare, color: 'text-blue-500' },
-    { label: 'Pending Response', value: reviews.filter(r => !r.admin_response).length, icon: Clock, color: 'text-orange-500' },
-    { label: 'Published', value: reviews.filter(r => r.is_published).length, icon: Eye, color: 'text-emerald-500' },
+    { label: L('Durchschn. Bewertung', 'Avg. Rating'), value: (reviews.reduce((acc, r) => acc + r.rating, 0) / (reviews.length || 1)).toFixed(1), icon: Star, color: 'text-amber-500' },
+    { label: L('Bewertungen gesamt', 'Total Reviews'), value: reviews.length, icon: MessageSquare, color: 'text-blue-500' },
+    { label: L('Ausstehende Antworten', 'Pending Response'), value: reviews.filter(r => !r.admin_response).length, icon: Clock, color: 'text-orange-500' },
+    { label: L('Veröffentlicht', 'Published'), value: reviews.filter(r => r.is_published).length, icon: Eye, color: 'text-emerald-500' },
   ]
 
   const handleUpdateReview = (id: string, updates: any) => {
@@ -91,7 +94,7 @@ export function ReviewManagement({ initialReviews }: ReviewManagementProps) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Search by customer, technician, or content..." 
+            placeholder={L('Suche nach Kunde, Techniker oder Inhalt...', 'Search by customer, technician, or content...')}
             className="pl-10 h-11 rounded-xl bg-zinc-50 border-zinc-100"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -106,12 +109,12 @@ export function ReviewManagement({ initialReviews }: ReviewManagementProps) {
               </div>
             </SelectTrigger>
             <SelectContent className="rounded-xl">
-              <SelectItem value="all">All Stars</SelectItem>
-              <SelectItem value="5">5 Stars</SelectItem>
-              <SelectItem value="4">4 Stars</SelectItem>
-              <SelectItem value="3">3 Stars</SelectItem>
-              <SelectItem value="2">2 Stars</SelectItem>
-              <SelectItem value="1">1 Star</SelectItem>
+              <SelectItem value="all">{L('Alle Sterne', 'All Stars')}</SelectItem>
+              <SelectItem value="5">5 {L('Sterne', 'Stars')}</SelectItem>
+              <SelectItem value="4">4 {L('Sterne', 'Stars')}</SelectItem>
+              <SelectItem value="3">3 {L('Sterne', 'Stars')}</SelectItem>
+              <SelectItem value="2">2 {L('Sterne', 'Stars')}</SelectItem>
+              <SelectItem value="1">1 {L('Stern', 'Star')}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -123,11 +126,11 @@ export function ReviewManagement({ initialReviews }: ReviewManagementProps) {
               </div>
             </SelectTrigger>
             <SelectContent className="rounded-xl">
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="published">Published</SelectItem>
-              <SelectItem value="pending">Hidden/Draft</SelectItem>
-              <SelectItem value="responded">Responded</SelectItem>
-              <SelectItem value="no_response">Needs Response</SelectItem>
+              <SelectItem value="all">{L('Alle Status', 'All Status')}</SelectItem>
+              <SelectItem value="published">{L('Veröffentlicht', 'Published')}</SelectItem>
+              <SelectItem value="pending">{L('Ausgeblendet/Entwurf', 'Hidden/Draft')}</SelectItem>
+              <SelectItem value="responded">{L('Beantwortet', 'Responded')}</SelectItem>
+              <SelectItem value="no_response">{L('Antwort ausstehend', 'Needs Response')}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -136,7 +139,7 @@ export function ReviewManagement({ initialReviews }: ReviewManagementProps) {
             setFilterStatus('all')
             setSearchQuery('')
           }}>
-            Reset
+            {L('Zurücksetzen', 'Reset')}
           </Button>
         </div>
       </div>
@@ -156,7 +159,7 @@ export function ReviewManagement({ initialReviews }: ReviewManagementProps) {
               <div className="mx-auto h-16 w-16 bg-muted flex items-center justify-center rounded-full text-muted-foreground">
                  <MessageSquare className="h-8 w-8" />
               </div>
-              <p className="text-zinc-500 font-medium">No reviews found matching your filters.</p>
+              <p className="text-zinc-500 font-medium">{L('Keine Bewertungen gefunden, die Ihren Filtern entsprechen.', 'No reviews found matching your filters.')}</p>
            </div>
         )}
       </div>

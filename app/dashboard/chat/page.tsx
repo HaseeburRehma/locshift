@@ -15,6 +15,26 @@ import { getOrCreateDirectConversation } from '@/lib/chat/conversations'
 import { Profile, ChatConversation, ChatMember } from '@/lib/types'
 import { X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n'
+
+/**
+ * Supabase PostgrestError uses non-enumerable properties — `console.error(err)`
+ * prints `{}` which is why the original "Failed to start chat: {}" log
+ * was useless. Pull the fields we actually care about into a plain object.
+ */
+function normalizeError(err: any): Record<string, unknown> {
+  if (!err) return { message: 'unknown error' }
+  if (typeof err === 'string') return { message: err }
+  return {
+    message: err.message ?? err.error_description ?? String(err),
+    code: err.code,
+    details: err.details,
+    hint: err.hint,
+    status: err.status,
+    statusText: err.statusText,
+  }
+}
 
 export default function ChatPage() {
   const { user, profile } = useUser()
@@ -22,6 +42,26 @@ export default function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [showContactPicker, setShowContactPicker] = useState(false)
   const router = useRouter()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
+
+  /*
+    Ask for browser notification permission once, the first time the user
+    opens the chat module. We DON'T re-ask if they denied (browser would
+    block us anyway). Granted/denied is sticky per origin so this only
+    actually surfaces a prompt once per user.
+  */
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (typeof Notification === 'undefined') return
+    if (Notification.permission === 'default') {
+      // Tiny delay so we don't fire the prompt before the page paints
+      const t = setTimeout(() => {
+        Notification.requestPermission().catch(() => {})
+      }, 800)
+      return () => clearTimeout(t)
+    }
+  }, [])
 
   const activeConversation = conversations.find((c: ChatConversation) => c.id === activeConversationId)
 
@@ -37,7 +77,10 @@ export default function ChatPage() {
   }
 
   const handleStartDirectChat = async (targetProfile: Profile) => {
-    if (!profile || !profile.organization_id) return
+    if (!profile || !profile.organization_id) {
+      toast.error(L('Profil nicht geladen', 'Profile not loaded'))
+      return
+    }
 
     try {
       const convId = await getOrCreateDirectConversation(
@@ -50,8 +93,17 @@ export default function ChatPage() {
       if (window.innerWidth < 768) {
         router.push(`/dashboard/chat/${convId}`)
       }
-    } catch (error) {
-      console.error('Failed to start chat:', error)
+    } catch (error: any) {
+      // PostgrestError prints as `{}` if logged directly — normalize first
+      // so we can see the real message/code/hint and surface them to the user.
+      const detail = normalizeError(error)
+      console.error('[chat] Failed to start chat:', detail)
+      const userMsg =
+        (detail.message as string) ||
+        (detail.hint as string) ||
+        (detail.code as string) ||
+        L('Chat konnte nicht gestartet werden', 'Failed to start chat')
+      toast.error(userMsg)
     }
   }
 
