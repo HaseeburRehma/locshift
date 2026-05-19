@@ -16,6 +16,7 @@ import {
 import { TimeEntry, TimeEntryFormData } from '@/lib/types'
 import { format } from 'date-fns'
 import { calculateSpesen, DEFAULT_SPESEN_RATES, spesenTierLabel } from '@/lib/spesen'
+import { calculateShiftTimes } from '@/lib/time/shift-hours'
 import { BetriebsstelleSelector } from '@/components/shared/BetriebsstelleSelector'
 import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 import { useTranslation } from '@/lib/i18n'
@@ -35,6 +36,19 @@ interface TimeEntryFormProps {
    * actually flips this surface too.
    */
   locale?: 'de' | 'en'
+  /**
+   * Client CR May 2026 — Admin / dispatcher employee picker.
+   * When this prop is supplied (and non-empty), the form renders an
+   * employee selector at the top so the admin can record / edit a
+   * shift on behalf of any team member. The selected id is passed
+   * back via TimeEntryFormData.employeeId.
+   *
+   * Employees viewing their own form do NOT receive this prop, so the
+   * picker stays hidden for them.
+   */
+  employees?: { id: string; full_name: string }[]
+  /** Pre-select an employee (used on edit, where the row already has one). */
+  defaultEmployeeId?: string
 }
 
 export function TimeEntryForm({
@@ -45,12 +59,15 @@ export function TimeEntryForm({
   spesenRates = DEFAULT_SPESEN_RATES,
   allowPlanned = true,
   locale: localeProp,
+  employees,
+  defaultEmployeeId,
 }: TimeEntryFormProps) {
   // Read from global i18n context so the EN/DE switch in the header
   // actually applies to this form. The optional prop still wins, so
   // any callers that pass `locale` explicitly keep their behaviour.
   const { locale: contextLocale } = useTranslation()
   const locale: 'de' | 'en' = (localeProp ?? contextLocale) as 'de' | 'en'
+  const showEmployeePicker = Array.isArray(employees) && employees.length > 0
   const [formData, setFormData] = useState<TimeEntryFormData>({
     date: initialData?.date || new Date().toISOString().split('T')[0],
     startTime: initialData ? format(new Date(initialData.start_time), 'HH:mm') : '08:00',
@@ -66,6 +83,8 @@ export function TimeEntryForm({
     startLocationId: initialData?.start_location_id ?? null,
     destinationLocationId: initialData?.destination_location_id ?? null,
     isGastfahrt: initialData?.is_gastfahrt ?? false,
+    // Client CR May 2026 — admin entry for other employees
+    employeeId: initialData?.employee_id || defaultEmployeeId || '',
   })
 
   const isEdit = !!initialData
@@ -74,13 +93,17 @@ export function TimeEntryForm({
   const { locations: opLocations, loading: opLocationsLoading } = useOperationalLocations()
 
   // Live Spesen preview — computed from current form values.
+  // Overnight-shift fix (May 2026): use calculateShiftTimes so a shift
+  // like 23:00 → 06:00 previews 7 hrs instead of 0.
   const spesenPreview = (() => {
-    const start = new Date(`${formData.date}T${formData.startTime}:00`)
-    const end = new Date(`${formData.date}T${formData.endTime}:00`)
-    const grossHours = Math.max(0, (end.getTime() - start.getTime()) / 3_600_000)
-    const netHours = Math.max(0, grossHours - (formData.breakMinutes ?? 0) / 60)
-    const amount = calculateSpesen(netHours, !!formData.overnightStay, spesenRates)
-    return { netHours, amount }
+    const shift = calculateShiftTimes(
+      formData.date,
+      formData.startTime,
+      formData.endTime,
+      formData.breakMinutes ?? 0,
+    )
+    const amount = calculateSpesen(shift.netHours, !!formData.overnightStay, spesenRates)
+    return { netHours: shift.netHours, amount, isOvernight: shift.isOvernight }
   })()
 
   const t = (de: string, en: string) => (locale === 'de' ? de : en)
@@ -100,6 +123,41 @@ export function TimeEntryForm({
 
       <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 pb-32">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Employee Selector — admin/dispatcher only ────────────── */}
+            {showEmployeePicker && (
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                  {t('Mitarbeiter', 'Employee')}
+                </label>
+                <Select
+                  value={formData.employeeId || ''}
+                  onValueChange={(val) => setFormData({ ...formData, employeeId: val })}
+                >
+                  <SelectTrigger className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 font-bold px-4 border-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                        <User className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <SelectValue placeholder={t('Mitarbeiter auswählen', 'Select employee')} />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-gray-100 max-h-[320px]">
+                    {employees!.map((e) => (
+                      <SelectItem key={e.id} value={e.id} className="font-bold py-3">
+                        {e.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 ml-1 leading-tight">
+                  {t(
+                    'Admin: Diese Schicht wird für den ausgewählten Mitarbeiter gespeichert.',
+                    'Admin: this shift will be recorded for the selected employee.',
+                  )}
+                </p>
+              </div>
+            )}
+
             {/* Date Field */}
             <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">{t('Datum', 'Date')}</label>
@@ -141,7 +199,7 @@ export function TimeEntryForm({
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                         <Clock className="w-5 h-5 text-blue-600" />
                     </div>
-                    <Input 
+                    <Input
                         type="time"
                         value={formData.startTime}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, startTime: e.target.value })}
@@ -155,7 +213,7 @@ export function TimeEntryForm({
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                         <Clock className="w-5 h-5 text-blue-600" />
                     </div>
-                    <Input 
+                    <Input
                         type="time"
                         value={formData.endTime}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, endTime: e.target.value })}
@@ -163,6 +221,17 @@ export function TimeEntryForm({
                     />
                     </div>
                 </div>
+                {spesenPreview.isOvernight && (
+                  <div className="col-span-2 -mt-1">
+                    <div className="flex items-center gap-2 text-[11px] font-bold text-blue-700 bg-blue-50/70 border border-blue-100 rounded-xl px-3 py-2">
+                      <Moon className="w-4 h-4" />
+                      {t(
+                        `Nachtschicht erkannt — Ende am Folgetag (${spesenPreview.netHours.toFixed(2)} Std.)`,
+                        `Overnight shift detected — ends next day (${spesenPreview.netHours.toFixed(2)} hrs)`,
+                      )}
+                    </div>
+                  </div>
+                )}
             </div>
 
             {/* Select Customer */}

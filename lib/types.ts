@@ -236,6 +236,10 @@ export interface TimeEntryFormData {
   destinationLocationId?: string | null
   // Phase 3 #10 — Gastfahrt
   isGastfahrt?: boolean
+  // Client CR May 2026 — Admin/Dispatcher may enter a shift on behalf
+  // of another employee. When set, the row is inserted with
+  // employee_id = employeeId; ignored on the employee self-entry path.
+  employeeId?: string
 }
 
 export interface TimeAccount {

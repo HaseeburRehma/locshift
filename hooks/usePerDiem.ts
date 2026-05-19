@@ -102,12 +102,18 @@ export function usePerDiem() {
 
       if (error) throw error
 
-      // Notify the employee about the audit result
+      // Notify the employee about the audit result.
+      // Stored DE-canonical; NotificationPanel translates to EN at read
+      // time when the UI locale is English.
       if (perDiem?.employee_id) {
         await sendNotification({
           userId: perDiem.employee_id,
-          title: status === 'approved' ? '✅ Per Diem Approved' : '❌ Per Diem Rejected',
-          message: `Your per diem claim has been ${status}.`,
+          title: status === 'approved'
+            ? '✅ Spesen genehmigt'
+            : '❌ Spesen abgelehnt',
+          message: status === 'approved'
+            ? 'Ihre Spesenabrechnung wurde genehmigt.'
+            : 'Ihre Spesenabrechnung wurde abgelehnt.',
           module: 'plans',
           moduleId: id
         })

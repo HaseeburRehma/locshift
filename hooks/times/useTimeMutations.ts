@@ -5,6 +5,7 @@ import { useUser } from '@/lib/user-context'
 import { actionToasts } from '@/lib/toast/actionToasts'
 import { sendNotification } from '@/lib/notifications/service'
 import { calculateSpesen, DEFAULT_SPESEN_RATES } from '@/lib/spesen'
+import { calculateShiftTimes } from '@/lib/time/shift-hours'
 
 export function useTimeMutations() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -23,9 +24,18 @@ export function useTimeMutations() {
       // Phase 2 #11 — Spesen is computed client-side so the row carries
       // the snapshot value (org rate changes don't retroactively rewrite
       // past entries).
-      const start = new Date(`${data.date}T${data.startTime}:00`).getTime()
-      const end = new Date(`${data.date}T${data.endTime}:00`).getTime()
-      const netHours = Math.max(0, (end - start) / 3_600_000 - (data.breakMinutes ?? 0) / 60)
+      //
+      // Overnight-shift fix (May 2026): use calculateShiftTimes so a
+      // shift like 23:00 → 06:00 is correctly stored with end_time on
+      // the next calendar day (was previously stored same-day, which
+      // made netHours go negative and clamp to 0).
+      const shift = calculateShiftTimes(
+        data.date,
+        data.startTime,
+        data.endTime,
+        data.breakMinutes ?? 0,
+      )
+      const netHours = shift.netHours
       const mealAllowance = calculateSpesen(netHours, !!data.overnightStay, {
         partial: (profile as any)?.organization?.spesen_rate_partial ?? DEFAULT_SPESEN_RATES.partial,
         full: (profile as any)?.organization?.spesen_rate_full ?? DEFAULT_SPESEN_RATES.full,
@@ -35,8 +45,8 @@ export function useTimeMutations() {
         employee_id: profile.id,
         organization_id: profile.organization_id,
         date: data.date,
-        start_time: `${data.date}T${data.startTime}:00`,
-        end_time: `${data.date}T${data.endTime}:00`,
+        start_time: shift.startISO,
+        end_time: shift.endISO,
         break_minutes: data.breakMinutes,
         customer_id: data.customerId || null,
         location: data.location || null,
@@ -94,12 +104,17 @@ export function useTimeMutations() {
 
       actionToasts.timeVerified()
 
-      // Notify the employee their entry was approved
+      // Notify the employee their entry was approved.
+      // Stored DE-canonical; the panel's translateNotification flips to
+      // EN automatically when the UI locale is English.
       if (employeeId) {
+        const dateStr = entryDate ? new Date(entryDate).toLocaleDateString('de-DE') : null
         await sendNotification({
           userId: employeeId,
-          title: '✅ Time Entry Approved',
-          message: `Your time entry${entryDate ? ` for ${new Date(entryDate).toLocaleDateString()}` : ''} has been approved.`,
+          title: '✅ Zeiteintrag genehmigt',
+          message: dateStr
+            ? `Ihr Zeiteintrag vom ${dateStr} wurde genehmigt.`
+            : 'Ihr Zeiteintrag wurde genehmigt.',
           module: 'shifts',
           moduleId: entryId
         })

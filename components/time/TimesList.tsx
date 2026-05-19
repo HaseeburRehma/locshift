@@ -29,6 +29,20 @@ interface TimesListProps {
     employeeName: string | null
   }) => void
   /**
+   * Client CR May 2026 — Admin-only Stundenzettel export.
+   *
+   * Fires when the user taps "Stundenzettel". The handler receives the
+   * SAME filtered entries the list is currently showing plus the active
+   * employee name (must not be null for this flow — UI hides the button
+   * until a specific employee is selected). Page renders the
+   * Stundenzettel PDF using lib/pdf/stundenzettel.
+   */
+  onExportStundenzettel?: (args: {
+    entries: TimeEntry[]
+    employeeId: string
+    employeeName: string
+  }) => void
+  /**
    * Hard-delete a time entry. Only wired by the parent page when the
    * current user is admin / dispatcher; the trash button is hidden for
    * everyone else by checking whether this prop is defined.
@@ -38,7 +52,7 @@ interface TimesListProps {
 
 type FilterStatus = 'All' | 'Planned' | 'Actual' | 'Pending' | 'Approved' | 'Rejected' | 'This Week' | 'This Month'
 
-export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, onConvertPlanned, employees, onExportPdf, onDelete }: TimesListProps) {
+export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, onConvertPlanned, employees, onExportPdf, onExportStundenzettel, onDelete }: TimesListProps) {
   const { locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const dateLocale = locale === 'de' ? deLocale : undefined
@@ -176,6 +190,46 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
               >
                 <Download className="w-4 h-4 mr-2" />
                 {L('PDF exportieren', 'Export PDF')}
+              </Button>
+            )}
+            {/* Client CR May 2026 — Admin-only Stundenzettel button.
+                Only enabled once a single employee is selected so we know
+                whose monthly Stundenzettel to render. */}
+            {isAdminView && onExportStundenzettel && (
+              <Button
+                onClick={() => {
+                  const activeName =
+                    employeeFilter !== 'all'
+                      ? employeeOptions.find(e => e.id === employeeFilter)?.name
+                      : undefined
+                  if (!activeName || employeeFilter === 'all') return
+                  onExportStundenzettel({
+                    entries: filteredEntries,
+                    employeeId: employeeFilter,
+                    employeeName: activeName,
+                  })
+                }}
+                variant="outline"
+                disabled={
+                  filteredEntries.length === 0 || employeeFilter === 'all'
+                }
+                className="font-bold rounded-xl shadow-sm border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-900 hover:border-blue-300 min-w-[160px] px-6 disabled:opacity-50"
+                title={
+                  employeeFilter === 'all'
+                    ? L(
+                        'Bitte einen Mitarbeiter auswählen',
+                        'Select an employee first',
+                      )
+                    : filteredEntries.length === 0
+                      ? L('Keine Einträge zum Exportieren', 'No entries to export')
+                      : L(
+                          'Stundenzettel als PDF herunterladen',
+                          'Download monthly timesheet as PDF',
+                        )
+                }
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {L('Stundenzettel', 'Timesheet')}
               </Button>
             )}
             {canAdd && (

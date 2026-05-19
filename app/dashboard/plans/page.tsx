@@ -140,10 +140,12 @@ function ChangeRequestModal({ plan, onClose }: { plan: Plan; onClose: () => void
     if (!message.trim()) return
     setSending(true)
     try {
+      // Stored DE-canonical; NotificationPanel flips to EN at read time
+      // when the recipient has the UI in English.
       await sendNotification({
         userId: plan.creator_id,
-        title: '🔄 Change Request',
-        message: `${profile?.full_name} requests a change for the shift on ${new Date(plan.start_time).toLocaleDateString('de-DE')}: "${message}"`,
+        title: '🔄 Änderungsanfrage',
+        message: `${profile?.full_name} bittet um eine Änderung der Schicht am ${new Date(plan.start_time).toLocaleDateString('de-DE')}: „${message}"`,
         module: 'plans',
         moduleId: plan.id,
       })

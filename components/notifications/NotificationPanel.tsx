@@ -57,16 +57,40 @@ function translateNotification(title: string, body: string | null | undefined, l
     const reverseTitleMap: Record<string, string> = {
       '🏢 New Customer Added': '🏢 Neuer Kunde angelegt',
       '🏢 New customer added': '🏢 Neuer Kunde angelegt',
+      // Plan / Einsatzplan — cover every variant we've ever shipped
       '✅ Plan Confirmed': '✅ Einsatzplan bestätigt',
       '✅ Plan confirmed': '✅ Einsatzplan bestätigt',
       '✅ Plan Confirmed by Employee': '✅ Einsatzplan vom Mitarbeiter bestätigt',
       '✅ Plan confirmed by employee': '✅ Einsatzplan vom Mitarbeiter bestätigt',
       '❌ Plan Rejected': '❌ Einsatzplan abgelehnt',
       '❌ Plan rejected': '❌ Einsatzplan abgelehnt',
+      // Legacy "Deployment plan" wording — pre-rename historic rows
+      '✅ Deployment plan confirmed': '✅ Einsatzplan bestätigt',
+      '✅ Deployment Plan Confirmed': '✅ Einsatzplan bestätigt',
+      'Deployment plan confirmed':     'Einsatzplan bestätigt',
+      'Deployment Plan Confirmed':     'Einsatzplan bestätigt',
+      '❌ Deployment plan rejected':   '❌ Einsatzplan abgelehnt',
+      '❌ Deployment Plan Rejected':   '❌ Einsatzplan abgelehnt',
+      'Deployment plan rejected':      'Einsatzplan abgelehnt',
+      // Shifts
       '📋 New Shift Assigned': '📋 Neue Schicht zugewiesen',
       '📋 New shift assigned': '📋 Neue Schicht zugewiesen',
       '📋 Shift Updated': '📋 Schicht aktualisiert',
       '📋 Shift updated': '📋 Schicht aktualisiert',
+      // Time entry approvals (added May 2026)
+      '✅ Time Entry Approved': '✅ Zeiteintrag genehmigt',
+      '✅ Time entry approved': '✅ Zeiteintrag genehmigt',
+      '❌ Time Entry Rejected': '❌ Zeiteintrag abgelehnt',
+      '❌ Time entry rejected': '❌ Zeiteintrag abgelehnt',
+      // Per Diem / Spesen approvals
+      '✅ Per Diem Approved': '✅ Spesen genehmigt',
+      '✅ Per diem approved': '✅ Spesen genehmigt',
+      '❌ Per Diem Rejected': '❌ Spesen abgelehnt',
+      '❌ Per diem rejected': '❌ Spesen abgelehnt',
+      // Change request
+      '🔄 Change Request': '🔄 Änderungsanfrage',
+      '🔄 Change request': '🔄 Änderungsanfrage',
+      // Calendar
       '📅 Event Created Successfully': '📅 Termin erfolgreich erstellt',
       '📅 Event created successfully': '📅 Termin erfolgreich erstellt',
       '📅 Event Updated': '📅 Termin aktualisiert',
@@ -99,6 +123,16 @@ function translateNotification(title: string, body: string | null | undefined, l
       .replace(/^Your shift starting (.+?) has been updated\.$/u, 'Ihre Schicht ab $1 wurde aktualisiert.')
       .replace(/^(.+?) has (confirmed|rejected) the shift on (.+?)$/u,
                (_m, who, what, when) => `${who} hat die Schicht am ${when} ${what === 'confirmed' ? 'bestätigt' : 'abgelehnt'}`)
+      // Time entry approval bodies (legacy English form still in DB)
+      .replace(/^Your time entry for (.+?) has been approved\.$/u, 'Ihr Zeiteintrag vom $1 wurde genehmigt.')
+      .replace(/^Your time entry has been approved\.$/u, 'Ihr Zeiteintrag wurde genehmigt.')
+      .replace(/^Your time entry for (.+?) has been rejected\.$/u, 'Ihr Zeiteintrag vom $1 wurde abgelehnt.')
+      // Per Diem bodies
+      .replace(/^Your per diem claim has been approved\.$/u, 'Ihre Spesenabrechnung wurde genehmigt.')
+      .replace(/^Your per diem claim has been rejected\.$/u, 'Ihre Spesenabrechnung wurde abgelehnt.')
+      // Change request body — legacy English form
+      .replace(/^(.+?) requests a change for the shift on (.+?): "(.+)"$/u,
+               (_m, who, when, msg) => `${who} bittet um eine Änderung der Schicht am ${when}: „${msg}"`)
 
     return { title: nextTitle, body: nextBody }
   }
@@ -111,6 +145,15 @@ function translateNotification(title: string, body: string | null | undefined, l
     '❌ Einsatzplan abgelehnt': '❌ Plan rejected',
     '📋 Neue Schicht zugewiesen': '📋 New shift assigned',
     '📋 Schicht aktualisiert': '📋 Shift updated',
+    // Time entry approvals (added May 2026)
+    '✅ Zeiteintrag genehmigt': '✅ Time entry approved',
+    '❌ Zeiteintrag abgelehnt': '❌ Time entry rejected',
+    // Per Diem / Spesen approvals
+    '✅ Spesen genehmigt': '✅ Per diem approved',
+    '❌ Spesen abgelehnt': '❌ Per diem rejected',
+    // Change request
+    '🔄 Änderungsanfrage': '🔄 Change request',
+    // Calendar
     '📅 Termin erfolgreich erstellt': '📅 Event created successfully',
     '📅 Termin aktualisiert': '📅 Event updated',
     '📅 Termin gelöscht': '📅 Event deleted',
@@ -146,6 +189,16 @@ function translateNotification(title: string, body: string | null | undefined, l
     .replace(/^Ihre Schicht ab (.+?) wurde aktualisiert\.$/u, 'Your shift starting $1 has been updated.')
     .replace(/^([^\s]+) hat die Schicht am (.+?) (bestätigt|abgelehnt)$/u,
              (_m, who, when, what) => `${who} has ${what === 'bestätigt' ? 'confirmed' : 'rejected'} the shift on ${when}`)
+    // Time entry approvals (May 2026)
+    .replace(/^Ihr Zeiteintrag vom (.+?) wurde genehmigt\.$/u, 'Your time entry for $1 has been approved.')
+    .replace(/^Ihr Zeiteintrag wurde genehmigt\.$/u, 'Your time entry has been approved.')
+    .replace(/^Ihr Zeiteintrag vom (.+?) wurde abgelehnt\.$/u, 'Your time entry for $1 has been rejected.')
+    // Per Diem / Spesen
+    .replace(/^Ihre Spesenabrechnung wurde genehmigt\.$/u, 'Your per diem claim has been approved.')
+    .replace(/^Ihre Spesenabrechnung wurde abgelehnt\.$/u, 'Your per diem claim has been rejected.')
+    // Change request body
+    .replace(/^(.+?) bittet um eine Änderung der Schicht am (.+?): „(.+)"$/u,
+             (_m, who, when, msg) => `${who} requests a change for the shift on ${when}: "${msg}"`)
 
   return { title: nextTitle, body: nextBody }
 }

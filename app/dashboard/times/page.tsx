@@ -14,8 +14,12 @@ import { useProfiles } from '@/hooks/useProfiles'
 
 import { updateTimeEntryStatus } from '@/app/actions/time-entries'
 import { calculateSpesen, DEFAULT_SPESEN_RATES } from '@/lib/spesen'
+import { calculateShiftTimes } from '@/lib/time/shift-hours'
 // Phase 5 #4/#5/#6 — PDF export from the Time Tracking section itself.
 import { exportWorkingTimePdf, slugify } from '@/lib/pdf/exportPdf'
+// Client CR May 2026 — Stundenzettel PDF (per-employee monthly timesheet
+// mirroring the client's Excel template).
+import { exportStundenzettelPdf } from '@/lib/pdf/stundenzettel'
 import { format } from 'date-fns'
 import { useTranslation } from '@/lib/i18n'
 
@@ -154,12 +158,13 @@ export default function TimesPage() {
       return
     }
 
-    const startDateTime = `${data.date}T${data.startTime}:00`
-    const endDateTime = `${data.date}T${data.endTime}:00`
-
-    const start = new Date(startDateTime).getTime()
-    const end = new Date(endDateTime).getTime()
-    const netHours = Math.max(0, (end - start) / (1000 * 60 * 60) - (data.breakMinutes / 60))
+    // Overnight-shift fix (May 2026) — calculateShiftTimes pushes the
+    // end timestamp to the next day when end < start, so a 23:00 → 06:00
+    // shift now records 7 hours instead of 0.
+    const shift = calculateShiftTimes(data.date, data.startTime, data.endTime, data.breakMinutes)
+    const startDateTime = shift.startISO
+    const endDateTime = shift.endISO
+    const netHours = shift.netHours
 
     // Phase 2 #11 — compute Spesen from org rates (falls back to German defaults).
     const mealAllowance = calculateSpesen(netHours, !!data.overnightStay, {
@@ -167,11 +172,24 @@ export default function TimesPage() {
       full: (profile as any)?.organization?.spesen_rate_full ?? DEFAULT_SPESEN_RATES.full,
     })
 
+    // Client CR May 2026 — Admin/Dispatcher can record a shift for another
+    // employee. The picker on TimeEntryForm sets data.employeeId; for an
+    // employee filling in their own entry, it stays empty and we fall
+    // back to their own auth user id. RLS still enforces (employee_id ==
+    // auth.uid OR caller is admin/dispatcher in org).
+    const targetEmployeeId =
+      canAddManually && data.employeeId ? data.employeeId : user.id
+
+    if (canAddManually && !data.employeeId) {
+      toast.error(L('Bitte einen Mitarbeiter auswählen.', 'Please select an employee.'))
+      return
+    }
+
     const { error } = await supabase
       .from('time_entries')
       .insert({
         organization_id: profile.organization_id,
-        employee_id: user.id,
+        employee_id: targetEmployeeId,
         date: data.date,
         start_time: startDateTime,
         end_time: endDateTime,
@@ -205,38 +223,48 @@ export default function TimesPage() {
   const handleEditSubmit = async (data: TimeEntryFormData) => {
     if (!selectedEntryId || !profile?.organization_id) return
 
-    const startDateTime = `${data.date}T${data.startTime}:00`
-    const endDateTime = `${data.date}T${data.endTime}:00`
-
-    const start = new Date(startDateTime).getTime()
-    const end = new Date(endDateTime).getTime()
-    const netHours = Math.max(0, (end - start) / (1000 * 60 * 60) - (data.breakMinutes / 60))
+    // Overnight-shift fix (May 2026) — same helper as the insert path so
+    // an edit that flips the times into an overnight shift recalculates
+    // correctly.
+    const shift = calculateShiftTimes(data.date, data.startTime, data.endTime, data.breakMinutes)
+    const startDateTime = shift.startISO
+    const endDateTime = shift.endISO
+    const netHours = shift.netHours
 
     const mealAllowance = calculateSpesen(netHours, !!data.overnightStay, {
       partial: (profile as any)?.organization?.spesen_rate_partial ?? DEFAULT_SPESEN_RATES.partial,
       full: (profile as any)?.organization?.spesen_rate_full ?? DEFAULT_SPESEN_RATES.full,
     })
 
+    // Client CR May 2026 — admin / dispatcher may reassign the row to a
+    // different employee through the picker on TimeEntryForm. Employees
+    // never see the picker, so data.employeeId stays empty for them and
+    // we leave the field untouched.
+    const updatePayload: Record<string, unknown> = {
+      date: data.date,
+      start_time: startDateTime,
+      end_time: endDateTime,
+      break_minutes: data.breakMinutes,
+      customer_id: data.customerId || null,
+      location: data.location || null,
+      notes: data.notes || null,
+      net_hours: Number(netHours.toFixed(2)),
+      overnight_stay: !!data.overnightStay,
+      hotel_address: data.hotelAddress || null,
+      meal_allowance: Number(mealAllowance.toFixed(2)),
+      is_planned: !!data.isPlanned,
+      // Phase 3 #1 + #10
+      start_location_id: data.startLocationId ?? null,
+      destination_location_id: data.destinationLocationId ?? null,
+      is_gastfahrt: !!data.isGastfahrt,
+    }
+    if (canAddManually && data.employeeId) {
+      updatePayload.employee_id = data.employeeId
+    }
+
     const { error } = await supabase
       .from('time_entries')
-      .update({
-        date: data.date,
-        start_time: startDateTime,
-        end_time: endDateTime,
-        break_minutes: data.breakMinutes,
-        customer_id: data.customerId || null,
-        location: data.location || null,
-        notes: data.notes || null,
-        net_hours: Number(netHours.toFixed(2)),
-        overnight_stay: !!data.overnightStay,
-        hotel_address: data.hotelAddress || null,
-        meal_allowance: Number(mealAllowance.toFixed(2)),
-        is_planned: !!data.isPlanned,
-        // Phase 3 #1 + #10
-        start_location_id: data.startLocationId ?? null,
-        destination_location_id: data.destinationLocationId ?? null,
-        is_gastfahrt: !!data.isGastfahrt,
-      })
+      .update(updatePayload)
       .eq('id', selectedEntryId)
 
     if (error) {
@@ -315,15 +343,66 @@ export default function TimesPage() {
 
               toast.success(L('PDF heruntergeladen.', 'PDF downloaded.'))
             }}
+            onExportStundenzettel={canAddManually
+              ? ({ entries: filtered, employeeId, employeeName }) => {
+                  // The list passes us the currently-filtered slice. The
+                  // Stundenzettel is always per-employee per-month, so we
+                  // pick the dominant month from the filtered set (the
+                  // most recent date present) and then restrict the rows
+                  // to that month. This guarantees the PDF header and the
+                  // table contents agree even if the active filter spans
+                  // multiple months.
+                  if (filtered.length === 0) {
+                    toast.error(L('Keine Einträge für Stundenzettel.', 'No entries for timesheet.'))
+                    return
+                  }
+                  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date))
+                  const monthKey = (sorted[0].date || '').slice(0, 7) // YYYY-MM
+                  const monthEntries = filtered.filter((e) => (e.date || '').slice(0, 7) === monthKey)
+                  if (monthEntries.length < filtered.length) {
+                    toast.info(L(
+                      `Stundenzettel nur für ${monthKey} — andere Monate ignoriert.`,
+                      `Timesheet limited to ${monthKey} — other months skipped.`,
+                    ))
+                  }
+                  exportStundenzettelPdf({
+                    employeeName,
+                    monthKey,
+                    entries: monthEntries.map((e) => ({
+                      date: e.date,
+                      start_time: e.start_time,
+                      end_time: e.end_time,
+                      break_minutes: e.break_minutes,
+                      net_hours: e.net_hours,
+                      overnight_stay: e.overnight_stay,
+                      meal_allowance: e.meal_allowance,
+                      is_gastfahrt: e.is_gastfahrt,
+                      notes: e.notes,
+                    })),
+                    filenameBase: `Stundenzettel_${slugify(employeeName)}_${monthKey}`,
+                  })
+                  toast.success(L('Stundenzettel heruntergeladen.', 'Timesheet downloaded.'))
+                  void employeeId
+                }
+              : undefined}
           />
         )}
 
         {view === 'add' && (
           <div className="max-w-5xl mx-auto md:bg-white md:rounded-[3rem] md:shadow-2xl md:overflow-hidden md:border md:border-slate-100">
-            <TimeEntryForm 
+            <TimeEntryForm
               onBack={() => setView('list')}
               onSubmit={handleAddSubmit}
               customers={customers}
+              employees={canAddManually
+                ? employeeProfiles
+                    .filter((p) => p && p.id && p.full_name)
+                    .map((p) => ({ id: p.id, full_name: p.full_name }))
+                : undefined}
+              // Admin doesn't get a pre-filled employee — they must explicitly
+              // pick one so they never accidentally log a shift on their own
+              // account when they meant another team member.
+              defaultEmployeeId={undefined}
             />
           </div>
         )}
@@ -340,11 +419,17 @@ export default function TimesPage() {
 
         {view === 'edit' && selectedEntry && (
           <div className="max-w-5xl mx-auto md:bg-white md:rounded-[3rem] md:shadow-2xl md:overflow-hidden md:border md:border-slate-100">
-            <TimeEntryForm 
+            <TimeEntryForm
               initialData={selectedEntry}
               onBack={() => setView('details')}
               onSubmit={handleEditSubmit}
               customers={customers}
+              employees={canAddManually
+                ? employeeProfiles
+                    .filter((p) => p && p.id && p.full_name)
+                    .map((p) => ({ id: p.id, full_name: p.full_name }))
+                : undefined}
+              defaultEmployeeId={selectedEntry.employee_id}
             />
           </div>
         )}
