@@ -172,43 +172,46 @@ export function exportStundenzettelPdf(opts: StundenzettelOptions): void {
   doc.setTextColor(148, 163, 184)
   doc.text(`Erstellt am ${format(new Date(), 'dd.MM.yyyy HH:mm')}`, marginX, 27)
 
-  // ─── Main table (mirrors the client's column order) ─────────────────
+  // ─── Main table — column labels mirror the client's Excel exactly ──
+  // (Source: row 3 of "Orkan Parlar Oktober Stundenzettel.xlsx").
   const headers = [
     'Datum',
     'Wochentag',
-    'Start',
-    'Ende',
-    'Std.',
-    'Spesen €',
-    'Übern.',
-    '25% Zuschlag',
-    '40% Zuschlag',
-    'Sonntag',
-    'Feiertag',
-    'Gastfahrt',
+    'Arbeitszeit (Start)',
+    'Arbeitszeit (Ende)',
+    'Arbeitszeit (Stunden)',
+    'Spesen (€)',
+    'Übernachtung (Ja/Nein)',
+    '25% Zuschlag (Std.)',
+    '40% Zuschlag (Std.)',
+    'Sonntagszuschlag (Std.)',
+    'Feiertagszuschlag (Std.)',
+    'Gastfahrt (Std.)',
   ]
 
   const rows: RowInput[] = enriched.map((r) => [
     fmtDate(r.entry.date),
     weekdayOf(r.entry.date),
-    r.start || '-',
-    r.end ? (r.isOvernight ? `${r.end} (+1)` : r.end) : '-',
-    r.hours.toFixed(2),
+    r.start || '',
+    r.end ? (r.isOvernight ? `${r.end} (+1)` : r.end) : '',
+    r.hours > 0 ? r.hours.toFixed(2) : '',
     (r.entry.meal_allowance ?? 0).toFixed(2),
-    r.entry.overnight_stay ? 'Ja' : 'Nein',
-    r.zuschlag.night25 > 0 ? r.zuschlag.night25.toFixed(2) : '-',
-    r.zuschlag.night40 > 0 ? r.zuschlag.night40.toFixed(2) : '-',
-    r.zuschlag.sunday > 0 ? r.zuschlag.sunday.toFixed(2) : '-',
-    r.zuschlag.holiday > 0 ? r.zuschlag.holiday.toFixed(2) : '-',
-    r.zuschlag.gastfahrt > 0 ? r.zuschlag.gastfahrt.toFixed(2) : '-',
+    // Lowercase "ja"/"nein" to mirror the client's manual sheet
+    r.entry.overnight_stay ? 'ja' : 'nein',
+    r.zuschlag.night25 > 0 ? r.zuschlag.night25.toFixed(2) : '',
+    r.zuschlag.night40 > 0 ? r.zuschlag.night40.toFixed(2) : '',
+    r.zuschlag.sunday > 0 ? r.zuschlag.sunday.toFixed(2) : '',
+    r.zuschlag.holiday > 0 ? r.zuschlag.holiday.toFixed(2) : '',
+    r.zuschlag.gastfahrt > 0 ? r.zuschlag.gastfahrt.toFixed(2) : '',
   ])
 
-  // Totals row matching the bottom Σ row of the Excel
+  // Totals row — mirrors row 35 of the client Excel ("9x ja 9x nein"
+  // annotation in the Übernachtung column, plus SUM() of every other).
   const totalsRow: RowInput = [
     'Σ', '', '', '',
     totalHours.toFixed(2),
     enriched.reduce((s, r) => s + (r.entry.meal_allowance ?? 0), 0).toFixed(2),
-    `${overnightCount}× Ja`,
+    `${overnightCount}x ja  ${noOvernightWorkingDays}x nein`,
     totals.night25.toFixed(2),
     totals.night40.toFixed(2),
     totals.sunday.toFixed(2),
@@ -257,27 +260,26 @@ export function exportStundenzettelPdf(opts: StundenzettelOptions): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const afterTableY = ((doc as any).lastAutoTable?.finalY ?? 100) + 8
 
+  // Summary block — labels and order mirror B36:C49 of the client's
+  // Excel template exactly. The client's spellings ("Speßen",
+  // "STUNDELOHN") are preserved verbatim so the printed report reads
+  // identically to what they hand-fill today.
   const sollHours = targetHours ?? 0
   const summaryRows: RowInput[] = [
-    ['Arbeitstage:',         String(workingDays)],
-    ['Gesamtstunden:',       totalHours.toFixed(2)],
-    ['25% Nachtarbeit:',     totals.night25.toFixed(2)],
-    ['40% Nachtarbeit:',     totals.night40.toFixed(2)],
-    ['Sonntag:',             totals.sunday.toFixed(2)],
-    ['Feiertag:',            totals.holiday.toFixed(2)],
-    ['Gastfahrt:',           totals.gastfahrt.toFixed(2)],
-    ['Spesen 14 € (Tage):',  String(noOvernightWorkingDays)],
-    ['Spesen 28 € (Tage):',  String(overnightCount)],
-    ['Soll:',                sollHours ? `${sollHours} Std.` : '-'],
-    ['Ist:',                 `${totalHours.toFixed(2)} Std.`],
-    [
-      'Differenz:',
-      sollHours
-        ? `${(totalHours - sollHours).toFixed(2)} Std.`
-        : '-',
-    ],
-    ['Stundenlohn:',         hourlyRate ? `${hourlyRate.toFixed(2)} €` : '-'],
-    ['Besonderheit:',        remarks ?? '-'],
+    ['Arbeitstage :',        String(workingDays)],
+    ['Gesamtstunden :',      totalHours.toFixed(2)],
+    ['25% Nachtarbeit :',    totals.night25.toFixed(2)],
+    ['40% Nachtarbeit :',    totals.night40.toFixed(2)],
+    ['Sonntag :',            totals.sunday.toFixed(2)],
+    ['Feiertag :',           totals.holiday.toFixed(2)],
+    ['Gastfahrt :',          totals.gastfahrt.toFixed(2)],
+    ['Besonderheit:',        remarks ?? ''],
+    ['Soll:',                sollHours ? `${sollHours} H` : ''],
+    ['Ist:',                 totalHours.toFixed(2)],
+    ['14 Speßen',            String(noOvernightWorkingDays)],
+    ['28 Speßen',            String(overnightCount)],
+    ['', ''], // visual gap, matches the blank row 48 in the template
+    ['STUNDELOHN ',          hourlyRate ? String(hourlyRate.toFixed(2)) : ''],
   ]
 
   autoTable(doc, {
@@ -291,7 +293,8 @@ export function exportStundenzettelPdf(opts: StundenzettelOptions): void {
       textColor: [30, 41, 59],
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 50, textColor: [71, 85, 105] },
+      // Wider label column to fit "Gesamtstunden :" without wrapping.
+      0: { fontStyle: 'bold', cellWidth: 55, textColor: [71, 85, 105] },
       1: { fontStyle: 'bold', textColor: [15, 23, 42] },
     },
     margin: { left: marginX, right: marginX },
