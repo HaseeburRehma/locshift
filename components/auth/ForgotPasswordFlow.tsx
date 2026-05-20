@@ -36,17 +36,24 @@ export default function ForgotPasswordFlow() {
 
     setLoading(true)
     try {
-      // Two parallel paths supported by Supabase:
-      //   - User clicks the link in the email → /auth/callback?code=... →
-      //     middleware sees must_change_password flag and routes to
-      //     /change-password.
-      //   - User reads the 6-digit OTP from the same email and types it
-      //     here → step 3 below.
-      // Either path lands them with a valid recovery session.
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/change-password`,
+      // We bypass supabase.auth.resetPasswordForEmail because it only sends
+      // ONE of {link, otp} depending on the Supabase project's email
+      // template config. Our custom route calls admin.generateLink server-
+      // side, which returns BOTH the action_link and the 6-digit email_otp,
+      // and dispatches a single custom email containing both via Resend.
+      // Net effect: users can either click the link or type the code in
+      // step 2 below — whichever works.
+      const res = await fetch('/api/auth/send-recovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          redirectTo: '/auth/callback?next=/change-password',
+          locale,
+        }),
       })
-      if (error) throw error
+      const result = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(result.error || 'Failed')
       toast.success(L('Bestätigungscode gesendet!', 'Verification code sent!'))
     } catch (err: any) {
       toast.error(err.message || L('Fehler beim Senden der Zurücksetzungs-Mail', 'Error sending reset email'))
