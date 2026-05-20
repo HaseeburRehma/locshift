@@ -72,7 +72,10 @@ export function TimeEntryForm({
     date: initialData?.date || new Date().toISOString().split('T')[0],
     startTime: initialData ? format(new Date(initialData.start_time), 'HH:mm') : '08:00',
     endTime: initialData?.end_time ? format(new Date(initialData.end_time), 'HH:mm') : '16:00',
-    breakMinutes: initialData?.break_minutes || 30,
+    // Default to 0 minutes — clients reported that 30 was a surprise pre-fill
+    // because most shifts they log are short and don't include a break.
+    // `??` (not `||`) so a genuine 0 from `initialData` isn't replaced.
+    breakMinutes: initialData?.break_minutes ?? 0,
     customerId: initialData?.customer_id || '',
     location: initialData?.location || '',
     notes: initialData?.notes || '',
@@ -185,7 +188,7 @@ export function TimeEntryForm({
                     type="number"
                     value={formData.breakMinutes}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, breakMinutes: parseInt(e.target.value) || 0 })}
-                    placeholder={t('30 Min.', '30 Mins')}
+                    placeholder={t('0 Min.', '0 Mins')}
                     className="h-14 pl-16 rounded-2xl border-gray-100 bg-gray-50/50 font-bold focus:bg-white transition-all border-2"
                     />
                 </div>
@@ -232,6 +235,72 @@ export function TimeEntryForm({
                     </div>
                   </div>
                 )}
+            </div>
+
+            {/* Overnight Stay + Spesen preview — placed directly after the
+                time fields because the decision to stay overnight follows
+                naturally from "when does the shift end?". Previously this
+                lived below Notes/Planned, where employees on shorter
+                screens missed it and every Stundenzettel exported as
+                "nein". */}
+            <div className="md:col-span-2 space-y-4">
+              <label className="flex items-center justify-between p-5 rounded-2xl bg-slate-50/50 border-2 border-gray-100 cursor-pointer hover:bg-slate-50 transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                    <Moon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-gray-900">
+                      {t('Übernachtung', 'Overnight stay')}
+                    </p>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-none mt-0.5">
+                      {t(
+                        `Voller Spesensatz €${spesenRates.full.toFixed(0)}`,
+                        `Full allowance €${spesenRates.full.toFixed(0)}`,
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={!!formData.overnightStay}
+                  onCheckedChange={(v) => setFormData({ ...formData, overnightStay: v })}
+                />
+              </label>
+
+              {formData.overnightStay && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                    {t('Hoteladresse', 'Hotel Address')}
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                      <Hotel className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <Input
+                      value={formData.hotelAddress || ''}
+                      onChange={(e) => setFormData({ ...formData, hotelAddress: e.target.value })}
+                      placeholder={t('Hotel oder Unterkunft', 'Hotel or lodging')}
+                      className="h-14 pl-16 rounded-2xl border-gray-100 bg-gray-50/50 font-bold focus:bg-white transition-all border-2"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between px-5 py-4 rounded-2xl bg-blue-50/50 border border-blue-100">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">
+                    {t('Spesen (Voransicht)', 'Meal Allowance (preview)')}
+                  </p>
+                  <p className="text-[11px] font-semibold text-blue-700/80 mt-0.5">
+                    {spesenTierLabel(spesenPreview.amount, spesenRates, locale)}
+                    {' · '}
+                    {spesenPreview.netHours.toFixed(2)} {t('Std.', 'hrs')}
+                  </p>
+                </div>
+                <p className="text-2xl font-black text-blue-700 tabular-nums">
+                  €{spesenPreview.amount.toFixed(2)}
+                </p>
+              </div>
             </div>
 
             {/* Select Customer */}
@@ -316,67 +385,6 @@ export function TimeEntryForm({
                 </label>
               </div>
             )}
-
-            {/* Overnight Stay + Spesen preview (Phase 2 #11) ──────── */}
-            <div className="md:col-span-2 space-y-4">
-              <label className="flex items-center justify-between p-5 rounded-2xl bg-slate-50/50 border-2 border-gray-100 cursor-pointer hover:bg-slate-50 transition-all">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                    <Moon className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black text-gray-900">
-                      {t('Übernachtung', 'Overnight stay')}
-                    </p>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-none mt-0.5">
-                      {t(
-                        `Voller Spesensatz €${spesenRates.full.toFixed(0)}`,
-                        `Full allowance €${spesenRates.full.toFixed(0)}`,
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={!!formData.overnightStay}
-                  onCheckedChange={(v) => setFormData({ ...formData, overnightStay: v })}
-                />
-              </label>
-
-              {formData.overnightStay && (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
-                    {t('Hoteladresse', 'Hotel Address')}
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                      <Hotel className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <Input
-                      value={formData.hotelAddress || ''}
-                      onChange={(e) => setFormData({ ...formData, hotelAddress: e.target.value })}
-                      placeholder={t('Hotel oder Unterkunft', 'Hotel or lodging')}
-                      className="h-14 pl-16 rounded-2xl border-gray-100 bg-gray-50/50 font-bold focus:bg-white transition-all border-2"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between px-5 py-4 rounded-2xl bg-blue-50/50 border border-blue-100">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">
-                    {t('Spesen (Voransicht)', 'Meal Allowance (preview)')}
-                  </p>
-                  <p className="text-[11px] font-semibold text-blue-700/80 mt-0.5">
-                    {spesenTierLabel(spesenPreview.amount, spesenRates, locale)}
-                    {' · '}
-                    {spesenPreview.netHours.toFixed(2)} {t('Std.', 'hrs')}
-                  </p>
-                </div>
-                <p className="text-2xl font-black text-blue-700 tabular-nums">
-                  €{spesenPreview.amount.toFixed(2)}
-                </p>
-              </div>
-            </div>
 
             {/* Betriebsstellen + Gastfahrt (Phase 3 #1 + #10) ───────── */}
             <div className="md:col-span-2 space-y-4 pt-2">

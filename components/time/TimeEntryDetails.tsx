@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ArrowLeft, Edit2, Clock, User, MapPin, CheckCircle2, FileText, Calendar, MapPinOff, UserCheck } from 'lucide-react'
+import { ArrowLeft, Edit2, Clock, User, MapPin, CheckCircle2, FileText, Calendar, MapPinOff, UserCheck, Moon, Hotel } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -137,6 +137,24 @@ export function TimeEntryDetails({ entry, onBack, onEdit }: TimeEntryDetailsProp
                 icon={<UserCheck className="w-5 h-5 text-violet-600" />}
                 label={L('Fahrtart', 'Trip Type')}
                 value="Gastfahrt (Beifahrer)"
+              />
+            )}
+
+            {/* Übernachtung — surface the flag in the detail view so the user
+                can see at a glance whether the saved entry counts as an
+                overnight stay (drives Spesen + the Stundenzettel column). */}
+            {entry.overnight_stay && (
+              <DetailItem
+                icon={<Moon className="w-5 h-5 text-emerald-600" />}
+                label={L('Übernachtung', 'Overnight stay')}
+                value="Ja"
+              />
+            )}
+            {entry.overnight_stay && entry.hotel_address && (
+              <DetailItem
+                icon={<Hotel className="w-5 h-5 text-emerald-600" />}
+                label={L('Hoteladresse', 'Hotel Address')}
+                value={entry.hotel_address}
               />
             )}
           </div>

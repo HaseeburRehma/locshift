@@ -196,8 +196,20 @@ export function exportStundenzettelPdf(opts: StundenzettelOptions): void {
     r.end ? (r.isOvernight ? `${r.end} (+1)` : r.end) : '',
     r.hours > 0 ? r.hours.toFixed(2) : '',
     (r.entry.meal_allowance ?? 0).toFixed(2),
-    // Lowercase "ja"/"nein" to mirror the client's manual sheet
-    r.entry.overnight_stay ? 'ja' : 'nein',
+    // Highlight Übernachtung "ja" cells so the client can scan them at a
+    // glance — previously the column blended into the rest of the row and
+    // overnights were easy to miss. Pass a cell object instead of a bare
+    // string so jspdf-autotable applies the style only to this cell.
+    r.entry.overnight_stay
+      ? {
+          content: 'ja',
+          styles: {
+            fontStyle: 'bold',
+            textColor: [21, 128, 61],   // emerald-700
+            fillColor: [220, 252, 231], // emerald-100
+          },
+        }
+      : 'nein',
     r.zuschlag.night25 > 0 ? r.zuschlag.night25.toFixed(2) : '',
     r.zuschlag.night40 > 0 ? r.zuschlag.night40.toFixed(2) : '',
     r.zuschlag.sunday > 0 ? r.zuschlag.sunday.toFixed(2) : '',
