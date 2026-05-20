@@ -13,6 +13,7 @@ import { HolidayBonus, Profile, HolidayBonusType } from '@/lib/types'
 import { useHolidayBonus } from '@/hooks/useHolidayBonus'
 import { HolidayBonusForm, holidayBonusTypeLabel } from '@/components/shared/HolidayBonusForm'
 import { exportHolidayBonusPdf, slugify } from '@/lib/pdf/exportPdf'
+import { exportTableToExcel } from '@/lib/excel/exportExcel'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -312,6 +313,43 @@ export default function HolidayBonusPage() {
           >
             <Download className="w-3.5 h-3.5" />
             {locale === 'de' ? 'CSV Export' : 'Export CSV'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl text-xs font-medium gap-1.5 text-gray-600"
+            onClick={() => {
+              if (filteredBonuses.length === 0) {
+                toast.error(locale === 'de' ? 'Keine Daten zum Exportieren.' : 'No data to export.')
+                return
+              }
+              exportTableToExcel({
+                sheetName: locale === 'de' ? 'Urlaubsgeld' : 'HolidayBonus',
+                filename: `holiday_bonuses_${new Date().toISOString().split('T')[0]}`,
+                headers: [
+                  locale === 'de' ? 'Mitarbeiter' : 'Employee',
+                  locale === 'de' ? 'Art' : 'Type',
+                  locale === 'de' ? 'Betrag (€)' : 'Amount (€)',
+                  locale === 'de' ? 'Beschreibung' : 'Description',
+                  locale === 'de' ? 'Auszahlungsdatum' : 'Date Paid',
+                ],
+                rows: filteredBonuses.map(b => [
+                  employeeProfiles[b.employee_id]?.full_name || b.employee_id,
+                  holidayBonusTypeLabel((b.bonus_type ?? 'holiday_pay') as HolidayBonusType, locale),
+                  Number(b.amount.toFixed(2)),
+                  b.notes ?? '',
+                  new Date(b.created_at).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US'),
+                ]),
+                totalsRow: [
+                  locale === 'de' ? 'Summe' : 'Total', '',
+                  Number(filteredBonuses.reduce((s, b) => s + (Number(b.amount) || 0), 0).toFixed(2)),
+                  '', '',
+                ],
+              })
+            }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            {locale === 'de' ? 'Excel' : 'Excel'}
           </Button>
           <Button
             variant="outline"
