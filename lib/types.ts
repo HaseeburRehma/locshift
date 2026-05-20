@@ -44,6 +44,7 @@ export interface Profile {
   avatar_url: string | null
   is_active: boolean
   onboarding_completed: boolean
+  must_change_password?: boolean
   target_hours: number
   working_time_model_id?: string | null
   last_lat: number | null
@@ -275,11 +276,19 @@ export interface PerDiem {
   plan?: Plan
 }
 
+export type HolidayBonusType =
+  | 'holiday_pay'
+  | 'christmas'
+  | 'vacation'
+  | 'performance'
+  | 'other'
+
 export interface HolidayBonus {
   id: string
   organization_id: string
   employee_id: string
   amount: number
+  bonus_type: HolidayBonusType
   period_start: string | null
   period_end: string | null
   notes: string | null

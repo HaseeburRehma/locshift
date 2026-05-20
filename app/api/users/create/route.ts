@@ -74,15 +74,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User created but ID is missing' }, { status: 500 })
     }
 
-    // Update Profile with role and email
+    // Update Profile with role and email; force password change on first login
+    // (Section 5.1 of the requirements).
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
         role,
         full_name: fullName || '',
         email: authUser.user.email,
+        must_change_password: true,
         updated_at: new Date().toISOString()
-      })
+      } as any)
       .eq('id', authUser.user.id)
 
     if (profileError) {

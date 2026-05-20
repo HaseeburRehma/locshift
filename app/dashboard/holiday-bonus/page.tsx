@@ -9,9 +9,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
-import { HolidayBonus, Profile } from '@/lib/types'
+import { HolidayBonus, Profile, HolidayBonusType } from '@/lib/types'
 import { useHolidayBonus } from '@/hooks/useHolidayBonus'
-import { HolidayBonusForm } from '@/components/shared/HolidayBonusForm'
+import { HolidayBonusForm, holidayBonusTypeLabel } from '@/components/shared/HolidayBonusForm'
+import { exportHolidayBonusPdf, slugify } from '@/lib/pdf/exportPdf'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -33,9 +34,16 @@ function exportBonusesCSV(bonuses: HolidayBonus[], profiles: Record<string, Prof
     toast.error(L('Keine Bonusdaten zum Exportieren.', 'No bonuses to export.'))
     return
   }
-  const headers = [L('Mitarbeiter', 'Employee'), L('Betrag', 'Amount'), L('Beschreibung', 'Description'), L('Auszahlungsdatum', 'Date Paid')]
+  const headers = [
+    L('Mitarbeiter', 'Employee'),
+    L('Art', 'Type'),
+    L('Betrag', 'Amount'),
+    L('Beschreibung', 'Description'),
+    L('Auszahlungsdatum', 'Date Paid'),
+  ]
   const rows = bonuses.map(b => [
     profiles[b.employee_id]?.full_name || b.employee_id,
+    holidayBonusTypeLabel((b.bonus_type ?? 'holiday_pay') as HolidayBonusType, locale),
     b.amount.toFixed(2),
     (b.notes || '').replace(/,/g, ';'),
     new Date(b.created_at).toLocaleDateString('de-DE'),
@@ -304,6 +312,32 @@ export default function HolidayBonusPage() {
           >
             <Download className="w-3.5 h-3.5" />
             {locale === 'de' ? 'CSV Export' : 'Export CSV'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl text-xs font-medium gap-1.5 text-gray-600"
+            onClick={() => {
+              if (filteredBonuses.length === 0) {
+                toast.error(locale === 'de' ? 'Keine Daten zum Exportieren.' : 'No data to export.')
+                return
+              }
+              exportHolidayBonusPdf(
+                filteredBonuses.map(b => ({
+                  ...b,
+                  employee_name: employeeProfiles[b.employee_id]?.full_name ?? null,
+                })),
+                {
+                  title: locale === 'de' ? 'Urlaubsgeld' : 'Holiday Bonus',
+                  filename: `holiday_bonuses_${slugify(new Date().toISOString().split('T')[0])}.pdf`,
+                  locale,
+                  bonusTypeLabel: (k) => holidayBonusTypeLabel(k as HolidayBonusType, locale),
+                },
+              )
+            }}
+          >
+            <Download className="w-3.5 h-3.5" />
+            {locale === 'de' ? 'PDF Export' : 'Export PDF'}
           </Button>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>

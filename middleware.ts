@@ -20,6 +20,9 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
 }
 
 const PUBLIC_AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/auth/callback']
+// Authenticated user must still be able to reach /change-password even when
+// must_change_password is TRUE — otherwise they'd loop forever.
+const PASSWORD_CHANGE_ROUTE = '/change-password'
 
 export default async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -74,14 +77,33 @@ export default async function middleware(request: NextRequest) {
   // 6. RBAC & Onboarding Guard (Only for Dashboard/Onboarding routes)
   const isDashboardRoute = pathname.startsWith('/dashboard')
   const isOnboardingRoute = pathname === '/onboarding'
+  const isPasswordChangeRoute = pathname === PASSWORD_CHANGE_ROUTE
 
-  if (isDashboardRoute || isOnboardingRoute) {
+  if (isDashboardRoute || isOnboardingRoute || isPasswordChangeRoute) {
     // Optimization: Only fetch profile if we are in the dashboard/onboarding silo
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, onboarding_completed')
+      .select('role, onboarding_completed, must_change_password')
       .eq('id', user.id)
       .single()
+
+    // Force first-login password change before anything else (Section 5.1).
+    const mustChangePassword = (profile as any)?.must_change_password === true
+    if (mustChangePassword && !isPasswordChangeRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = PASSWORD_CHANGE_ROUTE
+      const redirectResponse = NextResponse.redirect(url)
+      response.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      })
+      return redirectResponse
+    }
+    // If user no longer needs to change the password, kick them off the page.
+    if (!mustChangePassword && isPasswordChangeRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
 
     // Default role logic
     let role = (profile?.role || user.user_metadata?.role || 'employee').toLowerCase()

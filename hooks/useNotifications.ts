@@ -29,7 +29,8 @@ export function useNotifications() {
     if (!user?.id) return
     fetchNotifications()
 
-    // Real-time subscription
+    // Real-time subscription — listen for inserts, updates, and deletes so
+    // mark-as-read and dismiss actions reflect across every open tab.
     const channel = supabase
       .channel(`notifications-${user.id}`)
       .on('postgres_changes', {
@@ -38,12 +39,38 @@ export function useNotifications() {
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
       }, (payload: any) => {
-        setNotifications(prev => [payload.new as Notification, ...prev])
+        setNotifications(prev => {
+          if (prev.some(n => n.id === payload.new.id)) return prev
+          return [payload.new as Notification, ...prev]
+        })
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload: any) => {
+        setNotifications(prev => prev.map(n =>
+          n.id === payload.new.id ? (payload.new as Notification) : n
+        ))
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload: any) => {
+        setNotifications(prev => prev.filter(n => n.id !== payload.old.id))
       })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [user?.id, fetchNotifications, supabase])
+
+  const deleteNotification = async (id: string) => {
+    await supabase.from('notifications').delete().eq('id', id)
+    setNotifications(prev => prev.filter(n => n.id !== id))
+  }
 
   const markAllRead = async () => {
     if (!user?.id) return
@@ -65,11 +92,13 @@ export function useNotifications() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length
 
-  return { 
-    notifications, 
-    loading, 
-    unreadCount, 
-    markAllAsRead: markAllRead, 
-    markAsRead: markRead 
+  return {
+    notifications,
+    loading,
+    unreadCount,
+    markAllAsRead: markAllRead,
+    markAsRead: markRead,
+    deleteNotification,
+    refetch: fetchNotifications,
   }
 }

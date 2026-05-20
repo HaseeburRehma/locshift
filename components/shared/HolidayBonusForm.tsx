@@ -5,8 +5,21 @@ import { Label } from '@/components/ui/label'
 import { Gift, User, Euro, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
-import { Profile } from '@/lib/types'
+import { Profile, HolidayBonusType } from '@/lib/types'
 import { useTranslation } from '@/lib/i18n'
+
+const BONUS_TYPE_LABELS: Record<HolidayBonusType, { de: string; en: string }> = {
+  holiday_pay:  { de: 'Urlaubsgeld',        en: 'Holiday pay' },
+  christmas:    { de: 'Weihnachtsgeld',     en: 'Christmas bonus' },
+  vacation:     { de: 'Urlaubsbonus',       en: 'Vacation bonus' },
+  performance:  { de: 'Leistungsbonus',     en: 'Performance bonus' },
+  other:        { de: 'Sonstiges',          en: 'Other' },
+}
+
+export function holidayBonusTypeLabel(t: HolidayBonusType, locale: string): string {
+  const entry = BONUS_TYPE_LABELS[t] ?? BONUS_TYPE_LABELS.other
+  return locale === 'de' ? entry.de : entry.en
+}
 
 interface HolidayBonusFormProps {
   onSubmit: (data: any) => Promise<boolean>
@@ -22,6 +35,7 @@ export function HolidayBonusForm({ onSubmit, onCancel, isSubmitting }: HolidayBo
   const [formData, setFormData] = useState({
     employee_id: '',
     amount: '',
+    bonus_type: 'holiday_pay' as HolidayBonusType,
     notes: '',
   })
 
@@ -70,6 +84,22 @@ export function HolidayBonusForm({ onSubmit, onCancel, isSubmitting }: HolidayBo
             <option value="">{L('Mitarbeiter auswählen…', 'Select an employee…')}</option>
             {employees.map(emp => (
               <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+            <Gift className="w-3 h-3" /> {L('Art des Bonus', 'Bonus type')}
+          </Label>
+          <select
+            className="w-full h-12 rounded-xl border border-gray-100 bg-gray-50/50 px-4 focus:bg-white transition-all font-bold appearance-none outline-none focus:ring-2 focus:ring-blue-500/10"
+            value={formData.bonus_type}
+            onChange={e => setFormData({ ...formData, bonus_type: e.target.value as HolidayBonusType })}
+            required
+          >
+            {(Object.keys(BONUS_TYPE_LABELS) as HolidayBonusType[]).map(t => (
+              <option key={t} value={t}>{holidayBonusTypeLabel(t, locale)}</option>
             ))}
           </select>
         </div>

@@ -22,6 +22,7 @@ import { sendNotification } from '@/lib/notifications/service'
 import { createClient } from '@/lib/supabase/client'
 import { Printer } from 'lucide-react'
 import { startOfWeek, endOfWeek } from 'date-fns'
+import { exportPlansPdf } from '@/lib/pdf/exportPdf'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -375,7 +376,40 @@ export default function PlansPage() {
               {locale === 'en' ? 'Manage shift assignments and schedules' : 'Schichten und Einsätze verwalten'}
             </p>
           </div>
-          <div className="flex gap-3 flex-shrink-0">
+          <div className="flex gap-3 flex-shrink-0 flex-wrap">
+            <Button
+              variant="outline"
+              className="h-12 rounded-2xl px-4 font-semibold text-sm gap-2 border-gray-200"
+              onClick={() => {
+                if (filteredPlans.length === 0) {
+                  toast.error(locale === 'de' ? 'Keine Daten zum Exportieren.' : 'No data to export.')
+                  return
+                }
+                exportCSV(filteredPlans)
+              }}
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              className="h-12 rounded-2xl px-4 font-semibold text-sm gap-2 border-gray-200"
+              onClick={() => {
+                if (filteredPlans.length === 0) {
+                  toast.error(locale === 'de' ? 'Keine Daten zum Exportieren.' : 'No data to export.')
+                  return
+                }
+                exportPlansPdf(filteredPlans as any, {
+                  title: locale === 'de' ? 'Einsatzpläne' : 'Plans & Schedules',
+                  filename: `plans_${new Date().toISOString().split('T')[0]}.pdf`,
+                  locale,
+                  showEmployee: true,
+                })
+              }}
+            >
+              <Printer className="w-4 h-4" />
+              PDF
+            </Button>
             <Link href="/dashboard/plans/new">
               <Button className="h-12 rounded-2xl px-8 font-bold text-sm shadow-xl shadow-blue-100 bg-[#0064E0] hover:bg-blue-700 gap-2 transition-all hover:scale-[1.02] active:scale-95">
                  <Plus className="w-5 h-5" />
