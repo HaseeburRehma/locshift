@@ -1,6 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { Button } from '@/components/ui/button'
+import { Download } from 'lucide-react'
+import { exportTimeAccountsPdf } from '@/lib/pdf/exportPdf'
+import { toast } from 'sonner'
 import {
   Users,
   Search,
@@ -90,15 +94,44 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
             </h1>
             <p className="text-[13px] text-slate-500">{L('Zeitsalden aller Mitarbeiter überwachen', 'Monitor time balances across your workforce')}</p>
           </div>
-          <div className="relative w-full md:w-72 shrink-0">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder={L('Mitarbeiter suchen…', 'Search employees…')}
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 pl-10 pr-4 text-[13px] font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
-            />
+          <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+            <div className="relative w-full md:w-72">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder={L('Mitarbeiter suchen…', 'Search employees…')}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full h-10 pl-10 pr-4 text-[13px] font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 rounded-xl text-xs font-semibold gap-1.5 border-gray-200 text-gray-600 shrink-0"
+              onClick={() => {
+                if (filtered.length === 0) {
+                  toast.error(L('Keine Mitarbeiter zum Exportieren.', 'No employees to export.'))
+                  return
+                }
+                exportTimeAccountsPdf(
+                  filtered.map(a => ({
+                    full_name:  a.full_name,
+                    target_hours: a.target_hours ?? 0,
+                    actual_hours: a.actual_hours ?? 0,
+                    balance:    a.balance ?? 0,
+                  })) as any,
+                  {
+                    title: L('Zeitkonten-Übersicht', 'Time Account Overview'),
+                    filename: `time_accounts_${new Date().toISOString().split('T')[0]}.pdf`,
+                    locale: locale === 'de' ? 'de' : 'en',
+                  },
+                )
+              }}
+            >
+              <Download className="w-3.5 h-3.5" />
+              PDF
+            </Button>
           </div>
         </div>
 

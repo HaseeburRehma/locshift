@@ -410,8 +410,9 @@ export default function ReportsPage() {
       </div>
 
       {/* ── Date Range + Employee Selector ───────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant={format(dateRange.start, 'M') === format(new Date(), 'M') ? 'default' : 'outline'}
             size="sm"
@@ -440,6 +441,20 @@ export default function ReportsPage() {
             <Calendar className="w-3.5 h-3.5 mr-1.5" />
             {locale === 'de' ? 'Vormonat' : 'Previous Month'}
           </Button>
+          <Button
+            variant={dateRange.start.getTime() === startOfYear(new Date()).getTime() ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              'rounded-lg text-xs font-medium h-9',
+              dateRange.start.getTime() === startOfYear(new Date()).getTime()
+                ? 'bg-gray-900 text-white hover:bg-gray-800'
+                : 'text-gray-600'
+            )}
+            onClick={() => setDateRange({ start: startOfYear(new Date()), end: endOfMonth(new Date()) })}
+          >
+            <Calendar className="w-3.5 h-3.5 mr-1.5" />
+            {locale === 'de' ? 'Aktuelles Jahr' : 'Year-to-date'}
+          </Button>
         </div>
 
         {/* Employee filter (change-request #6) */}
@@ -466,6 +481,38 @@ export default function ReportsPage() {
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
         )}
+        </div>
+
+        {/* Custom date-range row — fully expressive, beats the presets when
+            the report needs an arbitrary window like "Mar 12 – Apr 17". */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            {locale === 'de' ? 'Benutzerdefinierter Zeitraum' : 'Custom range'}
+          </span>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={format(dateRange.start, 'yyyy-MM-dd')}
+              onChange={(e) => {
+                if (!e.target.value) return
+                const start = new Date(e.target.value)
+                setDateRange(prev => ({ ...prev, start }))
+              }}
+              className="h-9 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+            <span className="text-gray-400 text-xs">→</span>
+            <input
+              type="date"
+              value={format(dateRange.end, 'yyyy-MM-dd')}
+              onChange={(e) => {
+                if (!e.target.value) return
+                const end = new Date(e.target.value)
+                setDateRange(prev => ({ ...prev, end }))
+              }}
+              className="h-9 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+          </div>
+        </div>
       </div>
 
       {/* ── Select Report Type ────────────────────────────── */}

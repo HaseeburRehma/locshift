@@ -40,10 +40,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden. Admin/Manager access required.' }, { status: 403 })
     }
 
-    // 3. List all users via admin client
+    // 3. List all users via admin client. `is_active` powers the
+    //    activate/deactivate toggle in the management panel.
     const { data, error } = await adminClient
       .from('profiles')
-      .select('id, full_name, email, role, created_at')
+      .select('id, full_name, email, role, is_active, created_at')
       .order('created_at', { ascending: false })
 
     if (error) {

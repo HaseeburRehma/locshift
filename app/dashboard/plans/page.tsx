@@ -410,6 +410,15 @@ export default function PlansPage() {
               <Printer className="w-4 h-4" />
               PDF
             </Button>
+            <Link href="/dashboard/plans/bulk">
+              <Button
+                variant="outline"
+                className="h-12 rounded-2xl px-4 font-semibold text-sm gap-2 border-gray-200"
+              >
+                <CalendarIcon className="w-4 h-4" />
+                {locale === 'en' ? 'Bulk create' : 'Mehrere'}
+              </Button>
+            </Link>
             <Link href="/dashboard/plans/new">
               <Button className="h-12 rounded-2xl px-8 font-bold text-sm shadow-xl shadow-blue-100 bg-[#0064E0] hover:bg-blue-700 gap-2 transition-all hover:scale-[1.02] active:scale-95">
                  <Plus className="w-5 h-5" />
