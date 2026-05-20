@@ -199,6 +199,71 @@ export function usePlans() {
     return newPlan
   }, [supabase])
 
+  /**
+   * Bulk plan creation — spec §5.3:
+   *   - "Copy plan to multiple days"
+   *   - "Assign same plan to multiple employees"
+   *
+   * Pass `dates` to fan a single template out across days (each entry is a
+   * full start_time/end_time pair so DST/timezone math stays caller-side).
+   * Pass `employeeIds` to fan the same shift out across multiple employees.
+   * The two can be combined, in which case the cartesian product (days x
+   * employees) is created.
+   */
+  const createBulkPlans = useCallback(async (
+    template: Omit<Plan, 'id' | 'created_at' | 'updated_at' | 'employee_id' | 'start_time' | 'end_time'>,
+    args: {
+      dates?: Array<{ start_time: string; end_time: string }>
+      employeeIds?: string[]
+    },
+  ): Promise<Plan[]> => {
+    const dates = args.dates && args.dates.length > 0 ? args.dates : [null]
+    const employees = args.employeeIds && args.employeeIds.length > 0 ? args.employeeIds : [null]
+
+    const rows = dates.flatMap(d =>
+      employees.map(eid => ({
+        ...template,
+        ...(d ? { start_time: d.start_time, end_time: d.end_time } : {}),
+        ...(eid ? { employee_id: eid } : {}),
+      }))
+    ).filter(r => r.employee_id && r.start_time && r.end_time)
+
+    if (rows.length === 0) {
+      throw new Error('Bulk create needs at least one date and one employee')
+    }
+
+    const { data: created, error } = await supabase
+      .from('plans')
+      .insert(rows as any)
+      .select('*, employee:profiles!employee_id(*), customer:customers(*)')
+
+    if (error) {
+      console.error('[usePlans] Bulk create error:', error)
+      throw error
+    }
+
+    const list = (created ?? []) as Plan[]
+    setPlans(prev => [...list, ...prev])
+
+    // Send a single notification per assigned employee (de-duped if a single
+    // employee got multiple days — they don't want 30 emails for one shift
+    // schedule rollout).
+    const seen = new Set<string>()
+    for (const p of list) {
+      if (!p.employee_id || seen.has(p.employee_id)) continue
+      seen.add(p.employee_id)
+      await sendNotification({
+        userId: p.employee_id,
+        title: '📋 Neue Schichten zugewiesen',
+        message: `Ihnen wurden ${list.filter(x => x.employee_id === p.employee_id).length} neue Schicht(en) zugewiesen. Bitte prüfen und bestätigen.`,
+        module: 'plans',
+        moduleId: p.id,
+      })
+    }
+
+    return list
+  }, [supabase])
+
   /** Optimistic delete with zero-delay */
   const deletePlan = useCallback(async (planId: string) => {
     const previous = plans.find(p => p.id === planId)
@@ -216,5 +281,5 @@ export function usePlans() {
     actionToasts.planDeleted()
   }, [plans, supabase])
 
-  return { plans, loading, updatePlanStatus, createPlan, deletePlan, refresh: fetchPlans }
+  return { plans, loading, updatePlanStatus, createPlan, createBulkPlans, deletePlan, refresh: fetchPlans }
 }

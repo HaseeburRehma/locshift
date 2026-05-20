@@ -13,8 +13,15 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
 
+  // Supabase appends ?error= / ?error_code= / ?error_description= when the
+  // link in the email has already been consumed or has expired. Surface
+  // those so the error page can show a useful message instead of a generic
+  // "something went wrong".
+  const supabaseError = searchParams.get('error')
+  const supabaseErrorCode = searchParams.get('error_code')
+  const supabaseErrorDescription = searchParams.get('error_description')
+
   if (code) {
-    // Create the redirect response FIRST so we can attach cookies to it
     const redirectUrl = `${origin}${next}`
     const response = NextResponse.redirect(redirectUrl)
 
@@ -23,12 +30,8 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() {
-            // Read from the incoming request
-            return request.cookies.getAll()
-          },
+          getAll() { return request.cookies.getAll() },
           setAll(cookiesToSet) {
-            // Bug 4 fix: Write to the *response*, not request
             cookiesToSet.forEach(({ name, value, options }) => {
               response.cookies.set(name, value, options)
             })
@@ -38,10 +41,23 @@ export async function GET(request: NextRequest) {
     )
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
-
     if (!error) {
-      return response  // response now has the session cookies attached
+      return response
     }
+    // Fall through to the error page with the Supabase error details.
+    return NextResponse.redirect(
+      `${origin}/auth/auth-code-error?error_code=${encodeURIComponent(error.code ?? 'exchange_failed')}&error_description=${encodeURIComponent(error.message)}`
+    )
+  }
+
+  // Supabase sent us here with explicit error params (most often
+  // otp_expired when the user clicks an already-used reset link).
+  if (supabaseError || supabaseErrorCode) {
+    const params = new URLSearchParams({
+      ...(supabaseErrorCode ? { error_code: supabaseErrorCode } : {}),
+      ...(supabaseErrorDescription ? { error_description: supabaseErrorDescription } : {}),
+    })
+    return NextResponse.redirect(`${origin}/auth/auth-code-error?${params.toString()}`)
   }
 
   return NextResponse.redirect(`${origin}/auth/auth-code-error`)

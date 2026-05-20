@@ -5,7 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Mail, Phone, ChevronRight, CheckCircle2, ChevronLeft } from 'lucide-react'
+import { Mail, ChevronRight, CheckCircle2, ChevronLeft } from 'lucide-react'
 import OtpInput from './OtpInput'
 import PasswordInput from './PasswordInput'
 import { useTranslation } from '@/lib/i18n'
@@ -14,7 +14,6 @@ export default function ForgotPasswordFlow() {
   const { t, locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const [step, setStep] = useState(1) // 1: Verify Identity, 2: OTP, 3: New Password, 4: Success
-  const [method, setMethod] = useState<'email' | 'phone' | null>(null)
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -22,8 +21,8 @@ export default function ForgotPasswordFlow() {
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
-  const handleSelectMethod = (m: 'email' | 'phone') => {
-    setMethod(m)
+  // Treat email entry as the trigger — there's only one method.
+  const handleSelectMethod = () => {
     setStep(2)
     handleSendResetEmail()
   }
@@ -37,10 +36,24 @@ export default function ForgotPasswordFlow() {
 
     setLoading(true)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/forgot-password`,
+      // We bypass supabase.auth.resetPasswordForEmail because it only sends
+      // ONE of {link, otp} depending on the Supabase project's email
+      // template config. Our custom route calls admin.generateLink server-
+      // side, which returns BOTH the action_link and the 6-digit email_otp,
+      // and dispatches a single custom email containing both via Resend.
+      // Net effect: users can either click the link or type the code in
+      // step 2 below — whichever works.
+      const res = await fetch('/api/auth/send-recovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          redirectTo: '/auth/callback?next=/change-password',
+          locale,
+        }),
       })
-      if (error) throw error
+      const result = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(result.error || 'Failed')
       toast.success(L('Bestätigungscode gesendet!', 'Verification code sent!'))
     } catch (err: any) {
       toast.error(err.message || L('Fehler beim Senden der Zurücksetzungs-Mail', 'Error sending reset email'))
@@ -71,7 +84,13 @@ export default function ForgotPasswordFlow() {
     }
   }
 
-  const handleUpdatePassword = async () => {
+  const handleUpdatePassword = async (e?: React.FormEvent) => {
+    e?.preventDefault()  // ← critical: without this the form reloads the
+                         //   page mid-request and the update never lands.
+    if (newPassword.length < 8) {
+      toast.error(L('Passwort muss mindestens 8 Zeichen lang sein', 'Password must be at least 8 characters'))
+      return
+    }
     if (newPassword !== confirmPassword) {
       toast.error(L('Passwörter müssen übereinstimmen', 'Passwords must match'))
       return
@@ -81,6 +100,18 @@ export default function ForgotPasswordFlow() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) throw error
+
+      // Clear must_change_password — admins that triggered the reset set
+      // this flag (see /api/users/[id]/reset-password); a successful self-
+      // service change satisfies it.
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase
+          .from('profiles')
+          .update({ must_change_password: false, updated_at: new Date().toISOString() } as any)
+          .eq('id', user.id)
+      }
+
       setStep(4)
       toast.success(L('Passwort erfolgreich aktualisiert!', 'Password updated successfully!'))
     } catch (err: any) {
@@ -134,7 +165,7 @@ export default function ForgotPasswordFlow() {
             </div>
 
             <button
-              onClick={() => handleSelectMethod('email')}
+              onClick={handleSelectMethod}
               disabled={!email}
               className="w-full h-16 flex items-center justify-between px-4 border-2 border-[#E5E7EB] rounded-xl hover:border-[#0064E0] hover:bg-blue-50/10 transition-all group disabled:opacity-50 active:scale-[0.98]"
             >
@@ -157,6 +188,12 @@ export default function ForgotPasswordFlow() {
             <p className="text-sm text-gray-500 max-w-[280px] mx-auto leading-relaxed">
               {t('auth.otp_validity')}
             </p>
+            <p className="text-xs text-gray-400 max-w-[280px] mx-auto">
+              {L(
+                'Tipp: Sie können stattdessen auch den Link in der E-Mail klicken.',
+                'Tip: you can also just click the link in the email.',
+              )}
+            </p>
           </div>
 
           <form onSubmit={handleVerifyOtp} className="space-y-6">
@@ -170,6 +207,14 @@ export default function ForgotPasswordFlow() {
               {loading ? L('Wird geprüft…', 'Verifying…') : t('auth.continue')}
             </button>
           </form>
+          <button
+            type="button"
+            onClick={handleSendResetEmail}
+            disabled={loading}
+            className="block mx-auto text-sm font-medium text-[#0064E0] hover:underline disabled:opacity-50"
+          >
+            {L('Code erneut senden', 'Resend code')}
+          </button>
         </div>
       )}
 

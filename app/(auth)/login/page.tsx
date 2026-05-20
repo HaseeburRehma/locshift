@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import LoginButtons from '@/components/auth/LoginButtons'
 import { Globe, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, setLoginRemember } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
@@ -36,6 +38,9 @@ export default function LoginPage() {
     if (!email || !password) return
 
     setLoading(true)
+    // Persistence choice must be set BEFORE Supabase writes the session,
+    // otherwise the first write lands in the wrong storage bucket.
+    setLoginRemember(rememberMe)
     const supabase = createClient()
     try {
       console.log('[Login] Attempting sign-in for:', email)
@@ -120,9 +125,9 @@ export default function LoginPage() {
                 <>By signing up, you agree to the <span className="underline cursor-pointer">Privacy Notice</span> &amp; <span className="underline cursor-pointer">Privacy Policy</span></>
               )}
             </p>
-            <button className="text-xs text-white/80 hover:text-white font-medium transition-colors">
+            <Link href="/forgot-password" className="text-xs text-white/80 hover:text-white font-medium transition-colors">
               {L('Probleme bei der Anmeldung?', 'Problems signing in?')}
-            </button>
+            </Link>
           </div>
         </div>
       ) : (
@@ -180,6 +185,23 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-2">
+              <label className="flex items-center gap-2 select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-white/40 bg-white/10 text-[#0064E0] focus:ring-white/50"
+                />
+                <span className="text-[13px] text-white/90">
+                  {L('Angemeldet bleiben', 'Remember me')}
+                </span>
+              </label>
+              <Link href="/forgot-password" className="text-[13px] text-white/90 hover:text-white underline-offset-2 hover:underline">
+                {L('Passwort vergessen?', 'Forgot password?')}
+              </Link>
             </div>
 
             <button

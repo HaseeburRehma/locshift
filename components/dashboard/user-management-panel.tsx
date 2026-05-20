@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { User, Shield, Briefcase, UserCog } from 'lucide-react'
+import { User, Shield, Briefcase, UserCog, KeyRound, PowerOff, Power } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n'
@@ -33,6 +33,57 @@ export function UserManagementPanel() {
       } else {
         const err = await res.json()
         throw new Error(err.error || 'Failed to delete')
+      }
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const toggleActive = async (userId: string, currentActive: boolean) => {
+    setUpdating(userId)
+    try {
+      const res = await fetch(`/api/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !currentActive }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed')
+      }
+      toast.success(!currentActive
+        ? (locale === 'en' ? 'User activated' : 'Benutzer aktiviert')
+        : (locale === 'en' ? 'User deactivated' : 'Benutzer deaktiviert'))
+      mutate()
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const resetPassword = async (userId: string, email?: string) => {
+    if (!email) {
+      toast.error(locale === 'en' ? 'User has no email on file' : 'Keine E-Mail hinterlegt')
+      return
+    }
+    if (!confirm(locale === 'en'
+      ? `Send a password reset email to ${email}? The user will be forced to set a new password on next login.`
+      : `Passwort-Reset an ${email} senden? Der Benutzer muss beim nächsten Login ein neues Passwort setzen.`)) return
+
+    setUpdating(userId)
+    try {
+      const res = await fetch(`/api/users/${userId}/reset-password`, { method: 'POST' })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed')
+      if (result.emailSent) {
+        toast.success(locale === 'en' ? 'Reset email sent' : 'Passwort-Reset-E-Mail gesendet')
+      } else {
+        toast.warning(locale === 'en'
+          ? `Forced password change set, but email failed: ${result.warning ?? 'unknown'}`
+          : `Passwortänderung erzwungen, aber E-Mail-Versand fehlgeschlagen: ${result.warning ?? 'unbekannt'}`)
       }
     } catch (err: any) {
       toast.error(err.message)
@@ -128,8 +179,8 @@ export function UserManagementPanel() {
                       <span className="capitalize">{user.role?.replace('_', ' ') || 'Viewer'}</span>
                     </Badge>
                   </div>
-                  <div className="col-span-4 justify-self-end">
-                    <select 
+                  <div className="col-span-4 justify-self-end flex items-center gap-1 flex-wrap">
+                    <select
                       title={locale === 'en' ? 'Select role' : 'Rolle auswählen'}
                       className="text-sm border rounded-md px-3 py-1.5 bg-slate-50 min-w-[140px]"
                       value={user.role || 'viewer'}
@@ -144,6 +195,30 @@ export function UserManagementPanel() {
                       <option value="partner_admin">{locale === 'en' ? 'Partner Admin' : 'Partner-Administrator'}</option>
                       <option value="partner_agent">{locale === 'en' ? 'Partner Agent' : 'Partner-Agent'}</option>
                     </select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={user.is_active === false
+                        ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 w-8 p-0'
+                        : 'text-orange-600 hover:text-orange-700 hover:bg-orange-50 h-8 w-8 p-0'}
+                      onClick={() => toggleActive(user.id, user.is_active !== false)}
+                      disabled={updating === user.id}
+                      title={user.is_active === false
+                        ? (locale === 'en' ? 'Activate' : 'Aktivieren')
+                        : (locale === 'en' ? 'Deactivate' : 'Deaktivieren')}
+                    >
+                      {user.is_active === false ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 w-8 p-0"
+                      onClick={() => resetPassword(user.id, user.email)}
+                      disabled={updating === user.id}
+                      title={locale === 'en' ? 'Send password reset' : 'Passwort-Reset senden'}
+                    >
+                      <KeyRound className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

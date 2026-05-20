@@ -19,7 +19,10 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/dashboard/holiday-bonus': ['admin', 'dispatcher', 'employee'],
 }
 
-const PUBLIC_AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/auth/callback']
+const PUBLIC_AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/auth/callback', '/auth/auth-code-error']
+// Authenticated user must still be able to reach /change-password even when
+// must_change_password is TRUE — otherwise they'd loop forever.
+const PASSWORD_CHANGE_ROUTE = '/change-password'
 
 export default async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -74,14 +77,30 @@ export default async function middleware(request: NextRequest) {
   // 6. RBAC & Onboarding Guard (Only for Dashboard/Onboarding routes)
   const isDashboardRoute = pathname.startsWith('/dashboard')
   const isOnboardingRoute = pathname === '/onboarding'
+  const isPasswordChangeRoute = pathname === PASSWORD_CHANGE_ROUTE
 
-  if (isDashboardRoute || isOnboardingRoute) {
+  if (isDashboardRoute || isOnboardingRoute || isPasswordChangeRoute) {
     // Optimization: Only fetch profile if we are in the dashboard/onboarding silo
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, onboarding_completed')
+      .select('role, onboarding_completed, must_change_password')
       .eq('id', user.id)
       .single()
+
+    // Force first-login password change before anything else (Section 5.1).
+    // We never "kick off" /change-password — any authenticated user is
+    // allowed to visit it (e.g. arriving via the forgot-password email).
+    // The forced direction only goes ONE way: dashboard → /change-password.
+    const mustChangePassword = (profile as any)?.must_change_password === true
+    if (mustChangePassword && !isPasswordChangeRoute) {
+      const url = request.nextUrl.clone()
+      url.pathname = PASSWORD_CHANGE_ROUTE
+      const redirectResponse = NextResponse.redirect(url)
+      response.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      })
+      return redirectResponse
+    }
 
     // Default role logic
     let role = (profile?.role || user.user_metadata?.role || 'employee').toLowerCase()

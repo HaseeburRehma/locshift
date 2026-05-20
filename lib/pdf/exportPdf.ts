@@ -318,10 +318,73 @@ export function exportPerDiemPdf(
   exportTableToPdf({ title, subtitle, filename, headers, rows, totalsRow, locale })
 }
 
+type PlanRowLike = {
+  start_time: string
+  end_time: string
+  status: string
+  location?: string | null
+  notes?: string | null
+  employee?: { full_name?: string | null } | null
+  customer?: { name?: string | null } | null
+}
+
+export function exportPlansPdf(
+  plans: PlanRowLike[],
+  args: {
+    title: string
+    subtitle?: string
+    filename: string
+    locale?: 'de' | 'en'
+    showEmployee?: boolean
+  },
+): void {
+  const { title, subtitle, filename, locale = 'de', showEmployee = true } = args
+
+  const headers = locale === 'de'
+    ? ['Datum', ...(showEmployee ? ['Mitarbeiter'] : []), 'Kunde', 'Start', 'Ende', 'Std.', 'KW', 'Ort', 'Status']
+    : ['Date',  ...(showEmployee ? ['Employee']    : []), 'Customer', 'Start', 'End', 'Hrs.', 'CW', 'Location', 'Status']
+
+  // Plain integer ISO week. We avoid `date-fns/getISOWeek` to keep this lib
+  // dependency-free of locale-aware calendar logic.
+  const isoWeek = (d: Date): number => {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+    const day = t.getUTCDay() || 7
+    t.setUTCDate(t.getUTCDate() + 4 - day)
+    const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1))
+    return Math.ceil((((t.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7)
+  }
+
+  const rows: RowInput[] = plans.map(p => {
+    const start = new Date(p.start_time)
+    const end = new Date(p.end_time)
+    const hours = (end.getTime() - start.getTime()) / 3_600_000
+    const row: (string | number)[] = [safeDate(p.start_time)]
+    if (showEmployee) row.push(p.employee?.full_name ?? '-')
+    row.push(
+      p.customer?.name ?? '-',
+      safeTime(p.start_time),
+      safeTime(p.end_time),
+      hours.toFixed(2),
+      `KW ${isoWeek(start)}`,
+      p.location ?? '-',
+      p.status,
+    )
+    return row
+  })
+
+  exportTableToPdf({
+    title, subtitle, filename, headers, rows,
+    orientation: 'landscape',
+    locale,
+  })
+}
+
 type HolidayBonusRowLike = {
   created_at: string
   employee_id: string
+  employee_name?: string | null
   amount: number | null
+  bonus_type?: string | null
   period_start?: string | null
   period_end?: string | null
   notes?: string | null
@@ -329,17 +392,25 @@ type HolidayBonusRowLike = {
 
 export function exportHolidayBonusPdf(
   bonuses: HolidayBonusRowLike[],
-  args: { title: string; subtitle?: string; filename: string; locale?: 'de' | 'en' },
+  args: {
+    title: string
+    subtitle?: string
+    filename: string
+    locale?: 'de' | 'en'
+    /** Optional translator for bonus_type values (Urlaubsgeld, Weihnachtsgeld, ...). */
+    bonusTypeLabel?: (key: string) => string
+  },
 ): void {
-  const { title, subtitle, filename, locale = 'de' } = args
+  const { title, subtitle, filename, locale = 'de', bonusTypeLabel } = args
 
   const headers = locale === 'de'
-    ? ['Auszahlungsdatum', 'Mitarbeiter-ID', 'Betrag', 'Zeitraum von', 'Zeitraum bis', 'Notizen']
-    : ['Paid on', 'Employee ID', 'Amount', 'Period start', 'Period end', 'Notes']
+    ? ['Auszahlungsdatum', 'Mitarbeiter', 'Art', 'Betrag', 'Zeitraum von', 'Zeitraum bis', 'Notizen']
+    : ['Paid on',           'Employee',    'Type', 'Amount', 'Period start', 'Period end', 'Notes']
 
   const rows: RowInput[] = bonuses.map(b => [
     safeDate(b.created_at),
-    b.employee_id,
+    b.employee_name ?? b.employee_id,
+    bonusTypeLabel && b.bonus_type ? bonusTypeLabel(b.bonus_type) : (b.bonus_type ?? '-'),
     (b.amount ?? 0).toFixed(2),
     b.period_start ? safeDate(b.period_start) : '-',
     b.period_end ? safeDate(b.period_end) : '-',
@@ -348,7 +419,7 @@ export function exportHolidayBonusPdf(
 
   const totalAmount = bonuses.reduce((s, b) => s + (b.amount ?? 0), 0)
   const sumLabel = locale === 'de' ? 'Summe' : 'Total'
-  const totalsRow: RowInput = [sumLabel, '', totalAmount.toFixed(2), '', '', '']
+  const totalsRow: RowInput = [sumLabel, '', '', totalAmount.toFixed(2), '', '', '']
 
   exportTableToPdf({ title, subtitle, filename, headers, rows, totalsRow, locale })
 }

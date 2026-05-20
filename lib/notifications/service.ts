@@ -8,35 +8,46 @@ export interface CreateNotificationParams {
   message: string
   module: NotificationModule
   moduleId?: string
+  /**
+   * Skip the email leg. Useful for low-priority events (e.g. chat pings where
+   * the user is already active in the UI). Defaults to false — email is sent.
+   */
+  skipEmail?: boolean
 }
 
 /**
  * Central service for dispatching notifications across the LokShift platform.
- * Integrates database persistence with email alerting foundations.
+ *
+ * 1) Persists an in-app row in `notifications` (always)
+ * 2) Best-effort email via /api/notifications/email (server-side Resend)
+ *
+ * Both legs are independent: an email failure does NOT roll back the in-app
+ * notification, and vice versa. Failures are logged but do not throw —
+ * callers should not rely on email delivery for correctness.
  */
 export async function sendNotification({
   userId,
   title,
   message,
   module,
-  moduleId
+  moduleId,
+  skipEmail,
 }: CreateNotificationParams) {
   const supabase = createClient()
 
-  console.log(`[NotificationService] Dispatching alert to ${userId}: ${title}`)
-
   try {
-    // 1. Persist to Database (In-App Alert)
+    // 1. Persist to Database (In-App Alert).
+    // The `notifications` table column is `body`, not `message` — we accept
+    // `message` in the params for caller ergonomics but persist as `body`.
     const { error: dbError } = await supabase
       .from('notifications')
       .insert({
         user_id: userId,
         title,
-        message,
-        module_type: module,
-        module_id: moduleId,
+        body: message,
+        type: module,
         is_read: false
-      })
+      } as any)
 
     if (dbError) {
       console.error('[NotificationService] Database persistence error:', {
@@ -48,10 +59,17 @@ export async function sendNotification({
       throw dbError
     }
 
-    // 2. Mock Email Dispatch (Foundation for Resend/SendGrid)
-    // In production, this would call an API like Resend.
-    console.log(`[NotificationService] Sending Email to ${userId}...`)
-    console.log(`Subject: ${title}\nBody: ${message}\n---`)
+    // 2. Fire-and-forget email via the server route. We do NOT await because
+    //    the caller (often a UI action) should not block on SMTP latency.
+    if (!skipEmail && typeof window !== 'undefined') {
+      fetch('/api/notifications/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, subject: title, message }),
+      }).catch(err => {
+        console.warn('[NotificationService] Email dispatch failed (non-fatal):', err)
+      })
+    }
 
     return { success: true }
   } catch (error) {

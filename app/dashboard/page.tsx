@@ -45,13 +45,13 @@ export default function DashboardPage() {
   if (!profile) return null
 
   if (isAdmin || isDispatcher) {
-    return <AdminDashboard profile={profile} locale={locale} stats={stats} loading={loading} />
+    return <AdminDashboard profile={profile} locale={locale} stats={stats} loading={loading} isDispatcher={isDispatcher && !isAdmin} />
   }
 
   return <EmployeeDashboard profile={profile} locale={locale} stats={stats} loading={loading} />
 }
 
-function AdminDashboard({ profile, locale, stats, loading }: { profile: any, locale: string, stats: any, loading: boolean }) {
+function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { profile: any, locale: string, stats: any, loading: boolean, isDispatcher?: boolean }) {
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const hr = L('Std.', 'h')
   if (loading || !stats) {
@@ -89,16 +89,12 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
         <StatItem label={L('Heutige Schichten', "Today's shifts")} value={stats.activeShiftsCount || 0} />
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions — Dispatchers see operational quick-actions per spec
+          §5.2: create new plan, view time entries, generate quick report.
+          Admins additionally see "Add user". */}
       <div className="space-y-6">
         <h3 className="text-sm font-bold text-slate-900 tracking-tight">{L('Schnellaktionen', 'Quick Actions')}</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          <QuickActionItem
-            icon={<Clock className="w-8 h-8" />}
-            label={L('Zeiteintrag hinzufügen', 'Add Time Entry')}
-            href="/dashboard/times"
-            color="bg-blue-50 text-blue-600"
-          />
           <QuickActionItem
             icon={<Calendar className="w-8 h-8" />}
             label={L('Einsatzplan erstellen', 'Create Plan')}
@@ -106,19 +102,63 @@ function AdminDashboard({ profile, locale, stats, loading }: { profile: any, loc
             color="bg-indigo-50 text-indigo-600"
           />
           <QuickActionItem
+            icon={<Plus className="w-8 h-8" />}
+            label={L('Mehrere Pläne', 'Bulk plans')}
+            href="/dashboard/plans/bulk"
+            color="bg-purple-50 text-purple-600"
+          />
+          <QuickActionItem
+            icon={<Clock className="w-8 h-8" />}
+            label={L('Zeiten ansehen', 'View time entries')}
+            href="/dashboard/times"
+            color="bg-blue-50 text-blue-600"
+          />
+          <QuickActionItem
             icon={<ArrowUpRight className="w-8 h-8" />}
             label={L('Bericht erstellen', 'Generate Report')}
             href="/dashboard/reports"
             color="bg-sky-50 text-sky-600"
           />
-          <QuickActionItem
-            icon={<Users className="w-8 h-8" />}
-            label={L('Benutzer anlegen', 'Add User')}
-            href="/dashboard/users"
-            color="bg-cyan-50 text-cyan-600"
-          />
+          {!isDispatcher && (
+            <QuickActionItem
+              icon={<Users className="w-8 h-8" />}
+              label={L('Benutzer anlegen', 'Add User')}
+              href="/dashboard/users"
+              color="bg-cyan-50 text-cyan-600"
+            />
+          )}
         </div>
       </div>
+
+      {/* Employees on duty today — spec §5.2 dispatcher dashboard requirement.
+          The data is already available through stats.activeShifts (anyone
+          clocked in right now). */}
+      {(stats.activeShifts && stats.activeShifts.length > 0) && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+              {L('Heute im Einsatz', 'On duty today')}
+            </h3>
+            <Link href="/dashboard/live" className="text-xs font-bold text-blue-600 hover:underline">
+              {L('Live-Ansicht', 'Live view')}
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stats.activeShifts.slice(0, 6).map((s: any) => (
+              <div key={s.id ?? `${s.employee_id}-${s.start_time}`}
+                   className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{s.employee?.full_name ?? L('Mitarbeiter', 'Employee')}</p>
+                  <p className="text-[11px] font-medium text-slate-400 truncate">
+                    {s.customer?.name ?? L('Kein Kunde', 'No customer')} · {L('seit', 'since')} {format(new Date(s.start_time), 'HH:mm')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Live Operations Map */}
       <LiveOperationsMap 

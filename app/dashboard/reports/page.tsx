@@ -39,6 +39,7 @@ import {
   exportHolidayBonusPdf,
   slugify,
 } from '@/lib/pdf/exportPdf'
+import { exportTableToExcel } from '@/lib/excel/exportExcel'
 
 // ─── Types ──────────────────────────────────────────────────
 interface RecentReport {
@@ -46,7 +47,7 @@ interface RecentReport {
   title: string
   generatedAt: string
   scope: string
-  format: 'csv' | 'pdf'
+  format: 'csv' | 'pdf' | 'xls'
 }
 
 type ReportTypeId = 'working-time' | 'time-accounts' | 'per-diem' | 'holiday-bonus'
@@ -145,7 +146,7 @@ export default function ReportsPage() {
     return `${baseSlug}${suffix}`
   }, [selectedEmployeeName, periodFilenameStamp])
 
-  const trackReport = useCallback((title: string, fmt: 'csv' | 'pdf') => {
+  const trackReport = useCallback((title: string, fmt: 'csv' | 'pdf' | 'xls') => {
     const scope = selectedEmployeeName
       ? selectedEmployeeName
       : (locale === 'de' ? 'Alle Mitarbeiter' : 'All Employees')
@@ -202,13 +203,67 @@ export default function ReportsPage() {
     toast.success(locale === 'de' ? 'Bericht wurde heruntergeladen.' : 'Report downloaded successfully.')
   }, [warnIfEmpty, trackReport, locale])
 
+  // ─── Excel Download ─────────────────────────────────────
+  // Mirrors downloadCSV but routes through the HTML-Excel exporter.
+  // Same `data` shape (array of plain objects keyed by header) — keeps the
+  // call sites identical to the CSV path so adding Excel is a one-liner.
+  const downloadExcel = useCallback((data: any[], filename: string, reportTitle: string) => {
+    if (warnIfEmpty(data.length)) return
+    exportTableToExcel({
+      sheetName: reportTitle.slice(0, 31),
+      filename,
+      headers: Object.keys(data[0]),
+      rows: data.map(row => Object.values(row) as any),
+    })
+    trackReport(reportTitle, 'xls')
+    toast.success(locale === 'de' ? 'Bericht wurde heruntergeladen.' : 'Report downloaded successfully.')
+  }, [warnIfEmpty, trackReport, locale])
+
   // ─── Report type definitions ─────────────────────────────
+  // Each report exposes the same shape: a CSV row array (used for both CSV
+  // and Excel since the format is identical) and a PDF callback.
+  const workingTimeRows = () => filteredData.times.map(e => ({
+    date: e.date,
+    employee: e.employee?.full_name || '',
+    start: e.start_time,
+    end: e.end_time,
+    net_hours: e.net_hours,
+    verified: e.is_verified ? 'Yes' : 'No',
+    notes: e.notes || '',
+  }))
+  const timeAccountRows = () => filteredData.accounts.map(acc => ({
+    employee: acc.full_name,
+    target_hours: acc.target_hours,
+    actual_hours: Number(acc.actual_hours.toFixed(2)),
+    balance: Number(acc.balance.toFixed(2)),
+    status: acc.balance >= 0 ? 'Positive' : 'Deficit',
+  }))
+  const perDiemRows = () => filteredData.perDiems.map(pd => ({
+    date: pd.date,
+    employee_id: pd.employee_id,
+    country: pd.country,
+    days: pd.num_days,
+    rate: pd.rate,
+    amount: pd.amount,
+    status: pd.status,
+  }))
+  const bonusRows = () => filteredData.bonuses.map(b => ({
+    date_paid: b.created_at,
+    employee_id: b.employee_id,
+    bonus_type: (b as any).bonus_type ?? '',
+    amount: b.amount,
+    period_start: b.period_start || '',
+    period_end: b.period_end || '',
+    notes: b.notes || '',
+  }))
+
   const reportTypes: {
     id: ReportTypeId
     title: string
     subtitle: string
     icon: React.ElementType
     onExportCSV: () => void
+    onExportExcel: () => void
     onExportPDF: () => void
   }[] = [
     {
@@ -217,15 +272,12 @@ export default function ReportsPage() {
       subtitle: locale === 'de' ? 'Stunden pro Mitarbeiter & Zeitraum' : 'Hours per employee & period',
       icon: Clock,
       onExportCSV: () => downloadCSV(
-        filteredData.times.map(e => ({
-          date: e.date,
-          employee: e.employee?.full_name || '',
-          start: e.start_time,
-          end: e.end_time,
-          net_hours: e.net_hours,
-          verified: e.is_verified ? 'Yes' : 'No',
-          notes: e.notes || '',
-        })),
+        workingTimeRows(),
+        makeFilename('arbeitszeitbericht'),
+        locale === 'de' ? 'Arbeitszeitbericht' : 'Working Time Report'
+      ),
+      onExportExcel: () => downloadExcel(
+        workingTimeRows(),
         makeFilename('arbeitszeitbericht'),
         locale === 'de' ? 'Arbeitszeitbericht' : 'Working Time Report'
       ),
@@ -249,13 +301,12 @@ export default function ReportsPage() {
       subtitle: locale === 'de' ? 'Überstunden & Kontostatus' : 'Overtime & account status',
       icon: BarChart3,
       onExportCSV: () => downloadCSV(
-        filteredData.accounts.map(acc => ({
-          employee: acc.full_name,
-          target_hours: acc.target_hours,
-          actual_hours: Number(acc.actual_hours.toFixed(2)),
-          balance: Number(acc.balance.toFixed(2)),
-          status: acc.balance >= 0 ? 'Positive' : 'Deficit',
-        })),
+        timeAccountRows(),
+        makeFilename('zeitkonto-salden'),
+        locale === 'de' ? 'Zeitkonto-Salden' : 'Time Account Balances'
+      ),
+      onExportExcel: () => downloadExcel(
+        timeAccountRows(),
         makeFilename('zeitkonto-salden'),
         locale === 'de' ? 'Zeitkonto-Salden' : 'Time Account Balances'
       ),
@@ -278,15 +329,12 @@ export default function ReportsPage() {
       subtitle: locale === 'de' ? 'Reisekostenpauschalen nach Zeitraum' : 'Travel allowances by period',
       icon: Wallet,
       onExportCSV: () => downloadCSV(
-        filteredData.perDiems.map(pd => ({
-          date: pd.date,
-          employee_id: pd.employee_id,
-          country: pd.country,
-          days: pd.num_days,
-          rate: pd.rate,
-          amount: pd.amount,
-          status: pd.status,
-        })),
+        perDiemRows(),
+        makeFilename('spesenbericht'),
+        locale === 'de' ? 'Spesenbericht' : 'Per Diem Report'
+      ),
+      onExportExcel: () => downloadExcel(
+        perDiemRows(),
         makeFilename('spesenbericht'),
         locale === 'de' ? 'Spesenbericht' : 'Per Diem Report'
       ),
@@ -309,14 +357,12 @@ export default function ReportsPage() {
       subtitle: locale === 'de' ? 'Zusammenfassung der Bonuszahlungen' : 'Bonus payments summary',
       icon: Gift,
       onExportCSV: () => downloadCSV(
-        filteredData.bonuses.map(b => ({
-          date_paid: b.created_at,
-          employee_id: b.employee_id,
-          amount: b.amount,
-          period_start: b.period_start || '',
-          period_end: b.period_end || '',
-          notes: b.notes || '',
-        })),
+        bonusRows(),
+        makeFilename('urlaubsgeld-bericht'),
+        locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report'
+      ),
+      onExportExcel: () => downloadExcel(
+        bonusRows(),
         makeFilename('urlaubsgeld-bericht'),
         locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report'
       ),
@@ -410,8 +456,9 @@ export default function ReportsPage() {
       </div>
 
       {/* ── Date Range + Employee Selector ───────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant={format(dateRange.start, 'M') === format(new Date(), 'M') ? 'default' : 'outline'}
             size="sm"
@@ -440,6 +487,20 @@ export default function ReportsPage() {
             <Calendar className="w-3.5 h-3.5 mr-1.5" />
             {locale === 'de' ? 'Vormonat' : 'Previous Month'}
           </Button>
+          <Button
+            variant={dateRange.start.getTime() === startOfYear(new Date()).getTime() ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              'rounded-lg text-xs font-medium h-9',
+              dateRange.start.getTime() === startOfYear(new Date()).getTime()
+                ? 'bg-gray-900 text-white hover:bg-gray-800'
+                : 'text-gray-600'
+            )}
+            onClick={() => setDateRange({ start: startOfYear(new Date()), end: endOfMonth(new Date()) })}
+          >
+            <Calendar className="w-3.5 h-3.5 mr-1.5" />
+            {locale === 'de' ? 'Aktuelles Jahr' : 'Year-to-date'}
+          </Button>
         </div>
 
         {/* Employee filter (change-request #6) */}
@@ -466,6 +527,38 @@ export default function ReportsPage() {
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
         )}
+        </div>
+
+        {/* Custom date-range row — fully expressive, beats the presets when
+            the report needs an arbitrary window like "Mar 12 – Apr 17". */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            {locale === 'de' ? 'Benutzerdefinierter Zeitraum' : 'Custom range'}
+          </span>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={format(dateRange.start, 'yyyy-MM-dd')}
+              onChange={(e) => {
+                if (!e.target.value) return
+                const start = new Date(e.target.value)
+                setDateRange(prev => ({ ...prev, start }))
+              }}
+              className="h-9 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+            <span className="text-gray-400 text-xs">→</span>
+            <input
+              type="date"
+              value={format(dateRange.end, 'yyyy-MM-dd')}
+              onChange={(e) => {
+                if (!e.target.value) return
+                const end = new Date(e.target.value)
+                setDateRange(prev => ({ ...prev, end }))
+              }}
+              className="h-9 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+          </div>
+        </div>
       </div>
 
       {/* ── Select Report Type ────────────────────────────── */}
@@ -517,6 +610,18 @@ export default function ReportsPage() {
                       >
                         <FileText className="w-3 h-3" />
                         CSV
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-lg text-xs font-medium gap-1.5 text-gray-600"
+                        onClick={() => {
+                          report.onExportExcel()
+                          setActiveReport(null)
+                        }}
+                      >
+                        <FileText className="w-3 h-3" />
+                        Excel
                       </Button>
                       <Button
                         size="sm"
