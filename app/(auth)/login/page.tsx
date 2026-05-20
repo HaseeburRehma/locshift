@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import LoginButtons from '@/components/auth/LoginButtons'
 import { Globe, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
@@ -124,9 +125,9 @@ export default function LoginPage() {
                 <>By signing up, you agree to the <span className="underline cursor-pointer">Privacy Notice</span> &amp; <span className="underline cursor-pointer">Privacy Policy</span></>
               )}
             </p>
-            <button className="text-xs text-white/80 hover:text-white font-medium transition-colors">
+            <Link href="/forgot-password" className="text-xs text-white/80 hover:text-white font-medium transition-colors">
               {L('Probleme bei der Anmeldung?', 'Problems signing in?')}
-            </button>
+            </Link>
           </div>
         </div>
       ) : (
@@ -186,17 +187,22 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <label className="flex items-center gap-2 select-none cursor-pointer mt-2">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-white/40 bg-white/10 text-[#0064E0] focus:ring-white/50"
-              />
-              <span className="text-[13px] text-white/90">
-                {L('Angemeldet bleiben', 'Remember me')}
-              </span>
-            </label>
+            <div className="flex items-center justify-between mt-2">
+              <label className="flex items-center gap-2 select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-white/40 bg-white/10 text-[#0064E0] focus:ring-white/50"
+                />
+                <span className="text-[13px] text-white/90">
+                  {L('Angemeldet bleiben', 'Remember me')}
+                </span>
+              </label>
+              <Link href="/forgot-password" className="text-[13px] text-white/90 hover:text-white underline-offset-2 hover:underline">
+                {L('Passwort vergessen?', 'Forgot password?')}
+              </Link>
+            </div>
 
             <button
               type="submit"
