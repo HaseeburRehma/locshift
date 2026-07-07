@@ -35,7 +35,9 @@ export async function sendEmailViaResend(args: SendEmailArgs): Promise<{ success
     return { success: false, error: 'RESEND_API_KEY not configured' }
   }
 
-  const from = process.env.RESEND_FROM_ADDRESS || 'Lokshift <noreply@lokshift.app>'
+  // Sender must be @lokshift.de — that's the verified Resend domain.
+  // Override in Vercel env if you need a different verified sender.
+  const from = process.env.RESEND_FROM_ADDRESS || 'LokShift <noreply@lokshift.de>'
 
   try {
     const { data, error } = await resend.emails.send({
