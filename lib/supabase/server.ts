@@ -9,6 +9,9 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       global: {
+        // Tells the database this is a current client (see time_entries_normalize:
+        // requests without it are treated as the previous app version).
+        headers: { 'x-lokshift-client': '2' },
         fetch: (url, options) => {
           return fetch(url, {
             ...options,

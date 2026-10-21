@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import { startOfWeek, endOfWeek, format, startOfDay } from 'date-fns'
+import { fetchAllPages } from '@/lib/supabase/paginate'
+import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
 
 export function useDashboardStats() {
   const { profile, isAdmin, isDispatcher } = useUser()
@@ -35,8 +37,12 @@ export function useDashboardStats() {
             .in('status', ['assigned', 'draft']).eq('organization_id', profile.organization_id),
           supabase.from('time_entries').select('*', { count: 'exact', head: true })
             .eq('organization_id', profile.organization_id).is('end_time', null),
-          supabase.from('time_entries').select('net_hours')
-            .eq('organization_id', profile.organization_id).gte('date', firstDayOfMonth.split('T')[0]),
+          // Org-wide month total: paged past PostgREST's 1000-row cap.
+          fetchAllPages<{ net_hours: number | null }>((from, to) =>
+            supabase.from('time_entries').select('id, net_hours')
+              .eq('organization_id', profile.organization_id).gte('date', firstDayOfMonth.split('T')[0])
+              .order('date', { ascending: true }).order('id', { ascending: true })
+              .range(from, to)),
           supabase.from('notifications').select('*', { count: 'exact', head: true })
             .eq('user_id', profile.id).eq('is_read', false),
           supabase.from('time_entries').select('*, employee:profiles!employee_id(*), customer:customers(*)')
@@ -136,6 +142,9 @@ export function useDashboardStats() {
     }
   }, [profile, isAdmin, isDispatcher])
 
+  // Bursts of plan / time-entry changes → one reload.
+  const scheduleRefresh = useCoalescedRefetch(fetchStats)
+
   useEffect(() => {
     if (!profile) return
     fetchStats()
@@ -143,13 +152,13 @@ export function useDashboardStats() {
     const channel = supabase
       .channel(`dashboard-stats-${profile.organization_id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'plans',
-        filter: `organization_id=eq.${profile.organization_id}` }, fetchStats)
+        filter: `organization_id=eq.${profile.organization_id}` }, () => scheduleRefresh())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'time_entries',
-        filter: `organization_id=eq.${profile.organization_id}` }, fetchStats)
+        filter: `organization_id=eq.${profile.organization_id}` }, () => scheduleRefresh())
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [profile, isAdmin, isDispatcher, fetchStats])
+  }, [profile, isAdmin, isDispatcher, fetchStats, scheduleRefresh])
 
   return { stats, loading, refresh: fetchStats }
 }

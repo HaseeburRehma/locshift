@@ -4,6 +4,8 @@ import { CalendarEvent, EVENT_COLORS } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n'
+import { fetchAllPages } from '@/lib/supabase/paginate'
+import { createCoalescer } from '@/hooks/useCoalescedRefetch'
 
 /**
  * Supabase PostgrestError uses non-enumerable properties — spreading it
@@ -94,26 +96,33 @@ export function useCalendarEvents(year: number, month: number) {
 
       // 2. Plans (existing shifts) — independent of the calendar fetch
       try {
-        let planQuery = supabase
-          .from('plans')
-          .select(`
-            id,
-            start_time,
-            end_time,
-            route,
-            location,
-            status,
-            employee:profiles!employee_id(id, full_name, avatar_url, role)
-          `)
-          .eq('organization_id', orgId)
-          .gte('start_time', startOfMonth)
-          .lte('start_time', endOfMonth)
+        // A month of org-wide shifts easily exceeds PostgREST's 1000-row
+        // cap — rebuild the query per page.
+        const { data, error } = await fetchAllPages<any>((from, to) => {
+          let planQuery = supabase
+            .from('plans')
+            .select(`
+              id,
+              start_time,
+              end_time,
+              route,
+              location,
+              status,
+              employee:profiles!employee_id(id, full_name, avatar_url, role)
+            `)
+            .eq('organization_id', orgId)
+            .gte('start_time', startOfMonth)
+            .lte('start_time', endOfMonth)
 
-        if (!isAdminOrDispatcher) {
-          planQuery = planQuery.eq('employee_id', profile.id)
-        }
+          if (!isAdminOrDispatcher) {
+            planQuery = planQuery.eq('employee_id', userId)
+          }
 
-        const { data, error } = await planQuery
+          return planQuery
+            .order('start_time', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, to)
+        })
         if (error) {
           hadError = true
           console.error('[useCalendarEvents] plans fetch failed:', {
@@ -176,14 +185,17 @@ export function useCalendarEvents(year: number, month: number) {
 
     fetchAll()
 
-    // Real-time listener for both tables
+    // Real-time listener for both tables — bursts (bulk planning) collapse
+    // into one reload, never two at once.
+    const refresh = createCoalescer(fetchAll)
     const channel = supabase
       .channel(`calendar-updates-${orgId}-${year}-${month}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events', filter: `organization_id=eq.${orgId}` }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plans', filter: `organization_id=eq.${orgId}` }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events', filter: `organization_id=eq.${orgId}` }, () => refresh.schedule())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'plans', filter: `organization_id=eq.${orgId}` }, () => refresh.schedule())
       .subscribe()
 
     return () => {
+      refresh.dispose()
       supabase.removeChannel(channel)
     }
   }, [supabase, orgId, userId, year, month, profile?.role])

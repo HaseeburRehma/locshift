@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useRouter } from 'next/navigation'
 import { Bell, Check, Trash2, Calendar, AlertCircle, MessageSquare, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n'
@@ -31,6 +32,7 @@ function iconForModule(module?: string | null) {
 export default function NotificationsPage() {
   const { locale } = useTranslation()
   const { notifications, loading, markAllAsRead, markAsRead, deleteNotification } = useNotifications()
+  const router = useRouter()
   const dateLocale = locale === 'de' ? deLocale : enUS
 
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
@@ -73,7 +75,10 @@ export default function NotificationsPage() {
             return (
               <div
                 key={notif.id}
-                onClick={() => !notif.is_read && markAsRead(notif.id)}
+                onClick={() => {
+                  if (!notif.is_read) markAsRead(notif.id)
+                  if (notif.action_url) router.push(notif.action_url)
+                }}
                 className={cn(
                   'group relative bg-white border rounded-[2rem] p-6 transition-all hover:shadow-md cursor-pointer flex items-start gap-4',
                   !notif.is_read ? 'border-primary/20 shadow-sm' : 'border-gray-100 opacity-80',

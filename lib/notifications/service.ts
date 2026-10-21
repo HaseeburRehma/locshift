@@ -1,6 +1,21 @@
-import { createClient } from '@/lib/supabase/client'
+/**
+ * Client-side entry point for notifications. Every call goes through
+ * /api/notifications/dispatch, which writes the in-app row and sends
+ * email + push server-side (Resend / Expo keys never reach the browser).
+ */
 
-export type NotificationModule = 'plans' | 'customers' | 'calendar' | 'shifts' | 'system' | 'chat'
+export type NotificationModule =
+  | 'plans'
+  | 'customers'
+  | 'calendar'
+  | 'shifts'
+  | 'time_entries'
+  | 'corrections'
+  | 'personnel'
+  | 'bonuses'
+  | 'per_diem'
+  | 'system'
+  | 'chat'
 
 export interface CreateNotificationParams {
   userId: string
@@ -8,72 +23,83 @@ export interface CreateNotificationParams {
   message: string
   module: NotificationModule
   moduleId?: string
-  /**
-   * Skip the email leg. Useful for low-priority events (e.g. chat pings where
-   * the user is already active in the UI). Defaults to false — email is sent.
-   */
+  link?: string
+  /** Skip the email leg (e.g. chat pings). */
   skipEmail?: boolean
+  /** Skip the push leg. */
+  skipPush?: boolean
 }
 
-/**
- * Central service for dispatching notifications across the LokShift platform.
- *
- * 1) Persists an in-app row in `notifications` (always)
- * 2) Best-effort email via /api/notifications/email (server-side Resend)
- *
- * Both legs are independent: an email failure does NOT roll back the in-app
- * notification, and vice versa. Failures are logged but do not throw —
- * callers should not rely on email delivery for correctness.
- */
-export async function sendNotification({
-  userId,
-  title,
-  message,
-  module,
-  moduleId,
-  skipEmail,
-}: CreateNotificationParams) {
-  const supabase = createClient()
+interface DispatchBody {
+  recipients: string[] | 'managers'
+  title: string
+  message: string
+  module: NotificationModule
+  moduleId?: string
+  link?: string
+  email?: boolean
+  push?: boolean
+}
 
+async function post(body: DispatchBody): Promise<{ success: boolean; error?: unknown }> {
   try {
-    // 1. Persist to Database (In-App Alert).
-    // The `notifications` table column is `body`, not `message` — we accept
-    // `message` in the params for caller ergonomics but persist as `body`.
-    const { error: dbError } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: userId,
-        title,
-        body: message,
-        type: module,
-        is_read: false
-      } as any)
-
-    if (dbError) {
-      console.error('[NotificationService] Database persistence error:', {
-        message: dbError.message,
-        details: dbError.details,
-        hint: dbError.hint,
-        code: dbError.code
-      })
-      throw dbError
+    const res = await fetch('/api/notifications/dispatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      console.error('[NotificationService] dispatch failed', res.status, err)
+      return { success: false, error: err }
     }
-
-    // 2. Fire-and-forget email via the server route. We do NOT await because
-    //    the caller (often a UI action) should not block on SMTP latency.
-    if (!skipEmail && typeof window !== 'undefined') {
-      fetch('/api/notifications/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, subject: title, message }),
-      }).catch(err => {
-        console.warn('[NotificationService] Email dispatch failed (non-fatal):', err)
-      })
-    }
-
     return { success: true }
   } catch (error) {
-    console.error('[NotificationService] Failed to dispatch notification:', error)
+    console.error('[NotificationService] dispatch error', error)
     return { success: false, error }
   }
+}
+
+export async function sendNotification(p: CreateNotificationParams) {
+  return post({
+    recipients: [p.userId],
+    title: p.title,
+    message: p.message,
+    module: p.module,
+    moduleId: p.moduleId,
+    link: p.link,
+    email: !p.skipEmail,
+    push: !p.skipPush,
+  })
+}
+
+export async function sendNotificationToMany(
+  userIds: string[],
+  p: Omit<CreateNotificationParams, 'userId'>,
+) {
+  if (userIds.length === 0) return { success: true }
+  return post({
+    recipients: userIds,
+    title: p.title,
+    message: p.message,
+    module: p.module,
+    moduleId: p.moduleId,
+    link: p.link,
+    email: !p.skipEmail,
+    push: !p.skipPush,
+  })
+}
+
+/** All admins + dispatchers of the caller's organisation (caller excluded). */
+export async function notifyManagers(p: Omit<CreateNotificationParams, 'userId'>) {
+  return post({
+    recipients: 'managers',
+    title: p.title,
+    message: p.message,
+    module: p.module,
+    moduleId: p.moduleId,
+    link: p.link,
+    email: !p.skipEmail,
+    push: !p.skipPush,
+  })
 }

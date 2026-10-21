@@ -1,74 +1,42 @@
 'use client'
 
 /**
- * Betriebsstelle (Operational-Location) selector — Phase 3 / CR #1.
- *
- * A thin, role-agnostic Select wrapper around `useOperationalLocations`.
- * Used in PlanForm and TimeEntryForm to pick Start or Destination.
- *
- * Design notes:
- *   • Coexists with the free-text `location` field — selecting a
- *     Betriebsstelle is optional.
- *   • Only active locations are offered; inactive ones stay selectable
- *     only if they are the current value (so editing historical rows
- *     doesn't lose data).
- *   • Shows short_code alongside name when available — dispatchers asked
- *     for the internal codes (e.g. "RM-DEP-01") to be visible for quick
- *     recognition.
+ * Betriebsstelle picker with search (Kundenfeedback Punkt 12): finds a
+ * location by full name, part of the name or code/abbreviation — usable
+ * with several hundred imported Betriebsstellen.
  */
 
-import { MapPin, MapPinOff } from 'lucide-react'
+import React, { useMemo, useState } from 'react'
+import { Check, ChevronsUpDown, MapPin, MapPinOff, X } from 'lucide-react'
 import { Label } from '@/components/ui/label'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { cn } from '@/lib/utils'
 import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 import type { OperationalLocation } from '@/lib/types'
+import { searchLocations } from '@/lib/operational-locations/parse'
 
-const TYPE_LABELS_DE: Record<OperationalLocation['type'], string> = {
-  depot: 'Depot',
-  station: 'Bahnhof',
-  yard: 'Abstellanlage',
-  workshop: 'Werkstatt',
-  office: 'Büro',
-  other: 'Sonstige',
+const TYPE_LABELS: Record<OperationalLocation['type'], [string, string]> = {
+  depot: ['Depot', 'Depot'],
+  station: ['Bahnhof', 'Station'],
+  yard: ['Abstellanlage', 'Yard'],
+  workshop: ['Werkstatt', 'Workshop'],
+  office: ['Büro', 'Office'],
+  other: ['Sonstige', 'Other'],
 }
-const TYPE_LABELS_EN: Record<OperationalLocation['type'], string> = {
-  depot: 'Depot',
-  station: 'Station',
-  yard: 'Yard',
-  workshop: 'Workshop',
-  office: 'Office',
-  other: 'Other',
-}
-
-// Sentinel string because shadcn Select doesn't allow empty-string values.
-// We map it to null on the way out.
-const NO_VALUE = '__none__'
 
 interface Props {
   value: string | null | undefined
   onChange: (value: string | null) => void
-  /** 'start' or 'destination' — only affects the icon and default label. */
   kind?: 'start' | 'destination'
   label?: string
   placeholder?: string
   disabled?: boolean
   locale?: 'de' | 'en'
   className?: string
-  /**
-   * When set, this id is removed from the dropdown options. Used to stop
-   * the user from picking the same Betriebsstelle as both start and
-   * destination (PlanForm passes the start id here for the destination
-   * selector and vice-versa).
-   */
+  /** Hides this id (the other side's selection). */
   excludeId?: string | null
-  /**
-   * Optional pre-fetched list. When PlanForm renders multiple selectors
-   * it fetches once at the top and passes the array in, so both
-   * dropdowns share a single source of truth (avoids the race where one
-   * instance finishes loading before the other and visually appears empty).
-   */
+  /** Pre-fetched list shared by several pickers. */
   locations?: OperationalLocation[]
   loading?: boolean
 }
@@ -86,86 +54,96 @@ export function BetriebsstelleSelector({
   locations: locationsProp,
   loading: loadingProp,
 }: Props) {
-  // Fall back to the hook only when the parent didn't pre-fetch.
   const fallback = useOperationalLocations()
   const locations = locationsProp ?? fallback.locations
   const loading = loadingProp ?? fallback.loading
-
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const t = (de: string, en: string) => (locale === 'de' ? de : en)
-  const TYPE_LABELS = locale === 'de' ? TYPE_LABELS_DE : TYPE_LABELS_EN
 
-  // Keep inactive rows in the list if they are the current value so
-  // previously-selected (now archived) Betriebsstellen still render.
-  // Also drop the excluded id (the OTHER side's selection) but always
-  // keep the row that's currently selected here.
-  const visible = locations.filter(l => {
-    if (l.id === value) return true
-    if (excludeId && l.id === excludeId) return false
-    return l.is_active
-  })
-
-  const computedLabel =
-    label ??
-    (kind === 'start'
-      ? t('Startort (Betriebsstelle)', 'Start (Operational Location)')
-      : t('Zielort (Betriebsstelle)', 'Destination (Operational Location)'))
-
-  const computedPlaceholder =
-    placeholder ??
-    (loading
-      ? t('Lade Betriebsstellen…', 'Loading locations…')
-      : visible.length === 0
-      ? t('Keine Betriebsstellen angelegt', 'No operational locations yet')
-      : t('Betriebsstelle auswählen…', 'Pick a location…'))
-
+  const selectable = useMemo(
+    () => locations.filter((l) => l.id === value || (l.is_active && l.id !== excludeId)),
+    [locations, value, excludeId],
+  )
+  const results = useMemo(() => searchLocations(selectable, query, 60), [selectable, query])
+  const selected = locations.find((l) => l.id === value) ?? null
   const Icon = kind === 'start' ? MapPin : MapPinOff
 
-  const handleChange = (next: string) => {
-    onChange(next === NO_VALUE ? null : next)
-  }
+  const computedLabel =
+    label ?? (kind === 'start' ? t('Startort (Betriebsstelle)', 'Start (operational location)') : t('Zielort (Betriebsstelle)', 'Destination (operational location)'))
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div className={cn('space-y-2', className)}>
       <Label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-gray-500 tracking-widest">
         <Icon className="w-3.5 h-3.5 text-[#0064E0]" />
         {computedLabel}
       </Label>
-      <Select
-        value={value ?? NO_VALUE}
-        onValueChange={handleChange}
-        disabled={disabled || loading}
-      >
-        <SelectTrigger className="h-12 rounded-xl border border-slate-100 bg-white font-semibold px-4 text-sm">
-          <SelectValue placeholder={computedPlaceholder} />
-        </SelectTrigger>
-        <SelectContent className="rounded-2xl border-gray-100 shadow-2xl p-2">
-          <SelectItem value={NO_VALUE} className="font-semibold py-3 rounded-xl text-gray-500">
-            {t('— Keine —', '— None —')}
-          </SelectItem>
-          {visible.map(loc => (
-            <SelectItem
-              key={loc.id}
-              value={loc.id}
-              className="font-semibold py-3 rounded-xl"
-            >
-              <div className="flex items-center justify-between w-full gap-3">
-                <span className="truncate">
-                  {loc.name}
-                  {loc.short_code ? (
-                    <span className="ml-2 text-[10px] font-medium opacity-50">
-                      {loc.short_code}
-                    </span>
-                  ) : null}
+      <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery('') }}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled || loading}
+            className="flex h-12 w-full items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-4 text-left text-sm font-semibold disabled:opacity-50"
+          >
+            {selected ? (
+              <span className="truncate">
+                {selected.short_code && <span className="mr-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-black text-slate-700">{selected.short_code}</span>}
+                {selected.name}
+              </span>
+            ) : (
+              <span className="text-slate-400">
+                {placeholder ?? (loading ? t('Lade Betriebsstellen…', 'Loading locations…') : t('Name oder Kürzel suchen…', 'Search name or code…'))}
+              </span>
+            )}
+            <span className="flex items-center gap-1 shrink-0">
+              {selected && !disabled && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t('Auswahl entfernen', 'Clear selection')}
+                  onClick={(e) => { e.stopPropagation(); onChange(null) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onChange(null) } }}
+                  className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="w-4 h-4" />
                 </span>
-                <span className="text-[10px] font-medium opacity-50 shrink-0">
-                  {TYPE_LABELS[loc.type]}
-                  {!loc.is_active ? ` · ${t('inaktiv', 'inactive')}` : ''}
-                </span>
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+              )}
+              <ChevronsUpDown className="w-4 h-4 text-slate-400" />
+            </span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput value={query} onValueChange={setQuery} placeholder={t('Name, Namensteil oder Kürzel …', 'Name, part of name or code …')} />
+            <CommandList className="max-h-72">
+              <CommandEmpty>{t('Keine Betriebsstelle gefunden.', 'No location found.')}</CommandEmpty>
+              {results.map((loc) => (
+                <CommandItem
+                  key={loc.id}
+                  value={loc.id}
+                  onSelect={() => {
+                    onChange(loc.id)
+                    setOpen(false)
+                    setQuery('')
+                  }}
+                  className="flex items-center gap-2 py-2"
+                >
+                  <Check className={cn('w-4 h-4 shrink-0', loc.id === value ? 'opacity-100 text-[#0064E0]' : 'opacity-0')} />
+                  {loc.short_code && <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-black text-slate-700">{loc.short_code}</span>}
+                  <span className="flex-1 truncate font-semibold">{loc.name}</span>
+                  <span className="shrink-0 text-[10px] text-slate-400">
+                    {TYPE_LABELS[loc.type]?.[locale === 'de' ? 0 : 1] ?? ''}
+                    {!loc.is_active ? ` · ${t('inaktiv', 'inactive')}` : ''}
+                  </span>
+                </CommandItem>
+              ))}
+              {results.length === 60 && (
+                <p className="px-3 py-2 text-[11px] text-slate-400">{t('Weitere Treffer – Suche verfeinern.', 'More results – refine your search.')}</p>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

@@ -7,8 +7,9 @@ export async function POST(request: Request) {
   try {
     const supabaseServer = await createServerClient()
     
-    // getSession() reads from cookie — instant, no network round-trip
-    const { data: { session } } = await supabaseServer.auth.getSession()
+    // getUser() verifies the JWT with the auth server (getSession() trusts the cookie).
+    const { data: { user: verifiedUser } } = await supabaseServer.auth.getUser()
+    const session = verifiedUser ? { user: verifiedUser } : null
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized: You must be logged in' }, { status: 401 })

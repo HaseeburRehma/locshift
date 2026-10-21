@@ -16,6 +16,9 @@
 import { jsPDF } from 'jspdf'
 import autoTable, { type RowInput } from 'jspdf-autotable'
 import { format } from 'date-fns'
+import { paymentPeriodLabel, specialPaymentTypeLabel } from '@/lib/special-payments'
+import { endDayOffset } from '@/lib/time/shift-hours'
+import { formatHours } from '@/lib/time/format'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -200,11 +203,13 @@ export function exportWorkingTimePdf(
   const rows: RowInput[] = entries.map(e => {
     const row: (string | number)[] = [safeDate(e.date)]
     if (showEmployee) row.push(e.employee?.full_name ?? '-')
+    // Next-day marker and German decimal comma, like the Monatsnachweis.
+    const dayOffset = endDayOffset(e.start_time, e.end_time)
     row.push(
       safeTime(e.start_time),
-      safeTime(e.end_time),
+      e.end_time ? `${safeTime(e.end_time)}${dayOffset > 0 ? ` (+${dayOffset})` : ''}` : '-',
       String(e.break_minutes ?? 0),
-      (e.net_hours ?? 0).toFixed(2),
+      formatHours(e.net_hours ?? 0, locale),
       e.customer?.name ?? '-',
     )
     if (includeBetriebsstellen) {
@@ -214,7 +219,7 @@ export function exportWorkingTimePdf(
     }
     if (includeSpesen) {
       row.push(e.overnight_stay ? (locale === 'de' ? 'Ja' : 'Yes') : '-')
-      row.push((e.meal_allowance ?? 0).toFixed(2))
+      row.push(formatHours(e.meal_allowance ?? 0, locale))
     }
     // Status: Planned takes priority over Pending/Approved so the reader
     // can immediately see which rows represent forecast vs actuals.
@@ -235,12 +240,12 @@ export function exportWorkingTimePdf(
   // Build totals row dynamically so column count always matches headers.
   const totalsRow: RowInput = [sumLabel]
   if (showEmployee) totalsRow.push('')
-  totalsRow.push('', '', String(totalBreak), totalHours.toFixed(2), '')
+  totalsRow.push('', '', String(totalBreak), formatHours(totalHours, locale), '')
   if (includeBetriebsstellen) {
     totalsRow.push('', '', '')
   }
   if (includeSpesen) {
-    totalsRow.push('', totalSpesen.toFixed(2))
+    totalsRow.push('', formatHours(totalSpesen, locale))
   }
   totalsRow.push('')
 
@@ -270,9 +275,9 @@ export function exportTimeAccountsPdf(
 
   const rows: RowInput[] = accounts.map(a => [
     a.full_name,
-    a.target_hours.toFixed(2),
-    a.actual_hours.toFixed(2),
-    a.balance.toFixed(2),
+    formatHours(a.target_hours, locale),
+    formatHours(a.actual_hours, locale),
+    formatHours(a.balance, locale),
     a.balance >= 0
       ? (locale === 'de' ? 'Positiv' : 'Positive')
       : (locale === 'de' ? 'Defizit' : 'Deficit'),
@@ -306,14 +311,14 @@ export function exportPerDiemPdf(
     pd.employee_id,
     pd.country ?? '-',
     String(pd.num_days ?? 0),
-    (pd.rate ?? 0).toFixed(2),
-    (pd.amount ?? 0).toFixed(2),
+    formatHours(pd.rate ?? 0, locale),
+    formatHours(pd.amount ?? 0, locale),
     pd.status ?? '-',
   ])
 
   const totalAmount = perDiems.reduce((s, pd) => s + (pd.amount ?? 0), 0)
   const sumLabel = locale === 'de' ? 'Summe' : 'Total'
-  const totalsRow: RowInput = [sumLabel, '', '', '', '', totalAmount.toFixed(2), '']
+  const totalsRow: RowInput = [sumLabel, '', '', '', '', formatHours(totalAmount, locale), '']
 
   exportTableToPdf({ title, subtitle, filename, headers, rows, totalsRow, locale })
 }
@@ -364,7 +369,7 @@ export function exportPlansPdf(
       p.customer?.name ?? '-',
       safeTime(p.start_time),
       safeTime(p.end_time),
-      hours.toFixed(2),
+      formatHours(hours, locale),
       `KW ${isoWeek(start)}`,
       p.location ?? '-',
       p.status,
@@ -383,13 +388,17 @@ type HolidayBonusRowLike = {
   created_at: string
   employee_id: string
   employee_name?: string | null
+  title?: string | null
   amount: number | null
   bonus_type?: string | null
+  distribution?: string | null
+  billing_month?: string | null
   period_start?: string | null
   period_end?: string | null
   notes?: string | null
 }
 
+/** Sonderzahlungen list (table holiday_bonuses). */
 export function exportHolidayBonusPdf(
   bonuses: HolidayBonusRowLike[],
   args: {
@@ -397,29 +406,26 @@ export function exportHolidayBonusPdf(
     subtitle?: string
     filename: string
     locale?: 'de' | 'en'
-    /** Optional translator for bonus_type values (Urlaubsgeld, Weihnachtsgeld, ...). */
-    bonusTypeLabel?: (key: string) => string
   },
 ): void {
-  const { title, subtitle, filename, locale = 'de', bonusTypeLabel } = args
+  const { title, subtitle, filename, locale = 'de' } = args
 
   const headers = locale === 'de'
-    ? ['Auszahlungsdatum', 'Mitarbeiter', 'Art', 'Betrag', 'Zeitraum von', 'Zeitraum bis', 'Notizen']
-    : ['Paid on',           'Employee',    'Type', 'Amount', 'Period start', 'Period end', 'Notes']
+    ? ['Mitarbeiter', 'Bezeichnung', 'Art', 'Abrechnung', 'Betrag (€)', 'Bemerkung']
+    : ['Employee', 'Title', 'Type', 'Billing', 'Amount (€)', 'Note']
 
   const rows: RowInput[] = bonuses.map(b => [
-    safeDate(b.created_at),
     b.employee_name ?? b.employee_id,
-    bonusTypeLabel && b.bonus_type ? bonusTypeLabel(b.bonus_type) : (b.bonus_type ?? '-'),
+    b.title || specialPaymentTypeLabel(b.bonus_type, locale),
+    specialPaymentTypeLabel(b.bonus_type, locale),
+    paymentPeriodLabel(b, locale),
     (b.amount ?? 0).toFixed(2),
-    b.period_start ? safeDate(b.period_start) : '-',
-    b.period_end ? safeDate(b.period_end) : '-',
     b.notes ?? '-',
   ])
 
   const totalAmount = bonuses.reduce((s, b) => s + (b.amount ?? 0), 0)
   const sumLabel = locale === 'de' ? 'Summe' : 'Total'
-  const totalsRow: RowInput = [sumLabel, '', '', totalAmount.toFixed(2), '', '', '']
+  const totalsRow: RowInput = [sumLabel, '', '', '', totalAmount.toFixed(2), '']
 
   exportTableToPdf({ title, subtitle, filename, headers, rows, totalsRow, locale })
 }

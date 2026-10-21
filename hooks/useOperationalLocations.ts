@@ -17,6 +17,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import type { OperationalLocation, OperationalLocationType } from '@/lib/types'
 import { toast } from 'sonner'
+import { fetchAllPages } from '@/lib/supabase/paginate'
+import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
 
 type NewLocationInput = {
   name: string
@@ -43,26 +45,38 @@ export function useOperationalLocations() {
     if (!profile?.organization_id) return
     if (!isSilent) setLoading(true)
 
-    const { data, error } = await supabase
-      .from('operational_locations')
-      .select('*')
-      .eq('organization_id', profile.organization_id)
-      .order('name', { ascending: true })
-
+    // Several hundred Betriebsstellen are imported — page past PostgREST's
+    // 1000-row default (id as tie-breaker keeps the pages stable).
+    const orgId = profile.organization_id
+    const { data, error } = await fetchAllPages<OperationalLocation>((from, to) =>
+      supabase
+        .from('operational_locations')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    )
     if (error) {
+      // A page failed mid-way: keep the previous list instead of replacing
+      // it with a partial one.
       console.error('[useOperationalLocations] fetch error:', error)
     } else {
-      setLocations((data as OperationalLocation[]) ?? [])
+      setLocations(data)
     }
     setLoading(false)
   }, [profile?.organization_id, supabase])
+
+  // An import of hundreds of Betriebsstellen fires one realtime event per
+  // row — coalesce them into one silent refetch.
+  const scheduleRefresh = useCoalescedRefetch(() => fetchLocations(true))
 
   useEffect(() => {
     fetchLocations()
 
     if (!profile?.organization_id) return
     const channel = supabase
-      .channel(`operational-locations-${profile.organization_id}`)
+      .channel(`operational-locations-${profile.organization_id}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         {
@@ -71,12 +85,12 @@ export function useOperationalLocations() {
           table: 'operational_locations',
           filter: `organization_id=eq.${profile.organization_id}`,
         },
-        () => fetchLocations(true),
+        () => scheduleRefresh(),
       )
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [profile?.organization_id, fetchLocations, supabase])
+  }, [profile?.organization_id, fetchLocations, scheduleRefresh, supabase])
 
   const createLocation = useCallback(async (input: NewLocationInput) => {
     if (!profile?.organization_id) return null
@@ -172,9 +186,45 @@ export function useOperationalLocations() {
     return true
   }, [locations, supabase])
 
+  /**
+   * Bulk import from the preview (Punkt 12). Inserts in chunks; rows that
+   * already exist can be updated instead.
+   */
+  const importLocations = useCallback(async (
+    inserts: NewLocationInput[],
+    updates: { id: string; patch: UpdateLocationInput }[],
+  ): Promise<{ inserted: number; updated: number; failed: string[] }> => {
+    const failed: string[] = []
+    let inserted = 0
+    let updated = 0
+    if (!profile?.organization_id) return { inserted, updated, failed: ['no organization'] }
+    for (let i = 0; i < inserts.length; i += 200) {
+      const chunk = inserts.slice(i, i + 200).map((r) => ({ ...r, organization_id: profile.organization_id, is_active: r.is_active ?? true }))
+      const { data, error } = await supabase.from('operational_locations').insert(chunk).select('id')
+      if (error) {
+        // Fall back to row-by-row so one bad row doesn't drop the chunk.
+        for (const row of chunk) {
+          const { error: rowErr } = await supabase.from('operational_locations').insert(row)
+          if (rowErr) failed.push(`${row.short_code ? `${row.short_code} ` : ''}${row.name}`)
+          else inserted += 1
+        }
+      } else {
+        inserted += data?.length ?? chunk.length
+      }
+    }
+    for (const u of updates) {
+      const { error } = await supabase.from('operational_locations').update(u.patch).eq('id', u.id)
+      if (error) failed.push(u.patch.name ?? u.id)
+      else updated += 1
+    }
+    await fetchLocations(true)
+    return { inserted, updated, failed }
+  }, [profile?.organization_id, supabase, fetchLocations])
+
   return {
     locations,
     loading,
+    importLocations,
     createLocation,
     updateLocation,
     toggleActive,

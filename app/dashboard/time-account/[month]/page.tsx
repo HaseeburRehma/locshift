@@ -15,7 +15,10 @@ export default function MonthlyDetailPage() {
   const router = useRouter()
   const { locale } = useTranslation()
   const monthKey = params.month as string // e.g., '2026-03'
-  const { monthlyData, loading } = useTimeAccount()
+  // Load the year of the requested month (the hook defaults to the current
+  // year, which would make last December unavailable in January).
+  const monthYear = Number(String(params.month ?? '').slice(0, 4)) || undefined
+  const { monthlyData, loading } = useTimeAccount(undefined, monthYear)
 
   // Find the specific data for this month
   const data = useMemo(() => 

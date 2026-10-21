@@ -27,7 +27,8 @@ import { usePlans } from '@/hooks/plans/usePlans'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import { toast } from 'sonner'
-import { sendNotification } from '@/lib/notifications/service'
+import { notifyPlanAssigned, notifyPlanChanged, notifyPlanRemoved } from '@/lib/plans/notify'
+import { addDays, localDateKey, localTimeKey } from '@/lib/time/shift-hours'
 import LocationPickerModal from './LocationPickerModal'
 import { ShiftTemplatePicker, type TemplatePayload } from './ShiftTemplatePicker'
 import { BetriebsstelleSelector } from './BetriebsstelleSelector'
@@ -36,9 +37,11 @@ import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 interface PlanFormProps {
   onSuccess?: () => void
   initialPlan?: Plan
+  /** Pre-fill for new plans (e.g. from a cell in the weekly planning grid). */
+  defaults?: { employeeId?: string; date?: string }
 }
 
-export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
+export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
   const isEditing = !!initialPlan
   const router = useRouter()
   const { locale } = useTranslation()
@@ -50,24 +53,26 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
   const [loading, setLoading] = useState(false)
 
   // Form State — pre-populated from initialPlan when editing
-  const [employeeId, setEmployeeId] = useState(initialPlan?.employee_id ?? '')
+  const UNASSIGNED = '__unassigned__'
+  const [employeeId, setEmployeeId] = useState<string>(initialPlan ? initialPlan.employee_id ?? UNASSIGNED : defaults?.employeeId ?? '')
   const [isBulkEmployees, setIsBulkEmployees] = useState(false)
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([])
   const [repeatDays, setRepeatDays] = useState('0')
 
   const [customerId, setCustomerId] = useState(initialPlan?.customer_id ?? '')
   const [startDate, setStartDate] = useState(
-    initialPlan ? initialPlan.start_time.split('T')[0] : new Date().toISOString().split('T')[0]
+    initialPlan ? localDateKey(new Date(initialPlan.start_time)) : defaults?.date ?? localDateKey()
   )
   const [startTime, setStartTime] = useState(
-    initialPlan ? new Date(initialPlan.start_time).toTimeString().slice(0, 5) : '08:00'
+    initialPlan ? localTimeKey(new Date(initialPlan.start_time)) : '08:00'
   )
   const [endDate, setEndDate] = useState(
-    initialPlan ? initialPlan.end_time.split('T')[0] : new Date().toISOString().split('T')[0]
+    initialPlan ? localDateKey(new Date(initialPlan.end_time)) : defaults?.date ?? localDateKey()
   )
   const [endTime, setEndTime] = useState(
-    initialPlan ? new Date(initialPlan.end_time).toTimeString().slice(0, 5) : '17:00'
+    initialPlan ? localTimeKey(new Date(initialPlan.end_time)) : '17:00'
   )
+  const [shiftName, setShiftName] = useState(initialPlan?.shift_name ?? '')
   const [route, setRoute] = useState(initialPlan?.route ?? '')
   const [location, setLocation] = useState(initialPlan?.location ?? '')
   const [notes, setNotes] = useState(initialPlan?.notes ?? '')
@@ -102,7 +107,7 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
       // Spread the end date across the template's duration
       const baseEnd = new Date(`${startDate}T${tpl.end_time}:00`)
       baseEnd.setDate(baseEnd.getDate() + (tpl.duration_days - 1))
-      setEndDate(baseEnd.toISOString().split('T')[0])
+      setEndDate(localDateKey(baseEnd))
     } else {
       setEndDate(startDate)
     }
@@ -138,20 +143,17 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
     if (!currentUser?.organization_id) return
     
     const isBulk = !isEditing && isBulkEmployees
-    const targetEmployees = isBulk ? selectedEmployees : [employeeId]
+    const targetEmployees: (string | null)[] = isBulk
+      ? selectedEmployees
+      : [employeeId === UNASSIGNED ? null : employeeId]
 
-    if (targetEmployees.length === 0 || !targetEmployees[0]) {
-      toast.error(locale === 'en' ? 'Personnel selection is required' : 'Personalwahl ist erforderlich')
+    if (targetEmployees.length === 0 || (!isBulk && employeeId === '')) {
+      toast.error(locale === 'en' ? 'Select an employee or "unassigned"' : 'Bitte Mitarbeiter oder „Unbesetzt“ wählen')
       return
     }
 
     if (!customerId || customerId === 'null') {
       toast.error(locale === 'en' ? 'Customer/Project is required' : 'Kunde/Projekt ist erforderlich')
-      return
-    }
-
-    if (!route.trim()) {
-      toast.error(locale === 'en' ? 'Route designation is required' : 'Routenbezeichnung ist erforderlich')
       return
     }
 
@@ -161,8 +163,10 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
     try {
       setLoading(true)
 
+      // A night shift entered with the same end date ends on the next day.
+      const effectiveEndDate = endDate === startDate && endTime <= startTime ? addDays(startDate, 1) : endDate
       const startDateTime = new Date(`${startDate}T${startTime}:00`).toISOString()
-      const endDateTime = new Date(`${endDate}T${endTime}:00`).toISOString()
+      const endDateTime = new Date(`${effectiveEndDate}T${endTime}:00`).toISOString()
 
       if (new Date(startDateTime) >= new Date(endDateTime)) {
         toast.error(locale === 'en' ? 'End time must be after start time' : 'Die Endzeit muss nach der Startzeit liegen')
@@ -176,13 +180,19 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
       if (isEditing && initialPlan) {
         // ── EDIT MODE: direct supabase UPDATE ─────────────────────────────
         const supabase = createClient()
-        const { error } = await supabase
+        const newEmployeeId = employeeId === UNASSIGNED ? null : employeeId
+        const employeeChanged = newEmployeeId !== initialPlan.employee_id
+        const timeChanged = startDateTime !== new Date(initialPlan.start_time).toISOString() || endDateTime !== new Date(initialPlan.end_time).toISOString()
+        const { data: updated, error } = await supabase
           .from('plans')
           .update({
-            employee_id: employeeId,
+            employee_id: newEmployeeId,
+            // A changed assignment or time must be confirmed again.
+            ...(employeeChanged || timeChanged ? { status: 'assigned', rejection_reason: null } : {}),
             customer_id: resolvedCustomerId,
             start_time: startDateTime,
             end_time: endDateTime,
+            shift_name: shiftName.trim() || null,
             route: route || null,
             location: location || null,
             notes: notes || null,
@@ -195,22 +205,17 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
             updated_at: new Date().toISOString(),
           })
           .eq('id', initialPlan.id)
+          .select('*, customer:customers(name), start_location:operational_locations!start_location_id(name, short_code), destination_location:operational_locations!destination_location_id(name, short_code)')
+          .single()
 
         if (error) throw error
 
-        const startLabel = new Date(startDateTime).toLocaleString('en-GB', {
-          weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-        })
-
-        // Notify employee if reassigned
-        if (employeeId !== initialPlan.employee_id) {
-          await sendNotification({
-            userId: employeeId,
-            title: '📋 Schicht aktualisiert',
-            message: `Ihre Schicht ab ${startLabel}${location ? ` (${location})` : ''} wurde aktualisiert.`,
-            module: 'plans',
-            moduleId: initialPlan.id,
-          })
+        const nameOf = (id: string | null) => profiles.find((p) => p.id === id)?.full_name ?? null
+        if (employeeChanged) {
+          if (initialPlan.employee_id) await notifyPlanRemoved(updated, initialPlan.employee_id, nameOf(newEmployeeId))
+          if (newEmployeeId) await notifyPlanAssigned(updated, newEmployeeId, nameOf(initialPlan.employee_id))
+        } else if (timeChanged && newEmployeeId) {
+          await notifyPlanChanged(updated, newEmployeeId, initialPlan)
         }
 
         toast.success(locale === 'en' ? 'Plan updated successfully' : 'Plan erfolgreich aktualisiert')
@@ -223,13 +228,14 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
             const currentEnd = new Date(endDateTime)
             currentEnd.setDate(currentEnd.getDate() + d)
 
-            const newPlan = await createPlan({
+            await createPlan({
               organization_id: currentUser.organization_id,
               employee_id: empId,
               creator_id: currentUser.id,
               customer_id: resolvedCustomerId,
               start_time: currentStart.toISOString(),
               end_time: currentEnd.toISOString(),
+              shift_name: shiftName.trim() || null,
               route: route || null,
               location: location || null,
               notes: notes || null,
@@ -243,16 +249,6 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
               is_gastfahrt: isGastfahrt,
             })
 
-            const startLabel = currentStart.toLocaleString(locale === 'de' ? 'de-DE' : 'en-GB', {
-              weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-            })
-            await sendNotification({
-              userId: empId,
-              title: '📋 Neue Schicht zugewiesen',
-              message: `Ihnen wurde eine neue Schicht ab ${startLabel}${location ? ` (${location})` : ''} zugewiesen.`,
-              module: 'plans',
-              moduleId: newPlan?.id,
-            })
           }
         }
 
@@ -330,6 +326,9 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                           <SelectValue placeholder={locale === 'de' ? 'Person auswählen' : 'Identify Personnel'} />
                         </SelectTrigger>
                         <SelectContent className="rounded-2xl border-gray-100 shadow-2xl p-2">
+                          <SelectItem value={UNASSIGNED} className="font-medium py-3 rounded-xl text-amber-700">
+                            {locale === 'de' ? 'Unbesetzt (später zuweisen)' : 'Unassigned (assign later)'}
+                          </SelectItem>
                           {profiles.map(p => (
                             <SelectItem key={p.id} value={p.id} className="font-semibold py-3 rounded-xl">
                               {p.full_name} <span className="text-[9px] font-medium uppercase opacity-40 ml-2">({p.role})</span>
@@ -395,7 +394,18 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                 <div className="space-y-6">
                   <div className="space-y-3">
                     <Label className="text-[11px] font-medium text-slate-500 tracking-wide px-1">
-                      {locale === 'de' ? 'Routenbezeichnung' : 'Route Designation'}
+                      {locale === 'de' ? 'Schichtbezeichnung' : 'Shift name'}
+                    </Label>
+                    <Input
+                      placeholder={locale === 'de' ? 'z. B. D-ZILB SN 2' : 'e.g. D-ZILB SN 2'}
+                      value={shiftName}
+                      onChange={(e) => setShiftName(e.target.value)}
+                      className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white focus:shadow-md transition-all text-sm"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[11px] font-medium text-slate-500 tracking-wide px-1">
+                      {locale === 'de' ? 'Strecke / Route (optional)' : 'Route (optional)'}
                     </Label>
                     <Input
                       placeholder={locale === 'de' ? 'z. B. Frankfurt Hbf — Nachtschicht' : 'e.g. Frankfurt Main Hub - Night Shift'}
@@ -549,6 +559,13 @@ export function PlanForm({ onSuccess, initialPlan }: PlanFormProps) {
                     />
                   </div>
                 </div>
+
+                {endDate === startDate && endTime <= startTime && (
+                  <div className="flex items-center gap-2 rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-2.5 text-xs font-bold text-indigo-700">
+                    <Moon className="w-4 h-4" />
+                    {locale === 'de' ? `Nachtschicht – Ende am Folgetag (${addDays(startDate, 1).split('-').reverse().join('.')})` : `Night shift – ends next day (${addDays(startDate, 1)})`}
+                  </div>
+                )}
 
                 {!isEditing && (
                   <div className="pt-2">

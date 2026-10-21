@@ -1,12 +1,15 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Play, Square, Clock, MapPin, Coffee, ArrowRight, Zap } from 'lucide-react'
+import React, { useState } from 'react'
+import { Play, Square, Clock, Coffee, AlertCircle, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTimeTracking } from '@/hooks/useTimeTracking'
 import { cn } from '@/lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTranslation } from '@/lib/i18n'
+import type { TimeEntry } from '@/lib/types'
+import { ShiftClosingDialog } from '@/components/time/ShiftClosingDialog'
+import { formatTimeOfDay } from '@/lib/time/format'
 
 interface ClockInOutCardProps {
   className?: string
@@ -18,17 +21,22 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const {
     activeEntry,
+    drafts,
     clockIn,
     startBreak,
     endBreak,
     clockOut,
+    submitEntry,
     elapsedSeconds,
     breakSeconds,
     loading,
-    todayPlans
+    todayPlans,
+    suggestedPlan,
   } = useTimeTracking()
-  
+
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>()
+  const [reviewEntry, setReviewEntry] = useState<TimeEntry | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600)
@@ -37,109 +45,154 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const activePlan = todayPlans.find(p => p.id === activeEntry?.plan_id)
+  const planLabel = (p: { start_time: string; end_time: string; shift_name?: string | null; route?: string | null }) =>
+    `${formatTimeOfDay(p.start_time)}–${formatTimeOfDay(p.end_time)}${p.shift_name || p.route ? ` · ${p.shift_name || p.route}` : ''}`
 
-  if (loading) return (
-    <div className="w-full bg-slate-50 animate-pulse h-16 rounded-2xl" />
-  )
+  const activePlan = activeEntry?.plan ?? todayPlans.find((p) => p.id === activeEntry?.plan_id) ?? null
 
-  const isWorking = activeEntry && !activeEntry.is_on_break
-  const isOnBreak = activeEntry && activeEntry.is_on_break
+  if (loading) return <div className="w-full bg-slate-50 animate-pulse h-16 rounded-2xl" />
+
+  const isOnBreak = !!activeEntry?.is_on_break
+  const defaultPlanId = selectedPlanId ?? suggestedPlan()?.id
+
+  const handleEnd = async () => {
+    setBusy(true)
+    const closed = await clockOut()
+    setBusy(false)
+    if (closed) setReviewEntry(closed)
+  }
 
   return (
-    <div className={cn(
-      "relative overflow-hidden transition-all duration-700 rounded-2xl",
-      activeEntry 
-        ? "bg-[#2563EB] shadow-lg p-4 md:py-4 md:px-6 text-white border-none" 
-        : "bg-white border border-slate-100 shadow-sm p-4 md:p-5",
-      className
-    )}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className={cn(
-            "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
-            activeEntry ? "bg-white/10" : "bg-blue-50 text-blue-600"
-          )}>
-            <Clock className={cn("w-5 h-5", activeEntry && !activeEntry.is_on_break && "animate-pulse")} />
-          </div>
-          
-          <div className="flex flex-col">
-            <span className={cn(
-              "text-[9px] font-black uppercase tracking-[0.2em] leading-none opacity-60 mb-1",
-              activeEntry ? "text-white" : "text-slate-400"
-            )}>
-              {activeEntry ? L('Einsatz aktiv', 'Mission Active') : L('Bereit', 'System Ready')}
-            </span>
-            <div className="flex items-center gap-3">
-              <span className={cn(
-                "font-bold tracking-tight tabular-nums leading-none text-2xl md:text-3xl italic",
-                activeEntry ? "text-white" : "text-blue-600"
-              )}>
-                {formatTime(isOnBreak ? breakSeconds : elapsedSeconds)}
-              </span>
-              {activeEntry && (
-                <div className="hidden lg:flex flex-col border-l border-white/20 pl-3 py-1">
-                   <span className="text-[10px] font-black uppercase tracking-widest leading-none text-white whitespace-nowrap">
-                      {activePlan?.route || L('Standardeinsatz', 'Standard Protocol')}
-                   </span>
-                </div>
+    <>
+      <div
+        className={cn(
+          'relative overflow-hidden transition-all duration-700 rounded-2xl',
+          activeEntry
+            ? 'bg-[#2563EB] shadow-lg p-4 md:py-4 md:px-6 text-white border-none'
+            : 'bg-white border border-slate-100 shadow-sm p-4 md:p-5',
+          className,
+        )}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div
+              className={cn(
+                'w-10 h-10 rounded-xl flex items-center justify-center transition-all',
+                activeEntry ? 'bg-white/10' : 'bg-blue-50 text-blue-600',
               )}
+            >
+              <Clock className={cn('w-5 h-5', activeEntry && !isOnBreak && 'animate-pulse')} />
             </div>
+
+            <div className="flex flex-col">
+              <span
+                className={cn(
+                  'text-[9px] font-black uppercase tracking-[0.2em] leading-none opacity-60 mb-1',
+                  activeEntry ? 'text-white' : 'text-slate-400',
+                )}
+              >
+                {activeEntry
+                  ? isOnBreak
+                    ? L('Pause läuft', 'On break')
+                    : L('Einsatz aktiv', 'Shift active')
+                  : L('Bereit', 'Ready')}
+              </span>
+              <div className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    'font-bold tracking-tight tabular-nums leading-none text-2xl md:text-3xl italic',
+                    activeEntry ? 'text-white' : 'text-blue-600',
+                  )}
+                >
+                  {formatTime(isOnBreak ? breakSeconds : elapsedSeconds)}
+                </span>
+                {activeEntry && activePlan?.start_time && activePlan?.end_time && (
+                  <div className="hidden lg:flex flex-col border-l border-white/20 pl-3 py-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest leading-none text-white whitespace-nowrap">
+                      {L('Plan', 'Plan')} {planLabel(activePlan as { start_time: string; end_time: string })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!activeEntry ? (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {todayPlans.length > 0 && !compact && (
+                  <Select onValueChange={setSelectedPlanId} value={defaultPlanId}>
+                    <SelectTrigger className="h-10 w-52 rounded-xl border-slate-100 bg-slate-50 font-bold text-[10px] uppercase tracking-wider hidden md:flex">
+                      <SelectValue placeholder={L('Geplante Schicht', 'Planned shift')} />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
+                      {todayPlans.map((plan) => (
+                        <SelectItem key={plan.id} value={plan.id} className="font-bold py-2 text-xs">
+                          {planLabel(plan)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Button
+                  onClick={() => clockIn(defaultPlanId)}
+                  className="h-10 px-6 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 shadow-md flex-1 sm:flex-none"
+                >
+                  <Play className="w-3.5 h-3.5 mr-2 fill-current" />
+                  {L('Schicht starten', 'Start shift')}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={isOnBreak ? endBreak : startBreak}
+                  variant="outline"
+                  className={cn(
+                    'h-10 flex-1 sm:px-6 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border-none',
+                    isOnBreak ? 'bg-white text-blue-600 hover:bg-slate-50' : 'bg-white/10 text-white hover:bg-white/20',
+                  )}
+                >
+                  {isOnBreak ? <Play className="w-3.5 h-3.5 mr-2" /> : <Coffee className="w-3.5 h-3.5 mr-2" />}
+                  {isOnBreak ? L('Fortsetzen', 'Resume') : L('Pause machen', 'Break')}
+                </Button>
+                <Button
+                  onClick={handleEnd}
+                  disabled={busy}
+                  className="h-10 flex-1 sm:px-6 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 border-none"
+                >
+                  <Square className="w-3.5 h-3.5 mr-2 fill-current" />
+                  {L('Beenden', 'End')}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
-           {!activeEntry ? (
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                 {todayPlans.length > 0 && !compact && (
-                    <Select onValueChange={setSelectedPlanId} value={selectedPlanId}>
-                      <SelectTrigger className="h-10 w-40 rounded-xl border-slate-100 bg-slate-50 font-bold text-[10px] uppercase tracking-wider hidden md:flex">
-                        <SelectValue placeholder={L('Einsatz', 'Protocol')} />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
-                        {todayPlans.map(plan => (
-                          <SelectItem key={plan.id} value={plan.id} className="font-bold py-2 text-xs">
-                            {plan.route || L('Allgemeiner Einsatz', 'General Mission')}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                 )}
-                 <Button 
-                    onClick={() => clockIn(selectedPlanId || todayPlans[0]?.id)}
-                    className="h-10 px-6 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 shadow-md flex-1 sm:flex-none"
-                 >
-                    <Play className="w-3.5 h-3.5 mr-2 fill-current" />
-                    {L('Schicht starten', 'Begin Shift')}
-                 </Button>
-              </div>
-           ) : (
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                 <Button 
-                    onClick={isOnBreak ? endBreak : startBreak}
-                    variant="outline"
-                    className={cn(
-                      "h-10 flex-1 sm:px-6 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border-none",
-                      isOnBreak 
-                        ? "bg-white text-blue-600 hover:bg-slate-50" 
-                        : "bg-white/10 text-white hover:bg-white/20"
-                    )}
-                 >
-                    {isOnBreak ? <Play className="w-3.5 h-3.5 mr-2" /> : <Coffee className="w-3.5 h-3.5 mr-2" />}
-                    {isOnBreak ? L('Fortsetzen', 'Resume') : L('Pause machen', 'Pause')}
-                 </Button>
-                 <Button
-                    onClick={() => clockOut()}
-                    className="h-10 flex-1 sm:px-6 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 border-none"
-                 >
-                    <Square className="w-3.5 h-3.5 mr-2 fill-current" />
-                    {L('Beenden', 'End')}
-                 </Button>
-              </div>
-           )}
-        </div>
+        {!activeEntry && drafts.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setReviewEntry(drafts[0])}
+            className="mt-4 w-full flex items-center justify-between gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-bold text-amber-800">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {drafts.length === 1
+                ? L('1 beendete Schicht ist noch nicht abgesendet.', '1 finished shift has not been submitted.')
+                : L(`${drafts.length} beendete Schichten sind noch nicht abgesendet.`, `${drafts.length} finished shifts have not been submitted.`)}
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-700 whitespace-nowrap">
+              {L('Jetzt prüfen', 'Review now')} <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </button>
+        )}
       </div>
-    </div>
+
+      <ShiftClosingDialog
+        entry={reviewEntry}
+        open={!!reviewEntry}
+        onOpenChange={(o) => !o && setReviewEntry(null)}
+        onSubmit={submitEntry}
+      />
+    </>
   )
 }

@@ -21,6 +21,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import { groupByMonth } from '@/lib/times/calculations'
+import { fetchEmployeeYear } from '@/hooks/times/useTimeAccount'
 import { Loader2 } from 'lucide-react'
 import { de as deLocale } from 'date-fns/locale'
 
@@ -43,11 +44,10 @@ function useEmployeeMonthly(employeeId: string | null) {
     setLoading(true)
 
     const fetch = async () => {
-      const [{ data: entries }, { data: plans }] = await Promise.all([
-        supabase.from('time_entries').select('*').eq('employee_id', employeeId).order('date', { ascending: false }),
-        supabase.from('plans').select('*').eq('employee_id', employeeId).in('status', ['confirmed', 'assigned']),
-      ])
-      setData(groupByMonth(entries ?? [], plans ?? []))
+      // Current year, paged past PostgREST's 1000-row cap (same source as
+      // the employee's own time account).
+      const { entries, plans } = await fetchEmployeeYear(supabase, employeeId)
+      setData(groupByMonth(entries, plans))
       setLoading(false)
     }
     fetch()

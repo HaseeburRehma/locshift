@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChatMessage } from '@/lib/types'
-import { sendNotification } from '@/lib/notifications/service'
+import { sendNotificationToMany } from '@/lib/notifications/service'
 
 /**
  * Fire a native browser notification for a new chat message — but only when
@@ -341,19 +341,15 @@ export function useMessages(conversationId: string | null) {
             return ''
           })()
 
-          // Fire notifications in parallel — service uses one INSERT each,
-          // failures are logged but don't block the send.
-          await Promise.all(
-            recipients.map((uid: string) =>
-              sendNotification({
-                userId: uid,
-                title: `💬 Neue Nachricht von ${senderName}`,
-                message: body,
-                module: 'chat',
-                moduleId: conversationId,
-              })
-            )
-          )
+          // One dispatch call for all members (the server checks they belong
+          // to this conversation). One call per member would hit the rate
+          // limit in group chats. Failures are logged, never block the send.
+          await sendNotificationToMany(recipients, {
+            title: `💬 Neue Nachricht von ${senderName}`,
+            message: body,
+            module: 'chat',
+            moduleId: conversationId,
+          })
         }
       } catch (notifErr) {
         // Notifications are best-effort — never block message delivery.

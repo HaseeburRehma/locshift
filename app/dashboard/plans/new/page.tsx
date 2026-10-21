@@ -1,14 +1,23 @@
 'use client'
 
-import React from 'react'
-import { useRouter } from 'next/navigation'
+import React, { Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft, CalendarPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PlanForm } from '@/components/shared/PlanForm'
 import { useTranslation } from '@/lib/i18n'
 
 export default function NewPlanPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewPlan />
+    </Suspense>
+  )
+}
+
+function NewPlan() {
   const router = useRouter()
+  const params = useSearchParams()
   const { locale } = useTranslation()
 
   return (
@@ -40,7 +49,10 @@ export default function NewPlanPage() {
       </div>
 
       {/* Main Form */}
-      <PlanForm />
+      <PlanForm
+        defaults={{ employeeId: params.get('employee') ?? undefined, date: params.get('date') ?? undefined }}
+        onSuccess={params.get('from') === 'week' ? () => router.push(`/dashboard/plans/week?date=${params.get('date') ?? ''}`) : undefined}
+      />
     </div>
   )
 }

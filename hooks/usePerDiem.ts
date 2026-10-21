@@ -7,6 +7,7 @@ import { PerDiem } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { actionToasts } from '@/lib/toast/actionToasts'
 import { sendNotification } from '@/lib/notifications/service'
+import { fetchAllPages } from '@/lib/supabase/paginate'
 
 export function usePerDiem() {
   const [perDiems, setPerDiems] = useState<PerDiem[]>([])
@@ -18,19 +19,25 @@ export function usePerDiem() {
     if (!profile?.organization_id) return
     if (!isSilent) setLoading(true)
 
-    let query = supabase
-      .from('per_diems')
-      .select('*, plan:plans(*, customer:customers(*))')
-      .eq('organization_id', profile.organization_id)
-      .order('date', { ascending: false })
+    const orgId = profile.organization_id
+    // Rebuilt per page: PostgREST caps each response at 1000 rows.
+    const { data, error } = await fetchAllPages<PerDiem>((from, to) => {
+      let query = supabase
+        .from('per_diems')
+        .select('*, plan:plans(*, customer:customers(*))')
+        .eq('organization_id', orgId)
 
-    if (!isAdmin && !isDispatcher) {
-      query = query.eq('employee_id', profile.id)
-    }
+      if (!isAdmin && !isDispatcher) {
+        query = query.eq('employee_id', profile.id)
+      }
 
-    const { data, error } = await query
+      return query
+        .order('date', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to)
+    })
     if (!error) {
-      setPerDiems(data || [])
+      setPerDiems(data)
     } else {
       console.error('[usePerDiem] Detailed Fetch Error:', JSON.stringify(error, null, 2))
       toast.error('Failed to sync per diem data. Please ensure the latest database migrations are applied.')

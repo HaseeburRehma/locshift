@@ -581,6 +581,12 @@ export interface NotificationRow {
   id: string
   user_id: string
   title: string
+  /** Live columns (message / module_type / module_id / link). */
+  message?: string | null
+  module_type?: string | null
+  module_id?: string | null
+  link?: string | null
+  /** Normalised aliases filled by useNotifications(). */
   body: string | null
   type: string
   entity_type: 'lead' | 'job' | 'review' | 'partner_lead' | null

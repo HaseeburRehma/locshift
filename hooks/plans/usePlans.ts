@@ -6,7 +6,9 @@ import { Plan } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { actionToasts } from '@/lib/toast/actionToasts'
 import { sendNotification } from '@/lib/notifications/service'
+import { notifyPlanCancelled, describePlan, notifyPlanAssigned } from '@/lib/plans/notify'
 import { toast } from 'sonner'
+import { fetchAllPages } from '@/lib/supabase/paginate'
 
 import { useTranslation } from '@/lib/i18n'
 
@@ -22,19 +24,24 @@ export function usePlans() {
     if (!profile) return
     if (!isSilent) setLoading(true)
     
-    let query = supabase
-      .from('plans')
-      // Phase 3 #1 — pull joined Betriebsstellen so lists/details can render them
-      .select('*, employee:profiles!employee_id(*), customer:customers(*), start_location:operational_locations!start_location_id(id, name, short_code, type), destination_location:operational_locations!destination_location_id(id, name, short_code, type)')
-      .eq('organization_id', profile.organization_id)
-      .order('start_time', { ascending: false })
+    // Rebuilt per page: PostgREST caps each response at 1000 rows.
+    const { data, error } = await fetchAllPages<Plan>((from, to) => {
+      let query = supabase
+        .from('plans')
+        // Phase 3 #1 — pull joined Betriebsstellen so lists/details can render them
+        .select('*, employee:profiles!employee_id(*), customer:customers(*), start_location:operational_locations!start_location_id(id, name, short_code, type), destination_location:operational_locations!destination_location_id(id, name, short_code, type)')
+        .eq('organization_id', profile.organization_id)
 
-    if (!isAdmin && !isDispatcher) {
-      query = query.eq('employee_id', profile.id)
-    }
+      if (!isAdmin && !isDispatcher) {
+        query = query.eq('employee_id', profile.id)
+      }
 
-    const { data, error } = await query
-    if (!error) setPlans(data || [])
+      return query
+        .order('start_time', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to)
+    })
+    if (!error) setPlans(data)
     setLoading(false)
   }, [profile, isAdmin, isDispatcher, supabase])
 
@@ -151,10 +158,11 @@ export function usePlans() {
     if (previous?.creator_id && previous.creator_id !== profile?.id) {
       await sendNotification({
         userId: previous.creator_id,
-        title: status === 'confirmed' ? '✅ Einsatzplan bestätigt' : '❌ Einsatzplan abgelehnt',
-        message: `${profile?.full_name} hat die Schicht am ${new Date(previous.start_time).toLocaleDateString('de-DE')} ${status === 'confirmed' ? 'bestätigt' : 'abgelehnt'}`,
+        title: status === 'confirmed' ? 'Schicht bestätigt' : 'Schicht abgelehnt',
+        message: `${profile?.full_name} hat die Schicht ${describePlan(previous)} ${status === 'confirmed' ? 'bestätigt' : `abgelehnt${reason ? ` – Grund: ${reason}` : ''}`}.`,
         module: 'plans',
-        moduleId: planId
+        moduleId: planId,
+        link: '/dashboard/plans/week',
       })
     }
 
@@ -185,16 +193,7 @@ export function usePlans() {
     // Replace optimistic entry with real data immediately
     setPlans(prev => prev.map(p => p.id === tempId ? newPlan : p))
 
-    // Notify the assigned employee
-    if (newPlan.employee_id) {
-      await sendNotification({
-        userId: newPlan.employee_id,
-        title: '📋 Neue Schicht zugewiesen',
-        message: `Ihnen wurde eine neue Schicht am ${new Date(newPlan.start_time).toLocaleDateString('de-DE')} zugewiesen. Bitte bestätigen.`,
-        module: 'plans',
-        moduleId: newPlan.id
-      })
-    }
+    if (newPlan.employee_id) await notifyPlanAssigned(newPlan, newPlan.employee_id)
 
     return newPlan
   }, [supabase])
@@ -226,7 +225,7 @@ export function usePlans() {
         ...(d ? { start_time: d.start_time, end_time: d.end_time } : {}),
         ...(eid ? { employee_id: eid } : {}),
       }))
-    ).filter(r => r.employee_id && r.start_time && r.end_time)
+    ).filter(r => r.start_time && r.end_time)
 
     if (rows.length === 0) {
       throw new Error('Bulk create needs at least one date and one employee')
@@ -254,10 +253,11 @@ export function usePlans() {
       seen.add(p.employee_id)
       await sendNotification({
         userId: p.employee_id,
-        title: '📋 Neue Schichten zugewiesen',
-        message: `Ihnen wurden ${list.filter(x => x.employee_id === p.employee_id).length} neue Schicht(en) zugewiesen. Bitte prüfen und bestätigen.`,
+        title: 'Neue Schichten zugewiesen',
+        message: `Ihnen wurden ${list.filter(x => x.employee_id === p.employee_id).length} neue Schicht(en) zugewiesen, erste: ${describePlan(p)}. Bitte prüfen und bestätigen.`,
         module: 'plans',
         moduleId: p.id,
+        link: '/dashboard/plans/my-week',
       })
     }
 
@@ -279,6 +279,10 @@ export function usePlans() {
       return
     }
     actionToasts.planDeleted()
+    // Tell the driver when an upcoming shift disappears (Punkt 8).
+    if (previous?.employee_id && new Date(previous.end_time) > new Date()) {
+      void notifyPlanCancelled(previous, previous.employee_id)
+    }
   }, [plans, supabase])
 
   return { plans, loading, updatePlanStatus, createPlan, createBulkPlans, deletePlan, refresh: fetchPlans }

@@ -18,6 +18,7 @@ import { useTranslation } from '@/lib/i18n'
 import { PerDiem, Profile } from '@/lib/types'
 import { usePerDiem } from '@/hooks/usePerDiem'
 import { PerDiemForm } from '@/components/shared/PerDiemForm'
+import { SpesenExplainer } from '@/components/perdiem/SpesenExplainer'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { useMediaQuery } from '@/hooks/use-media-query'
@@ -163,10 +164,10 @@ export default function PerDiemPage() {
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-[26px] md:text-[30px] font-bold text-[#0064E0] tracking-tight leading-none">
-              {L('Verpflegung / Spesen', 'Per Diem / Travel Allowance')}
+              {L('Spesen (Verpflegungsmehraufwand)', 'Per diem (meal allowance)')}
             </h1>
             <p className="text-[13px] text-slate-500 font-normal">
-              {L('Verpflegungsanträge erfassen und nachverfolgen', 'Submit and track per diem claims')}
+              {L('Automatische Spesen aus Schichten und zusätzliche Spesenanträge', 'Automatic per diem from shifts and additional claims')}
             </p>
           </div>
           {isAdminView && (
@@ -179,6 +180,8 @@ export default function PerDiemPage() {
             </button>
           )}
         </div>
+
+        <SpesenExplainer manager={isAdminView} />
 
         {/* ── Stat cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -217,7 +220,7 @@ export default function PerDiemPage() {
           {/* Card header: title + search + filter + add button */}
           <div className="px-6 py-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center gap-4">
             <h2 className="text-[16px] font-semibold text-slate-900 shrink-0">
-              {L('Verpflegungs-Anträge', 'Per Diem Claims')}
+              {L('Zusätzliche Spesenanträge', 'Additional per diem claims')}
             </h2>
 
             {/* Search */}
@@ -293,7 +296,7 @@ export default function PerDiemPage() {
             ) : filteredPerDiems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
                 <Wallet className="h-10 w-10 text-slate-300" />
-                <p className="text-[13px] text-slate-400 font-medium">{L('Keine Verpflegungsanträge gefunden.', 'No per diem claims found.')}</p>
+                <p className="text-[13px] text-slate-400 font-medium">{L('Keine Spesenanträge gefunden.', 'No per diem claims found.')}</p>
               </div>
             ) : (
               paginated.map(pd => (

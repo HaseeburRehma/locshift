@@ -22,6 +22,7 @@ import { format, differenceInDays, parseISO } from 'date-fns'
 import { usePlans } from '@/hooks/plans/usePlans'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
+import { localDateKey } from '@/lib/time/shift-hours'
 
 interface PerDiemFormProps {
   onSubmit: (data: any) => Promise<boolean>
@@ -38,8 +39,8 @@ export function PerDiemForm({ onSubmit, onCancel, isSubmitting }: PerDiemFormPro
   const [formData, setFormData] = useState({
     plan_id: '',
     task: '',
-    start_date: new Date().toISOString().split('T')[0],
-    end_date: new Date().toISOString().split('T')[0],
+    start_date: localDateKey(),
+    end_date: localDateKey(),
     country: 'Germany (Domestic)',
     rate: 28.00,
     hourly_rate: 15.00,
@@ -72,9 +73,9 @@ export function PerDiemForm({ onSubmit, onCancel, isSubmitting }: PerDiemFormPro
       setFormData(prev => ({
         ...prev,
         plan_id: planId,
-        task: plan.customer?.name ? `Job at ${plan.customer.name}` : 'Mission Plan Job',
-        start_date: plan.start_time.split('T')[0],
-        end_date: plan.end_time.split('T')[0]
+        task: plan.customer?.name ? `Einsatz bei ${plan.customer.name}` : 'Einsatz',
+        start_date: localDateKey(new Date(plan.start_time)),
+        end_date: localDateKey(new Date(plan.end_time))
       }))
     }
   }
@@ -87,12 +88,22 @@ export function PerDiemForm({ onSubmit, onCancel, isSubmitting }: PerDiemFormPro
        return
     }
 
+    // Only the fields of the chosen calculation mode are stored — a daily
+    // claim must not carry the hourly defaults (it showed "8 Std. / 15 €/Std.").
     const payload = {
-      ...formData,
+      plan_id: formData.plan_id,
+      task: formData.task,
+      start_date: formData.start_date,
+      end_date: formData.end_date,
+      country: formData.country,
+      notes: formData.notes,
       date: formData.start_date,
+      rate: calculationMode === 'daily' ? formData.rate : null,
+      hourly_rate: calculationMode === 'hourly' ? formData.hourly_rate : null,
+      working_hours: calculationMode === 'hourly' ? formData.working_hours : null,
       num_days: calculationMode === 'daily' ? numDays : 1,
       amount: totalAmount,
-      status: 'submitted'
+      status: 'submitted',
     }
 
     const success = await onSubmit(payload)

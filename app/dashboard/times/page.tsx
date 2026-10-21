@@ -1,275 +1,284 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { format } from 'date-fns'
 import { TimesList } from '@/components/time/TimesList'
 import { TimeEntryForm } from '@/components/time/TimeEntryForm'
 import { TimeEntryDetails } from '@/components/time/TimeEntryDetails'
+import { ShiftClosingDialog } from '@/components/time/ShiftClosingDialog'
+import { CorrectionRequestDialog } from '@/components/time/CorrectionRequestDialog'
 import { useTimeTracking } from '@/hooks/useTimeTracking'
+import { useCorrections } from '@/hooks/times/useCorrections'
 import { useUser } from '@/lib/user-context'
 import { createClient } from '@/lib/supabase/client'
-import { TimeEntry, TimeEntryFormData } from '@/lib/types'
-import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import type { TimeEntry, TimeEntryFormData } from '@/lib/types'
 import { useProfiles } from '@/hooks/useProfiles'
-
-import { updateTimeEntryStatus } from '@/app/actions/time-entries'
-import { calculateSpesen, DEFAULT_SPESEN_RATES } from '@/lib/spesen'
+import { calculateSpesen } from '@/lib/spesen'
 import { calculateShiftTimes } from '@/lib/time/shift-hours'
-// Phase 5 #4/#5/#6 — PDF export from the Time Tracking section itself.
+import { formatDateDE, formatHours, formatShiftRange } from '@/lib/time/format'
+import { TIME_ENTRY_SELECT, dbErrorMessage, entryStatus } from '@/lib/times/entry-status'
+import { sendNotification } from '@/lib/notifications/service'
 import { exportWorkingTimePdf, slugify } from '@/lib/pdf/exportPdf'
-// Client CR May 2026 — Stundenzettel PDF (per-employee monthly timesheet
-// mirroring the client's Excel template).
-import { exportStundenzettelPdf } from '@/lib/pdf/stundenzettel'
-import { format } from 'date-fns'
 import { useTranslation } from '@/lib/i18n'
 
 export default function TimesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-[80vh] items-center justify-center">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        </div>
+      }
+    >
+      <TimesPageInner />
+    </Suspense>
+  )
+}
+
+function TimesPageInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [view, setView] = useState<'list' | 'add' | 'details' | 'edit'>('list')
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [entries, setEntries] = useState<TimeEntry[]>([])
-  const [customers, setCustomers] = useState<{ id: string, name: string }[]>([])
+  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([])
   const [fetching, setFetching] = useState(true)
+  const [reviewEntry, setReviewEntry] = useState<TimeEntry | null>(null)
+  const [correctionEntry, setCorrectionEntry] = useState<TimeEntry | null>(null)
 
-  const { user, profile, isAdmin, isDispatcher } = useUser()
-  const { clockIn, clockOut } = useTimeTracking()
+  const { user, profile, isAdmin, isDispatcher, spesenRates } = useUser()
+  const { submitEntry } = useTimeTracking()
   const { profiles: employeeProfiles } = useProfiles()
+  const { corrections: pendingCorrections, requestCorrection } = useCorrections({ pendingOnly: true })
   const supabase = createClient()
   const { locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
-  const canAddManually = isAdmin || isDispatcher
+  const isManager = isAdmin || isDispatcher
 
-  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
-    if (!profile?.organization_id || !user) return
-    const newStatus = !currentStatus
+  const fetchData = useCallback(async () => {
+    if (!user || !profile?.organization_id) return
+    let q = supabase
+      .from('time_entries')
+      .select(TIME_ENTRY_SELECT)
+      .eq('organization_id', profile.organization_id)
+      .order('date', { ascending: false })
+      .order('start_time', { ascending: false })
+      .limit(1000)
+    if (!isManager) q = q.eq('employee_id', user.id)
+    const { data, error } = await q
+    if (error) toast.error(L('Zeiteinträge konnten nicht geladen werden', 'Failed to load time entries'))
+    else setEntries((data ?? []) as TimeEntry[])
 
-    // Optimistic UI update
-    setEntries(prev => prev.map(e => e.id === id ? { ...e, is_verified: newStatus } : e))
+    const { data: customersData } = await supabase
+      .from('customers')
+      .select('id, name')
+      .eq('organization_id', profile.organization_id)
+      .eq('is_active', true)
+      .order('name')
+    setCustomers(customersData || [])
+    setFetching(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profile?.organization_id, isManager, supabase])
 
-    const result = await updateTimeEntryStatus(id, newStatus, newStatus ? user.id : null)
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
-    if (!result.success) {
-      console.error('Update status failed:', result.error)
-      toast.error(L('Statusaktualisierung fehlgeschlagen', 'Status update failed'))
-      // Revert on failure
-      fetchData()
-    } else {
-      toast.success(newStatus
-        ? L('Zeiteintrag genehmigt', 'Time entry approved')
-        : L('Zeiteintrag auf ausstehend gesetzt', 'Time entry marked pending'))
+  // Deep link: /dashboard/times?entry=<id>
+  useEffect(() => {
+    const id = searchParams.get('entry')
+    if (id && entries.some((e) => e.id === id)) {
+      setSelectedEntryId(id)
+      setView('details')
     }
+  }, [searchParams, entries])
+
+  const pendingCorrectionIds = useMemo(
+    () => new Set(pendingCorrections.map((c) => c.entry_id)),
+    [pendingCorrections],
+  )
+  const approvalsCount = isManager
+    ? pendingCorrections.length + entries.filter((e) => entryStatus(e) === 'submitted').length
+    : 0
+
+  const setApproved = async (entry: TimeEntry, approved: boolean) => {
+    const { error } = await supabase
+      .from('time_entries')
+      .update({ is_verified: approved, verified_by: approved ? user?.id ?? null : null })
+      .eq('id', entry.id)
+    if (error) {
+      toast.error(dbErrorMessage(error, locale, L('Freigabe konnte nicht gespeichert werden', 'Could not save approval')))
+      return
+    }
+    toast.success(approved ? L('Zeiteintrag freigegeben', 'Time entry approved') : L('Freigabe zurückgenommen', 'Approval revoked'))
+    if (approved && entry.employee_id !== user?.id) {
+      void sendNotification({
+        userId: entry.employee_id,
+        title: 'Zeiteintrag freigegeben',
+        message: `Ihr Zeiteintrag vom ${formatDateDE(entry.date)} (${formatShiftRange(entry.start_time, entry.end_time)}) wurde freigegeben.`,
+        module: 'time_entries',
+        moduleId: entry.id,
+        link: `/dashboard/times?entry=${entry.id}`,
+        skipEmail: true,
+      })
+    }
+    fetchData()
   }
 
-  // Phase 6 #4 — admin/dispatcher hard-delete with confirm dialog.
-  // Optimistic removal + reload on failure. RLS already restricts DELETE
-  // to admin/dispatcher (see 20260424120000_security_baseline.sql).
   const handleDelete = async (entry: TimeEntry) => {
-    if (!profile?.organization_id) return
     const employeeLabel = entry.employee?.full_name ?? L('Mitarbeiter', 'Employee')
     const confirmed = window.confirm(
       L(
-        `Diesen Zeiteintrag wirklich löschen?\n\n${entry.date} · ${employeeLabel} · ${entry.net_hours?.toFixed?.(2) ?? '0.00'}h`,
-        `Really delete this time entry?\n\n${entry.date} · ${employeeLabel} · ${entry.net_hours?.toFixed?.(2) ?? '0.00'}h`,
+        `Diesen Zeiteintrag wirklich löschen?\n\n${formatDateDE(entry.date)} · ${employeeLabel} · ${formatHours(entry.net_hours, 'de')} Std.\n\nDer Vorgang wird im Änderungsprotokoll festgehalten.`,
+        `Really delete this time entry?\n\n${entry.date} · ${employeeLabel} · ${formatHours(entry.net_hours, 'en')} h`,
       ),
     )
     if (!confirmed) return
-
     const previous = entries
-    setEntries(prev => prev.filter(e => e.id !== entry.id))
-
-    const { error } = await supabase
-      .from('time_entries')
-      .delete()
-      .eq('id', entry.id)
-
+    setEntries((prev) => prev.filter((e) => e.id !== entry.id))
+    const { error } = await supabase.from('time_entries').delete().eq('id', entry.id)
     if (error) {
-      console.error('[times] delete failed', error)
-      toast.error(error.message || L('Eintrag konnte nicht gelöscht werden', 'Failed to delete entry'))
-      setEntries(previous) // rollback
+      toast.error(dbErrorMessage(error, locale, L('Eintrag konnte nicht gelöscht werden', 'Failed to delete entry')))
+      setEntries(previous)
       return
     }
     toast.success(L('Zeiteintrag gelöscht', 'Time entry deleted'))
+    if (view !== 'list') setView('list')
   }
 
-  // Phase 2 #3 — promote a planned entry to an actual (worked) one.
   const handleConvertPlanned = async (id: string) => {
-    if (!profile?.organization_id) return
-    // Optimistic local flip
-    setEntries(prev => prev.map(e => e.id === id ? { ...e, is_planned: false } : e))
-    const { error } = await supabase
-      .from('time_entries')
-      .update({ is_planned: false })
-      .eq('id', id)
+    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, is_planned: false } : e)))
+    const { error } = await supabase.from('time_entries').update({ is_planned: false }).eq('id', id)
     if (error) {
-      console.error('[times] convert planned failed', error)
-      toast.error(L('Konnte nicht als tatsächlich markiert werden', 'Could not mark as actual'))
+      toast.error(dbErrorMessage(error, locale, L('Konnte nicht als tatsächlich markiert werden', 'Could not mark as actual')))
       fetchData()
       return
     }
     toast.success(L('Als tatsächliche Zeit markiert', 'Marked as actual time'))
   }
 
-  const fetchData = async () => {
-    if (!user || !profile?.organization_id) return
-    setFetching(true)
-    
-    // Fetch entries (Phase 3: include joined Betriebsstellen)
-    const { data: entriesData, error: entriesError } = await supabase
+  const findOverlaps = async (employeeId: string, startISO: string, endISO: string, excludeId?: string) => {
+    let q = supabase
       .from('time_entries')
-      .select('*, employee:profiles!employee_id(id, full_name, avatar_url, role), customer:customers(id, name), verifier:profiles!verified_by(id, full_name), plan:plans(location, customer:customers(id, name)), start_location:operational_locations!start_location_id(id, name, short_code, type), destination_location:operational_locations!destination_location_id(id, name, short_code, type)')
-      .eq('organization_id', profile.organization_id)
-      .order('date', { ascending: false })
-      .order('start_time', { ascending: false })
-
-    // Filter by employee if not admin/dispatcher
-    const filteredEntries = (isAdmin || isDispatcher)
-      ? entriesData 
-      : (entriesData?.filter((e: TimeEntry) => e.employee_id === user.id) || [])
-
-    if (entriesError) toast.error(L('Zeiteinträge konnten nicht geladen werden', 'Failed to load time entries'))
-    else setEntries(filteredEntries || [])
-
-    // Fetch customers
-    const { data: customersData } = await supabase
-      .from('customers')
-      .select('id, name')
-      .eq('organization_id', profile.organization_id)
-      .eq('is_active', true)
-
-    setCustomers(customersData || [])
-    setFetching(false)
+      .select('id, date, start_time, end_time, break_minutes, net_hours, employee_id')
+      .eq('employee_id', employeeId)
+      .eq('is_planned', false)
+      .lt('start_time', endISO)
+      .or(`end_time.gt.${startISO},end_time.is.null`)
+    if (excludeId) q = q.neq('id', excludeId)
+    const { data } = await q
+    return (data ?? []) as TimeEntry[]
   }
-
-  useEffect(() => {
-    fetchData()
-  }, [user, profile, isAdmin, isDispatcher])
 
   const handleAddSubmit = async (data: TimeEntryFormData) => {
     if (!user || !profile?.organization_id) return
 
-    // Phase 2 #3 — employees may submit planned (future) entries for
-    // themselves. Actual-time entries remain admin/dispatcher only
-    // (live clock-in/out handles the employee actual-time flow).
-    if (!canAddManually && !data.isPlanned) {
+    if (!isManager && !data.isPlanned) {
       toast.error(L(
-        'Nur Admins können tatsächliche Zeiten manuell eintragen. Nutzen Sie den „Geplante Zeit"-Schalter, um eine Voranmeldung zu speichern.',
-        'Only admins can manually enter actual times. Use the "Planned time" toggle to save a pre-announcement.',
+        'Tatsächliche Zeiten erfassen Sie über „Schicht starten“ / „Beenden“. Hier können Sie eine geplante Zeit voranmelden.',
+        'Record actual times with "Start shift" / "End". Here you can pre-announce a planned time.',
       ))
       return
     }
 
-    // Overnight-shift fix (May 2026) — calculateShiftTimes pushes the
-    // end timestamp to the next day when end < start, so a 23:00 → 06:00
-    // shift now records 7 hours instead of 0.
     const shift = calculateShiftTimes(data.date, data.startTime, data.endTime, data.breakMinutes)
-    const startDateTime = shift.startISO
-    const endDateTime = shift.endISO
-    const netHours = shift.netHours
+    const targetEmployeeId = isManager && data.employeeId ? data.employeeId : user.id
+    const onBehalf = targetEmployeeId !== user.id
+    const now = new Date().toISOString()
 
-    // Phase 2 #11 — compute Spesen from org rates (falls back to German defaults).
-    const mealAllowance = calculateSpesen(netHours, !!data.overnightStay, {
-      partial: (profile as any)?.organization?.spesen_rate_partial ?? DEFAULT_SPESEN_RATES.partial,
-      full: (profile as any)?.organization?.spesen_rate_full ?? DEFAULT_SPESEN_RATES.full,
-    })
-
-    // Client CR May 2026 — Admin/Dispatcher can record a shift for another
-    // employee. The picker on TimeEntryForm sets data.employeeId; for an
-    // employee filling in their own entry, it stays empty and we fall
-    // back to their own auth user id. RLS still enforces (employee_id ==
-    // auth.uid OR caller is admin/dispatcher in org).
-    const targetEmployeeId =
-      canAddManually && data.employeeId ? data.employeeId : user.id
-
-    if (canAddManually && !data.employeeId) {
-      toast.error(L('Bitte einen Mitarbeiter auswählen.', 'Please select an employee.'))
-      return
-    }
-
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('time_entries')
       .insert({
         organization_id: profile.organization_id,
         employee_id: targetEmployeeId,
+        plan_id: data.planId ?? null,
         date: data.date,
-        start_time: startDateTime,
-        end_time: endDateTime,
-        break_minutes: data.breakMinutes,
+        start_time: shift.startISO,
+        end_time: shift.endISO,
+        break_minutes: data.breakMinutes ?? 0,
         customer_id: data.customerId || null,
         location: data.location || null,
         notes: data.notes || null,
-        net_hours: Number(netHours.toFixed(2)),
         overnight_stay: !!data.overnightStay,
         hotel_address: data.hotelAddress || null,
-        meal_allowance: Number(mealAllowance.toFixed(2)),
+        meal_allowance: calculateSpesen(shift.netHours, !!data.overnightStay, spesenRates),
         is_planned: !!data.isPlanned,
-        // Phase 3 #1 + #10
         start_location_id: data.startLocationId ?? null,
         destination_location_id: data.destinationLocationId ?? null,
         is_gastfahrt: !!data.isGastfahrt,
+        // Entered by dispatch/admin → counts as submitted.
+        submitted_at: !data.isPlanned && isManager ? now : null,
+        is_verified: !data.isPlanned && isManager && !!data.approveNow,
+        verified_by: !data.isPlanned && isManager && data.approveNow ? user.id : null,
       })
+      .select('id')
+      .single()
 
     if (error) {
-      toast.error(L('Eintrag konnte nicht erstellt werden', 'Failed to create entry'))
+      toast.error(dbErrorMessage(error, locale, L('Eintrag konnte nicht erstellt werden', 'Failed to create entry')))
       return
     }
 
-    toast.success(data.isPlanned
-      ? L('Geplante Zeit gespeichert', 'Planned time saved')
-      : L('Zeiteintrag erstellt', 'Time entry created'))
+    if (onBehalf) {
+      void sendNotification({
+        userId: targetEmployeeId,
+        title: 'Zeiten für Sie erfasst',
+        message: `${profile.full_name ?? 'Die Disposition'} hat für Sie eine Schicht am ${formatDateDE(data.date)} (${data.startTime}–${data.endTime}, ${formatHours(shift.netHours, 'de')} Std.) erfasst.`,
+        module: 'time_entries',
+        moduleId: inserted?.id,
+        link: inserted?.id ? `/dashboard/times?entry=${inserted.id}` : '/dashboard/times',
+      })
+    }
+
+    toast.success(data.isPlanned ? L('Geplante Zeit gespeichert', 'Planned time saved') : L('Zeiteintrag gespeichert', 'Time entry saved'))
     setView('list')
     fetchData()
   }
 
+  const selectedEntry = entries.find((e) => e.id === selectedEntryId)
+
   const handleEditSubmit = async (data: TimeEntryFormData) => {
-    if (!selectedEntryId || !profile?.organization_id) return
-
-    // Overnight-shift fix (May 2026) — same helper as the insert path so
-    // an edit that flips the times into an overnight shift recalculates
-    // correctly.
+    if (!selectedEntry || !profile?.organization_id) return
     const shift = calculateShiftTimes(data.date, data.startTime, data.endTime, data.breakMinutes)
-    const startDateTime = shift.startISO
-    const endDateTime = shift.endISO
-    const netHours = shift.netHours
-
-    const mealAllowance = calculateSpesen(netHours, !!data.overnightStay, {
-      partial: (profile as any)?.organization?.spesen_rate_partial ?? DEFAULT_SPESEN_RATES.partial,
-      full: (profile as any)?.organization?.spesen_rate_full ?? DEFAULT_SPESEN_RATES.full,
-    })
-
-    // Client CR May 2026 — admin / dispatcher may reassign the row to a
-    // different employee through the picker on TimeEntryForm. Employees
-    // never see the picker, so data.employeeId stays empty for them and
-    // we leave the field untouched.
-    const updatePayload: Record<string, unknown> = {
+    const payload: Record<string, unknown> = {
+      plan_id: data.planId ?? selectedEntry.plan_id ?? null,
       date: data.date,
-      start_time: startDateTime,
-      end_time: endDateTime,
-      break_minutes: data.breakMinutes,
+      start_time: shift.startISO,
+      end_time: shift.endISO,
+      break_minutes: data.breakMinutes ?? 0,
       customer_id: data.customerId || null,
       location: data.location || null,
       notes: data.notes || null,
-      net_hours: Number(netHours.toFixed(2)),
       overnight_stay: !!data.overnightStay,
       hotel_address: data.hotelAddress || null,
-      meal_allowance: Number(mealAllowance.toFixed(2)),
+      meal_allowance: calculateSpesen(shift.netHours, !!data.overnightStay, spesenRates),
       is_planned: !!data.isPlanned,
-      // Phase 3 #1 + #10
       start_location_id: data.startLocationId ?? null,
       destination_location_id: data.destinationLocationId ?? null,
       is_gastfahrt: !!data.isGastfahrt,
     }
-    if (canAddManually && data.employeeId) {
-      updatePayload.employee_id = data.employeeId
+    if (isManager && data.employeeId) payload.employee_id = data.employeeId
+    if (data.changeReason?.trim()) payload.change_reason = `Änderung durch Disposition: ${data.changeReason.trim()}`
+
+    const { error } = await supabase.from('time_entries').update(payload).eq('id', selectedEntry.id)
+    if (error) {
+      toast.error(dbErrorMessage(error, locale, L('Eintrag konnte nicht aktualisiert werden', 'Failed to update entry')))
+      return
     }
 
-    const { error } = await supabase
-      .from('time_entries')
-      .update(updatePayload)
-      .eq('id', selectedEntryId)
-
-    if (error) {
-      toast.error(L('Eintrag konnte nicht aktualisiert werden', 'Failed to update entry'))
-      return
+    if (isManager && selectedEntry.submitted_at && selectedEntry.employee_id !== user?.id) {
+      void sendNotification({
+        userId: selectedEntry.employee_id,
+        title: 'Zeiteintrag geändert',
+        message: `Ihr Zeiteintrag vom ${formatDateDE(selectedEntry.date)} wurde von ${profile.full_name ?? 'der Disposition'} geändert: ${data.startTime}–${data.endTime}, ${formatHours(shift.netHours, 'de')} Std. Grund: ${data.changeReason?.trim() ?? '—'}`,
+        module: 'time_entries',
+        moduleId: selectedEntry.id,
+        link: `/dashboard/times?entry=${selectedEntry.id}`,
+      })
     }
 
     toast.success(L('Zeiteintrag aktualisiert', 'Time entry updated'))
@@ -277,7 +286,17 @@ export default function TimesPage() {
     fetchData()
   }
 
-  const selectedEntry = entries.find(e => e.id === selectedEntryId)
+  const handleSubmitDraft = async (...args: Parameters<typeof submitEntry>) => {
+    const ok = await submitEntry(...args)
+    if (ok) fetchData()
+    return ok
+  }
+
+  const handleRequestCorrection: typeof requestCorrection = async (...args) => {
+    const ok = await requestCorrection(...args)
+    if (ok) fetchData()
+    return ok
+  }
 
   if (fetching) {
     return (
@@ -287,6 +306,15 @@ export default function TimesPage() {
     )
   }
 
+  const employeeOptions = isManager
+    ? employeeProfiles.filter((p) => p && p.id && p.full_name).map((p) => ({ id: p.id, full_name: p.full_name ?? '' }))
+    : undefined
+
+  const ownDraft = (e: TimeEntry) => e.employee_id === user?.id && entryStatus(e) === 'draft'
+  const canRequestCorrection = (e: TimeEntry) =>
+    e.employee_id === user?.id && !isManager && (entryStatus(e) === 'submitted' || entryStatus(e) === 'approved')
+  const canEdit = (e: TimeEntry) => isManager || ownDraft(e) || (e.employee_id === user?.id && e.is_planned)
+
   return (
     <div className="h-full bg-white md:bg-transparent min-h-screen">
       <div className="max-w-[1600px] mx-auto md:px-6 md:py-8 lg:px-8">
@@ -295,96 +323,53 @@ export default function TimesPage() {
             entries={entries}
             userRole={profile?.role}
             employees={employeeProfiles}
+            currentUserId={user?.id}
+            pendingCorrectionIds={pendingCorrectionIds}
             onEntryClick={(id) => {
               setSelectedEntryId(id)
               setView('details')
             }}
-            onAddClick={() => {
-              // Phase 2 #3 — all roles can submit planned times. The TimeEntryForm
-              // exposes a toggle that flips the new row into is_planned = true.
-              setView('add')
-            }}
-            onToggleStatus={canAddManually ? handleToggleStatus : undefined}
+            onAddClick={() => setView('add')}
+            onToggleStatus={isManager ? (id) => {
+              const e = entries.find((x) => x.id === id)
+              if (e) setApproved(e, !e.is_verified)
+            } : undefined}
             onConvertPlanned={handleConvertPlanned}
-            onDelete={canAddManually ? handleDelete : undefined}
-            onExportPdf={({ entries: filtered, employeeName }) => {
-              // Phase 5 #4/#5/#6 — Produce an "Arbeitszeitbericht" from the
-              // currently-filtered rows. For employees the page already pre-
-              // scopes entries to user.id, so this becomes a self-export.
+            onDelete={isManager ? handleDelete : undefined}
+            onReviewDraft={(e) => setReviewEntry(e)}
+            onOpenApprovals={isManager ? () => router.push('/dashboard/times/approvals') : undefined}
+            approvalsCount={approvalsCount}
+            onOpenMonthlyReport={(employeeId) => {
+              const month = format(new Date(), 'yyyy-MM')
+              const qs = new URLSearchParams({ month })
+              if (employeeId) qs.set('employee', employeeId)
+              router.push(`/dashboard/times/monthly?${qs.toString()}`)
+            }}
+            onExportPdf={({ entries: filtered, employeeName: activeName }) => {
               if (filtered.length === 0) {
                 toast.error(L('Keine Einträge zum Exportieren gefunden.', 'No entries to export.'))
                 return
               }
-
-              const title = 'Arbeitszeitbericht'
               const today = new Date()
               const stamp = format(today, 'yyyy-MM-dd')
-
               const subtitleParts: string[] = []
-              if (employeeName) subtitleParts.push(employeeName)
-              else if (!canAddManually && profile?.full_name) subtitleParts.push(profile.full_name)
+              if (activeName) subtitleParts.push(activeName)
+              else if (!isManager && profile?.full_name) subtitleParts.push(profile.full_name)
               subtitleParts.push(format(today, 'dd.MM.yyyy'))
-
-              const filenameBase = employeeName
-                ? `arbeitszeitbericht_${slugify(employeeName)}_${stamp}`
-                : (!canAddManually && profile?.full_name)
+              const filenameBase = activeName
+                ? `arbeitszeitbericht_${slugify(activeName)}_${stamp}`
+                : !isManager && profile?.full_name
                   ? `meine-zeiterfassung_${slugify(profile.full_name)}_${stamp}`
                   : `arbeitszeitbericht_${stamp}`
-
               exportWorkingTimePdf(filtered, {
-                title,
+                title: 'Arbeitszeitbericht',
                 subtitle: subtitleParts.join(' · '),
                 filename: filenameBase,
-                // Hide the "Employee" column on single-person exports (cleaner
-                // for self-export and admin-single-employee export).
-                showEmployee: canAddManually && !employeeName,
+                showEmployee: isManager && !activeName,
                 locale: 'de',
               })
-
               toast.success(L('PDF heruntergeladen.', 'PDF downloaded.'))
             }}
-            onExportStundenzettel={canAddManually
-              ? ({ entries: filtered, employeeId, employeeName }) => {
-                  // The list passes us the currently-filtered slice. The
-                  // Stundenzettel is always per-employee per-month, so we
-                  // pick the dominant month from the filtered set (the
-                  // most recent date present) and then restrict the rows
-                  // to that month. This guarantees the PDF header and the
-                  // table contents agree even if the active filter spans
-                  // multiple months.
-                  if (filtered.length === 0) {
-                    toast.error(L('Keine Einträge für Stundenzettel.', 'No entries for timesheet.'))
-                    return
-                  }
-                  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date))
-                  const monthKey = (sorted[0].date || '').slice(0, 7) // YYYY-MM
-                  const monthEntries = filtered.filter((e) => (e.date || '').slice(0, 7) === monthKey)
-                  if (monthEntries.length < filtered.length) {
-                    toast.info(L(
-                      `Stundenzettel nur für ${monthKey} — andere Monate ignoriert.`,
-                      `Timesheet limited to ${monthKey} — other months skipped.`,
-                    ))
-                  }
-                  exportStundenzettelPdf({
-                    employeeName,
-                    monthKey,
-                    entries: monthEntries.map((e) => ({
-                      date: e.date,
-                      start_time: e.start_time,
-                      end_time: e.end_time,
-                      break_minutes: e.break_minutes,
-                      net_hours: e.net_hours,
-                      overnight_stay: e.overnight_stay,
-                      meal_allowance: e.meal_allowance,
-                      is_gastfahrt: e.is_gastfahrt,
-                      notes: e.notes,
-                    })),
-                    filenameBase: `Stundenzettel_${slugify(employeeName)}_${monthKey}`,
-                  })
-                  toast.success(L('Stundenzettel heruntergeladen.', 'Timesheet downloaded.'))
-                  void employeeId
-                }
-              : undefined}
           />
         )}
 
@@ -394,25 +379,28 @@ export default function TimesPage() {
               onBack={() => setView('list')}
               onSubmit={handleAddSubmit}
               customers={customers}
-              employees={canAddManually
-                ? employeeProfiles
-                    .filter((p) => p && p.id && p.full_name)
-                    .map((p) => ({ id: p.id, full_name: p.full_name }))
-                : undefined}
-              // Admin doesn't get a pre-filled employee — they must explicitly
-              // pick one so they never accidentally log a shift on their own
-              // account when they meant another team member.
+              employees={employeeOptions}
               defaultEmployeeId={undefined}
+              allowApproveNow={isManager}
+              findOverlaps={findOverlaps}
             />
           </div>
         )}
 
         {view === 'details' && selectedEntry && (
           <div className="max-w-5xl mx-auto md:bg-white md:rounded-[3rem] md:shadow-2xl md:overflow-hidden md:border md:border-slate-100">
-            <TimeEntryDetails 
+            <TimeEntryDetails
               entry={selectedEntry}
-              onBack={() => setView('list')}
-              onEdit={() => setView('edit')}
+              onBack={() => {
+                setView('list')
+                if (searchParams.get('entry')) router.replace('/dashboard/times')
+              }}
+              onEdit={canEdit(selectedEntry) ? () => setView('edit') : undefined}
+              onSubmitDraft={ownDraft(selectedEntry) ? () => setReviewEntry(selectedEntry) : undefined}
+              onRequestCorrection={canRequestCorrection(selectedEntry) ? () => setCorrectionEntry(selectedEntry) : undefined}
+              onApprove={isManager && selectedEntry.end_time && !selectedEntry.is_verified && !selectedEntry.is_planned ? () => setApproved(selectedEntry, true) : undefined}
+              onUnapprove={isManager && selectedEntry.is_verified ? () => setApproved(selectedEntry, false) : undefined}
+              onDelete={isManager ? () => handleDelete(selectedEntry) : undefined}
             />
           </div>
         )}
@@ -424,16 +412,27 @@ export default function TimesPage() {
               onBack={() => setView('details')}
               onSubmit={handleEditSubmit}
               customers={customers}
-              employees={canAddManually
-                ? employeeProfiles
-                    .filter((p) => p && p.id && p.full_name)
-                    .map((p) => ({ id: p.id, full_name: p.full_name }))
-                : undefined}
+              employees={employeeOptions}
               defaultEmployeeId={selectedEntry.employee_id}
+              requireReason={isManager && !!selectedEntry.submitted_at}
+              findOverlaps={findOverlaps}
             />
           </div>
         )}
       </div>
+
+      <ShiftClosingDialog
+        entry={reviewEntry}
+        open={!!reviewEntry}
+        onOpenChange={(o) => !o && setReviewEntry(null)}
+        onSubmit={handleSubmitDraft}
+      />
+      <CorrectionRequestDialog
+        entry={correctionEntry}
+        open={!!correctionEntry}
+        onOpenChange={(o) => !o && setCorrectionEntry(null)}
+        onSubmit={handleRequestCorrection}
+      />
     </div>
   )
 }

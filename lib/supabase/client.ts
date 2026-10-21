@@ -1,5 +1,9 @@
 import { createBrowserClient } from '@supabase/ssr'
 
+// Tells the database this is a current client (see time_entries_normalize:
+// requests without it are treated as the previous app version).
+export const LOKSHIFT_CLIENT_HEADERS = { 'x-lokshift-client': '2' }
+
 /*
  * Bug fix: Supabase client should be a singleton in the browser.
  * Creating multiple clients causes "auth lock" contention (lock:sb-...)
@@ -119,6 +123,7 @@ export function createClient() {
     return createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: LOKSHIFT_CLIENT_HEADERS } },
     )
   }
 
@@ -128,6 +133,7 @@ export function createClient() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
+        global: { headers: LOKSHIFT_CLIENT_HEADERS },
         auth: {
           // Replace the default navigator.locks-based auth lock with our
           // wrapper that catches AbortError noise from cross-tab races.

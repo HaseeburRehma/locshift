@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Customer } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { sendNotification } from '@/lib/notifications/service'
+import { fetchAllPages } from '@/lib/supabase/paginate'
 
 export function useCustomers() {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -113,18 +114,25 @@ export function useCustomers() {
   }
 
   const getCustomerStats = async (id: string) => {
-    const { data: plans } = await supabase
-      .from('plans')
-      .select('id')
-      .eq('customer_id', id)
+    // Count server-side and page the hours sum — PostgREST caps every
+    // response at 1000 rows, which silently truncated both numbers.
+    const [{ count: planCount }, { data: times }] = await Promise.all([
+      supabase
+        .from('plans')
+        .select('id', { count: 'exact', head: true })
+        .eq('customer_id', id),
+      fetchAllPages<{ net_hours: number | null }>((from, to) =>
+        supabase
+          .from('time_entries')
+          .select('id, net_hours')
+          .eq('customer_id', id)
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
+    ])
 
-    const { data: times } = await supabase
-      .from('time_entries')
-      .select('net_hours')
-      .eq('customer_id', id)
-
-    const totalShifts = plans?.length || 0
-    const totalHours = times?.reduce((sum: number, t: any) => sum + (t.net_hours || 0), 0) || 0
+    const totalShifts = planCount || 0
+    const totalHours = times.reduce((sum: number, t) => sum + (Number(t.net_hours) || 0), 0)
 
     return { totalShifts, totalHours }
   }

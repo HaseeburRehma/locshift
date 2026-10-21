@@ -1,5 +1,7 @@
 'use client'
 
+import { calculateShiftTimes } from '@/lib/time/shift-hours'
+
 /**
  * Bulk plan creation — closes spec §5.3 "Copy plan to multiple days" and
  * "Assign same plan to multiple employees".
@@ -96,10 +98,8 @@ export default function BulkPlansPage() {
       // Build one date entry per day, with the chosen times-of-day.
       const dateEntries = days.map(d => {
         const dateStr = format(d, 'yyyy-MM-dd')
-        return {
-          start_time: new Date(`${dateStr}T${startTime}:00`).toISOString(),
-          end_time:   new Date(`${dateStr}T${endTime}:00`).toISOString(),
-        }
+        const shift = calculateShiftTimes(dateStr, startTime, endTime, 0)
+        return { start_time: shift.startISO, end_time: shift.endISO }
       })
 
       await createBulkPlans(
@@ -109,7 +109,7 @@ export default function BulkPlansPage() {
           status: 'assigned',
           notes: notes || null,
           location: location || null,
-          created_by: profile!.id,
+          creator_id: profile!.id,
         } as any,
         { dates: dateEntries, employeeIds: selectedEmployees },
       )

@@ -1,33 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
+import { getApiCaller, organizationOf } from '@/lib/supabase/api-auth'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function PATCH(request: Request) {
   try {
-    const supabase = await createClient()
-    // getSession() reads from cookie — no network call
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (!session?.user?.id) {
+    const caller = await getApiCaller()
+    if (!caller) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    // Check caller's role via admin client (fast, bypasses RLS)
+    if (caller.role !== 'admin' && caller.role !== 'manager') {
+      return NextResponse.json({ error: 'Forbidden: Admin or Manager access required.' }, { status: 403 })
+    }
     const adminClient = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
-
-    const { data: callerProfile } = await adminClient
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single()
-
-    if (callerProfile?.role !== 'admin' && callerProfile?.role !== 'manager') {
-      return NextResponse.json({ error: 'Forbidden: Admin or Manager access required.' }, { status: 403 })
-    }
 
     const { userId, role } = await request.json()
 
@@ -40,7 +28,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: `Invalid role: ${role}` }, { status: 400 })
     }
 
-    // adminClient is already instantiated above
+    // Only members of the caller's own organisation; never yourself.
+    if (userId === caller.id) {
+      return NextResponse.json({ error: 'You cannot change your own role' }, { status: 400 })
+    }
+    if (!caller.organizationId || (await organizationOf(userId)) !== caller.organizationId) {
+      return NextResponse.json({ error: 'User not in your organization' }, { status: 404 })
+    }
+
     const { error } = await adminClient
       .from('profiles')
       .update({ role, updated_at: new Date().toISOString() })

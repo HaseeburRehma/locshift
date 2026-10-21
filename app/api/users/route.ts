@@ -16,7 +16,9 @@ export async function GET() {
   try {
     // 1. Read session from cookie — instant, no network call
     const supabase = await createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    // getUser() verifies the JWT with the auth server (getSession() trusts the cookie).
+    const { data: { user: verifiedUser } } = await supabase.auth.getUser()
+    const session = verifiedUser ? { user: verifiedUser } : null
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -42,9 +44,13 @@ export async function GET() {
 
     // 3. List all users via admin client. `is_active` powers the
     //    activate/deactivate toggle in the management panel.
+    // Own organisation only (the service role would otherwise list every tenant).
+    const { data: me } = await adminClient.from('profiles').select('organization_id').eq('id', session.user.id).maybeSingle()
+    if (!me?.organization_id) return NextResponse.json([])
     const { data, error } = await adminClient
       .from('profiles')
       .select('id, full_name, email, role, is_active, created_at')
+      .eq('organization_id', me.organization_id)
       .order('created_at', { ascending: false })
 
     if (error) {

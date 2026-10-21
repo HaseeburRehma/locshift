@@ -1,4 +1,14 @@
 // app/api/auth/complete-registration/route.ts
+//
+// Final step of the e-mail OTP registration: sets the password and the
+// display name for the user who just verified the code.
+//
+// SECURITY: the caller must present the access token of the verified OTP
+// session (Authorization: Bearer <token>). The user is taken from that
+// token only — never from the request body — so nobody can set the
+// password of another account (previously userId/email in the body were
+// trusted, which allowed account takeover).
+
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
@@ -13,97 +23,49 @@ function getAdminClient() {
 
 export async function POST(request: Request) {
   try {
-    const { userId, fullName, email, password } = await request.json()
-
-    if (!userId || !password) {
-      return NextResponse.json({ error: 'userId and password are required' }, { status: 400 })
+    const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim()
+    if (!token) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 422 }
-      )
+
+    const { fullName, password } = await request.json()
+    if (typeof password !== 'string' || password.length < 6) {
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 422 })
     }
 
     const admin = getAdminClient()
 
-    // 1. Set password directly via admin — skip getUserById check entirely.
-    //    If userId is wrong, updateUserById returns a clear error without 404.
-    const { data: updatedUser, error: pwError } = await admin.auth.admin.updateUserById(userId, {
-      password,
-      email_confirm: true,
-    })
-
-    if (pwError) {
-      console.error('[CompleteReg] updateUserById error:', pwError)
-
-      // If user doesn't exist, try finding by email and updating that way
-      if (pwError.message?.includes('not found') || pwError.status === 404) {
-        const { data: listData } = await admin.auth.admin.listUsers()
-        const existingUser = listData?.users?.find(u => u.email === email)
-
-        if (existingUser) {
-          // Found by email — update using this ID
-          const { error: retryError } = await admin.auth.admin.updateUserById(existingUser.id, {
-            password,
-            email_confirm: true,
-          })
-          if (retryError) {
-            return NextResponse.json(
-              { error: 'Could not set password. Please try again.' },
-              { status: 500 }
-            )
-          }
-          // Profile upsert with the correct ID
-          await admin.from('profiles').upsert(
-            {
-              id: existingUser.id,
-              full_name: fullName || '',
-              email: email || existingUser.email,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          )
-          return NextResponse.json({ success: true, userId: existingUser.id })
-        }
-
-        return NextResponse.json(
-          { error: 'Account not found. Please start registration again.' },
-          { status: 400 }
-        )
-      }
-
-      return NextResponse.json(
-        { error: 'Failed to set password. Please try again.' },
-        { status: 500 }
-      )
+    // Verify the token with the auth server and take the user from it.
+    const { data: userData, error: userError } = await admin.auth.getUser(token)
+    const user = userData?.user
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Session expired. Please verify your e-mail again.' }, { status: 401 })
     }
 
-    // 2. Upsert profile — admin client bypasses ALL RLS policies
-    const profileId = updatedUser?.user?.id || userId
-    const { error: profileError } = await admin
-      .from('profiles')
-      .upsert(
-        {
-          id: profileId,
-          full_name: fullName || '',
-          email: email || updatedUser?.user?.email,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'id' }
-      )
+    const { error: pwError } = await admin.auth.admin.updateUserById(user.id, { password })
+    if (pwError) {
+      console.error('[CompleteReg] updateUserById error:', pwError.message)
+      return NextResponse.json({ error: 'Failed to set password. Please try again.' }, { status: 500 })
+    }
 
+    // Only name/e-mail of the verified user — never role or organisation.
+    const { error: profileError } = await admin.from('profiles').upsert(
+      {
+        id: user.id,
+        full_name: typeof fullName === 'string' ? fullName.trim().slice(0, 200) : '',
+        email: user.email,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    )
     if (profileError) {
       // Non-fatal — password already set, user can update profile later
       console.warn('[CompleteReg] Profile upsert warning:', profileError.message)
     }
 
     return NextResponse.json({ success: true })
-  } catch (err: any) {
+  } catch (err) {
     console.error('[CompleteReg] Unexpected error:', err)
-    return NextResponse.json(
-      { error: err.message || 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

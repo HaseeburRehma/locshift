@@ -11,11 +11,11 @@
  * specifically wanted "Betriebsstellen" as the user-visible term.
  */
 
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  Plus, Trash2, Edit2, ChevronLeft, MapPin, Power, PowerOff, Building2, Phone,
+  Plus, Trash2, Edit2, ChevronLeft, Power, PowerOff, Building2, Phone, Search, Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,8 @@ import {
 import { useUser } from '@/lib/user-context'
 import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 import type { OperationalLocation, OperationalLocationType } from '@/lib/types'
+import { LocationImportDialog } from '@/components/locations/LocationImportDialog'
+import { searchLocations } from '@/lib/operational-locations/parse'
 
 const TYPE_OPTIONS: { value: OperationalLocationType; label: string }[] = [
   { value: 'depot',    label: 'Depot' },
@@ -61,8 +63,20 @@ const EMPTY_FORM: FormState = {
 export default function BetriebsstellenPage() {
   const { isAdmin, isDispatcher, isLoading: userLoading } = useUser()
   const {
-    locations, loading, createLocation, updateLocation, toggleActive, deleteLocation,
+    locations, loading, createLocation, updateLocation, toggleActive, deleteLocation, importLocations,
   } = useOperationalLocations()
+
+  const [query, setQuery] = useState('')
+  const [showInactive, setShowInactive] = useState(true)
+  const [page, setPage] = useState(0)
+  const [importOpen, setImportOpen] = useState(false)
+  const PAGE_SIZE = 50
+  const filtered = useMemo(() => {
+    const base = showInactive ? locations : locations.filter((l) => l.is_active)
+    return query.trim() ? searchLocations(base, query, 5000) : base
+  }, [locations, query, showInactive])
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const shown = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<OperationalLocation | null>(null)
@@ -160,6 +174,15 @@ export default function BetriebsstellenPage() {
           </div>
         </div>
 
+        <div className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setImportOpen(true)}
+          className="rounded-2xl font-bold uppercase tracking-widest text-[11px] h-12 px-6"
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          Importieren
+        </Button>
         <Button
           onClick={openCreate}
           className="rounded-2xl bg-blue-600 font-bold uppercase tracking-widest text-[11px] h-12 px-6 shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 group"
@@ -167,137 +190,105 @@ export default function BetriebsstellenPage() {
           <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
           Neue Betriebsstelle
         </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {locations.map(loc => {
-          const typeLabel = TYPE_OPTIONS.find(t => t.value === loc.type)?.label ?? loc.type
-          return (
-            <div
-              key={loc.id}
-              className={`group bg-white rounded-[2rem] border border-slate-100 p-8 shadow-sm hover:shadow-xl hover:shadow-slate-100 transition-all border-l-[6px] ${
-                loc.is_active ? 'border-l-blue-600' : 'border-l-slate-300 opacity-70'
-              }`}
-            >
-              <div className="flex flex-col h-full space-y-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1 min-w-0">
-                    <h3 className="text-xl font-bold tracking-tight text-slate-900 leading-none truncate">
-                      {loc.name}
-                    </h3>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60">
-                      {typeLabel}
-                      {loc.short_code ? ` · ${loc.short_code}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => toggleActive(loc.id, loc.is_active)}
-                      className="h-8 w-8 rounded-xl hover:bg-blue-50 text-slate-400 hover:text-blue-600"
-                      aria-label={loc.is_active ? 'Deaktivieren' : 'Aktivieren'}
-                    >
-                      {loc.is_active
-                        ? <PowerOff className="h-3.5 w-3.5" />
-                        : <Power className="h-3.5 w-3.5" />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEdit(loc)}
-                      className="h-8 w-8 rounded-xl hover:bg-blue-50 text-slate-400 hover:text-blue-600"
-                      aria-label="Bearbeiten"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(loc)}
-                      className="h-8 w-8 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500"
-                      aria-label="Löschen"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setPage(0) }}
+            placeholder="Suchen nach Name, Namensteil oder Kürzel …"
+            className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/10"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 px-1">
+          <input type="checkbox" checked={showInactive} onChange={(e) => { setShowInactive(e.target.checked); setPage(0) }} />
+          Inaktive anzeigen
+        </label>
+        <span className="self-center text-xs font-bold text-slate-400">{filtered.length} von {locations.length}</span>
+      </div>
 
-                <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-50 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="h-8 w-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-blue-600 shadow-sm shrink-0">
-                      <MapPin className="h-4 w-4" />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 leading-snug">
-                      {loc.address || (
-                        <span className="text-slate-400 italic font-medium">
-                          Keine Adresse hinterlegt
-                        </span>
-                      )}
-                    </p>
-                  </div>
-
-                  {loc.phone_number && (
-                    <div className="flex items-start gap-3">
-                      <div className="h-8 w-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
-                        <Phone className="h-4 w-4" />
-                      </div>
-                      <a
-                        href={`tel:${loc.phone_number.replace(/\s+/g, '')}`}
-                        className="text-sm font-semibold text-slate-800 leading-snug hover:text-emerald-600 transition-colors"
-                      >
-                        {loc.phone_number}
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                {loc.notes && (
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed italic">
-                    {loc.notes}
-                  </p>
-                )}
-
-                <div className="pt-2 mt-auto flex items-center justify-between">
-                  <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${loc.is_active ? 'text-emerald-500' : 'text-slate-300'}`}>
-                    {loc.is_active ? 'Aktiv' : 'Inaktiv'}
-                  </span>
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">
-                    Aktualisiert: {new Date(loc.updated_at).toLocaleDateString('de-DE')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-
-        {locations.length === 0 && (
-          <div className="col-span-full py-20 bg-slate-50/30 rounded-[3rem] border border-dashed border-slate-200 flex flex-col items-center justify-center text-center space-y-4">
-            <div className="h-16 w-16 rounded-[2rem] bg-white text-slate-300 flex items-center justify-center shadow-sm">
-              <Building2 className="h-8 w-8" />
-            </div>
-            <div className="space-y-1">
-              <p className="font-bold text-slate-900">Noch keine Betriebsstellen angelegt</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Legen Sie Depots, Bahnhöfe oder weitere Standorte an.
-              </p>
-            </div>
-            {/*
-              Use a native <button> with explicit hover colors instead of
-              <Button variant="outline">. The shadcn outline variant inherits
-              text-foreground which, combined with hover:bg-white on a white
-              background, was rendering the label invisible on hover.
-            */}
-            <button
-              type="button"
-              onClick={openCreate}
-              className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 font-bold uppercase tracking-widest text-[10px] h-10 px-6 transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" /> Erste Betriebsstelle anlegen
+      {locations.length === 0 ? (
+        <div className="py-16 bg-slate-50/30 rounded-[2rem] border border-dashed border-slate-200 flex flex-col items-center justify-center text-center space-y-4">
+          <Building2 className="h-8 w-8 text-slate-300" />
+          <div className="space-y-1">
+            <p className="font-bold text-slate-900">Noch keine Betriebsstellen angelegt</p>
+            <p className="text-xs font-semibold text-slate-400">Importieren Sie das Betriebsstellenverzeichnis (PDF/CSV/Excel) oder legen Sie Standorte einzeln an.</p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setImportOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 text-white font-bold text-xs h-10 px-5">
+              <Upload className="h-3.5 w-3.5" /> Importieren
+            </button>
+            <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white text-blue-700 font-bold text-xs h-10 px-5">
+              <Plus className="h-3.5 w-3.5" /> Einzeln anlegen
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th className="px-4 py-3 text-left font-black">Kürzel</th>
+                  <th className="px-4 py-3 text-left font-black">Name</th>
+                  <th className="px-4 py-3 text-left font-black">Art</th>
+                  <th className="px-4 py-3 text-left font-black">Adresse / Telefon</th>
+                  <th className="px-4 py-3 text-left font-black">Status</th>
+                  <th className="px-4 py-3 text-right font-black">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((loc) => (
+                  <tr key={loc.id} className={`border-t border-slate-100 ${loc.is_active ? '' : 'opacity-60'}`}>
+                    <td className="px-4 py-2.5 font-mono text-xs font-black text-slate-700">{loc.short_code || '—'}</td>
+                    <td className="px-4 py-2.5 font-bold text-slate-900">{loc.name}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{TYPE_OPTIONS.find((t) => t.value === loc.type)?.label ?? loc.type}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">
+                      {loc.address || '—'}
+                      {loc.phone_number && (
+                        <a href={`tel:${loc.phone_number.replace(/\s+/g, '')}`} className="ml-2 inline-flex items-center gap-1 text-emerald-700 hover:underline">
+                          <Phone className="h-3 w-3" /> {loc.phone_number}
+                        </a>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${loc.is_active ? 'text-emerald-600' : 'text-slate-400'}`}>{loc.is_active ? 'Aktiv' : 'Inaktiv'}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => toggleActive(loc.id, loc.is_active)} className="h-8 w-8 rounded-lg text-slate-400 hover:text-blue-600" aria-label={loc.is_active ? 'Deaktivieren' : 'Aktivieren'}>
+                          {loc.is_active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(loc)} className="h-8 w-8 rounded-lg text-slate-400 hover:text-blue-600" aria-label="Bearbeiten">
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(loc)} className="h-8 w-8 rounded-lg text-slate-400 hover:text-red-500" aria-label="Löschen">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {shown.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm font-semibold text-slate-400">Keine Treffer für „{query}“.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {pages > 1 && (
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-4 py-3">
+              <Button variant="outline" size="sm" className="rounded-lg" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Zurück</Button>
+              <span className="text-xs font-bold text-slate-500">Seite {page + 1} von {pages}</span>
+              <Button variant="outline" size="sm" className="rounded-lg" disabled={page >= pages - 1} onClick={() => setPage((p) => p + 1)}>Weiter</Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <LocationImportDialog open={importOpen} onOpenChange={setImportOpen} existing={locations} onImport={importLocations} />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="sm:max-w-xl rounded-2xl">

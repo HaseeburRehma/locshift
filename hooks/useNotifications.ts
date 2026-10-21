@@ -6,6 +6,16 @@ import { useUser } from '@/lib/user-context'
 
 import { Notification } from '@/lib/types'
 
+/** Maps the live columns onto the aliases the UI reads. */
+function normalize(row: any): Notification {
+  return {
+    ...row,
+    body: row.message ?? row.body ?? null,
+    type: row.module_type ?? row.type ?? 'system',
+    action_url: row.link ?? row.action_url ?? null,
+  } as Notification
+}
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,7 +31,7 @@ export function useNotifications() {
       .order('created_at', { ascending: false })
       .limit(20)
 
-    if (!error) setNotifications(data || [])
+    if (!error) setNotifications((data || []).map(normalize))
     setLoading(false)
   }, [user?.id, supabase])
 
@@ -41,7 +51,7 @@ export function useNotifications() {
       }, (payload: any) => {
         setNotifications(prev => {
           if (prev.some(n => n.id === payload.new.id)) return prev
-          return [payload.new as Notification, ...prev]
+          return [normalize(payload.new), ...prev]
         })
       })
       .on('postgres_changes', {
@@ -51,7 +61,7 @@ export function useNotifications() {
         filter: `user_id=eq.${user.id}`
       }, (payload: any) => {
         setNotifications(prev => prev.map(n =>
-          n.id === payload.new.id ? (payload.new as Notification) : n
+          n.id === payload.new.id ? normalize(payload.new) : n
         ))
       })
       .on('postgres_changes', {

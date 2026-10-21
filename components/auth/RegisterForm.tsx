@@ -95,15 +95,11 @@ export default function RegisterForm() {
     setLoading(true)
 
     try {
+      // The server takes the user from this verified session token only.
       const res = await fetch('/api/auth/complete-registration', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: verifiedSession.user.id,
-          fullName,
-          email,
-          password,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${verifiedSession.access_token}` },
+        body: JSON.stringify({ fullName, password }),
       })
 
       const body = await res.json()

@@ -1,10 +1,21 @@
 // lib/user-context.tsx
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Profile, UserRole } from "@/lib/types";
+import { resolveSpesenRates, type SpesenRates } from "@/lib/spesen";
+import { resolveSurchargeRules, type SurchargeRules } from "@/lib/time/zuschlag";
+
+export interface OrganizationSettings {
+  id: string;
+  name: string | null;
+  timezone: string | null;
+  settings: Record<string, unknown> | null;
+  spesen_rate_partial: number | null;
+  spesen_rate_full: number | null;
+}
 
 interface UserContextType {
   user: User | null;
@@ -14,6 +25,9 @@ interface UserContextType {
   isDispatcher: boolean;
   isEmployee: boolean;
   isLoading: boolean;
+  organization: OrganizationSettings | null;
+  spesenRates: SpesenRates;
+  surchargeRules: SurchargeRules;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -61,6 +75,7 @@ async function fetchProfile(
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [organization, setOrganization] = useState<OrganizationSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
 
@@ -75,8 +90,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
         // Fetch profile if not already loaded or if user changed
         const p = await fetchProfile(supabase, sessionUser.id);
         if (mounted) setProfile(p);
+        if (p?.organization_id) {
+          const { data: org } = await supabase
+            .from("organizations")
+            .select("id, name, timezone, settings, spesen_rate_partial, spesen_rate_full")
+            .eq("id", p.organization_id)
+            .maybeSingle();
+          if (mounted) setOrganization((org as OrganizationSettings) ?? null);
+        }
       } else {
-        if (mounted) setProfile(null);
+        if (mounted) {
+          setProfile(null);
+          setOrganization(null);
+        }
       }
       if (mounted) setIsLoading(false);
     };
@@ -109,6 +135,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
+    setOrganization(null);
   };
 
   const refreshUser = async () => {
@@ -133,6 +160,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const isAdmin = role === "admin";
   const isDispatcher = role === "dispatcher";
   const isEmployee = role === "technician";
+  const spesenRates = useMemo(() => resolveSpesenRates(organization), [organization]);
+  const surchargeRules = useMemo(() => resolveSurchargeRules(organization?.settings ?? null), [organization]);
 
   return (
     <UserContext.Provider
@@ -144,6 +173,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
         isDispatcher, 
         isEmployee, 
         isLoading, 
+        organization,
+        spesenRates,
+        surchargeRules,
         signOut,
         refreshUser 
       }}

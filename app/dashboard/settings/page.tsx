@@ -180,7 +180,7 @@ export default async function SettingsHubPage() {
             <MobileLinkItem icon={User} label="Stammdaten" href="/dashboard/settings/personal-data" />
             <MobileLinkItem icon={Map} label="Abwesenheiten" href="/dashboard/settings/absences" />
             <MobileLinkItem icon={Clock} label="Arbeitszeiten" href="/dashboard/settings/working-hours" />
-            <MobileLinkItem icon={GraduationCap} label="Qualifikationen" href="/dashboard/settings/qualifications" borderBottom={false} />
+            <MobileLinkItem icon={GraduationCap} label="Meine Nachweise" href="/dashboard/settings/qualifications" borderBottom={false} />
           </div>
         </div>
 

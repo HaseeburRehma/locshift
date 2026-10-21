@@ -18,7 +18,12 @@ import {
     Menu,
     X,
     Activity,
-    Briefcase
+    Briefcase,
+    CalendarRange,
+    ShieldCheck,
+    FileSpreadsheet,
+    IdCard,
+    BookOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
@@ -38,26 +43,40 @@ export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?:
     // Map nav item IDs to badge counts
     const badgeMap: Record<string, number> = {
         chat: badges.chat,
-        plans: badges.plans,
+        week: badges.plans,
+        'my-week': badges.plans,
         times: badges.times,
+        approvals: badges.approvals,
         calendar: badges.calendar,
     }
+    const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
     // ──────────────────────────────────────────────────────────────────────────
     // Nav Navigation Matrix (Derived from Client Sections 4.1-4.3)
     // ──────────────────────────────────────────────────────────────────────────
+    // Kundenfeedback Punkt 14: employees see planning, shift start/end,
+    // submit and their own hours first; dispatch sees current operations,
+    // weekly planning, approvals and deadlines first.
+    const MANAGERS = ['admin', 'dispatcher']
+    const EMPLOYEES = ['technician', 'employee', 'manager', 'viewer']
     const navItems = [
         { id: 'dashboard', href: '/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
-        { id: 'live', href: '/dashboard/live', label: t('nav.live'), icon: Activity, roles: ['admin', 'dispatcher'] },
-        { id: 'calendar', href: '/dashboard/calendar', label: t('nav.calendar'), icon: Calendar },
+        { id: 'my-week', href: '/dashboard/plans/my-week', label: L('Meine Woche', 'My week'), icon: CalendarRange, roles: EMPLOYEES },
+        { id: 'live', href: '/dashboard/live', label: t('nav.live'), icon: Activity, roles: MANAGERS },
+        { id: 'week', href: '/dashboard/plans/week', label: L('Wochenplanung', 'Weekly planning'), icon: CalendarRange, roles: MANAGERS },
         { id: 'plans', href: '/dashboard/plans', label: t('nav.plans'), icon: FileText },
         { id: 'times', href: '/dashboard/times', label: t('nav.times'), icon: Clock },
+        { id: 'approvals', href: '/dashboard/times/approvals', label: L('Freigaben', 'Approvals'), icon: ShieldCheck, roles: MANAGERS },
+        { id: 'monthly', href: '/dashboard/times/monthly', label: L('Monatsnachweis', 'Monthly statement'), icon: FileSpreadsheet },
+        { id: 'personnel', href: '/dashboard/personnel', label: L('Personal & Fristen', 'Staff & deadlines'), icon: IdCard, roles: MANAGERS },
+        { id: 'calendar', href: '/dashboard/calendar', label: t('nav.calendar'), icon: Calendar },
         { id: 'time-account', href: '/dashboard/time-account', label: t('nav.timeAccount'), icon: BarChart3 },
         { id: 'per-diem', href: '/dashboard/per-diem', label: t('nav.perDiem'), icon: Wallet },
         { id: 'holiday-bonus', href: '/dashboard/holiday-bonus', label: t('nav.holidayBonus'), icon: Star },
-        { id: 'customers', href: '/dashboard/customers', label: t('nav.customers'), icon: Users, roles: ['admin', 'dispatcher'] },
-        { id: 'reports', href: '/dashboard/reports', label: t('nav.reports'), icon: BarChart3, roles: ['admin', 'dispatcher'] },
+        { id: 'reports', href: '/dashboard/reports', label: t('nav.reports'), icon: BarChart3, roles: MANAGERS },
+        { id: 'customers', href: '/dashboard/customers', label: t('nav.customers'), icon: Users, roles: MANAGERS },
         { id: 'chat', href: '/dashboard/chat', label: t('nav.chat'), icon: MessageSquare },
+        { id: 'help', href: '/dashboard/help', label: L('Anleitung', 'Guide'), icon: BookOpen },
         { id: 'users', href: '/dashboard/users', label: t('nav.users'), icon: ShieldAlert, roles: ['admin'] },
         { id: 'settings', href: '/dashboard/settings', label: t('nav.settings'), icon: Settings },
     ]
@@ -66,6 +85,10 @@ export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?:
         if (item.roles && !item.roles.includes(role)) return false;
         return true;
     })
+    // Most specific match wins (/dashboard/times/approvals ≠ /dashboard/times).
+    const activeId = filteredItems
+        .filter((item) => pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)))
+        .sort((a, b) => b.href.length - a.href.length)[0]?.id ?? (pathname === '/dashboard' ? 'dashboard' : undefined)
 
     const roleColors: Record<string, string> = {
         admin: 'bg-blue-600 text-white border-blue-700 shadow-blue-100',
@@ -86,7 +109,7 @@ export function SidebarContent({ collapsed = false, onItemClick }: { collapsed?:
             <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-hide">
                 {filteredItems.map((item) => {
                     const Icon = item.icon
-                    const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+                    const isActive = item.id === activeId
                     return (
                         <Link key={item.id} href={item.href} onClick={onItemClick} className="block group">
                             <Button

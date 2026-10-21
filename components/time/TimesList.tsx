@@ -1,13 +1,16 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { Eye, Plus, Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, ChevronDown, Users, CalendarClock, Play, UserCheck, Download, Trash2 } from 'lucide-react'
+import { Eye, Plus, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, ChevronDown, Users, CalendarClock, Play, UserCheck, Download, Trash2, Send, AlertTriangle, FilePen, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { TimeEntry, UserRole, Profile } from '@/lib/types'
 import { format, isThisWeek, isThisMonth, parseISO } from 'date-fns'
 import { de as deLocale } from 'date-fns/locale'
 import { useTranslation } from '@/lib/i18n'
+import { entryNetHours, endDayOffset, shiftIssueLabel, shiftIssues } from '@/lib/time/shift-hours'
+import { formatHours, formatTimeOfDay } from '@/lib/time/format'
+import { ENTRY_STATUS_STYLE, entryStatus, entryStatusLabel } from '@/lib/times/entry-status'
 
 interface TimesListProps {
   entries: TimeEntry[]
@@ -48,11 +51,21 @@ interface TimesListProps {
    * everyone else by checking whether this prop is defined.
    */
   onDelete?: (entry: TimeEntry) => void
+  /** Own, ended but not yet submitted → opens the closing view. */
+  onReviewDraft?: (entry: TimeEntry) => void
+  /** Entries with an open correction request. */
+  pendingCorrectionIds?: Set<string>
+  /** Manager shortcut to the approvals queue. */
+  onOpenApprovals?: () => void
+  approvalsCount?: number
+  /** Opens the monthly statement (Monatsnachweis). */
+  onOpenMonthlyReport?: (employeeId: string | null) => void
+  currentUserId?: string
 }
 
-type FilterStatus = 'All' | 'Planned' | 'Actual' | 'Pending' | 'Approved' | 'Rejected' | 'This Week' | 'This Month'
+type FilterStatus = 'All' | 'Draft' | 'Pending' | 'Approved' | 'Issues' | 'Planned' | 'This Week' | 'This Month'
 
-export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, onConvertPlanned, employees, onExportPdf, onExportStundenzettel, onDelete }: TimesListProps) {
+export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggleStatus, onConvertPlanned, employees, onExportPdf, onExportStundenzettel, onDelete, onReviewDraft, pendingCorrectionIds, onOpenApprovals, approvalsCount = 0, onOpenMonthlyReport, currentUserId }: TimesListProps) {
   const { locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const dateLocale = locale === 'de' ? deLocale : undefined
@@ -66,11 +79,11 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
   // Filter pill labels (German-first per Rheinmaasrail brief)
   const filterLabels: Record<FilterStatus, string> = {
     All:            L('Alle', 'All'),
+    Draft:          L('Nicht abgesendet', 'Not submitted'),
+    Pending:        L('Zur Freigabe', 'Awaiting approval'),
+    Approved:       L('Freigegeben', 'Approved'),
+    Issues:         L('Fehlerhaft', 'With issues'),
     Planned:        L('Geplant', 'Planned'),
-    Actual:         L('Tatsächlich', 'Actual'),
-    Pending:        L('Ausstehend', 'Pending'),
-    Approved:       L('Genehmigt', 'Approved'),
-    Rejected:       L('Abgelehnt', 'Rejected'),
     'This Week':    L('Diese Woche', 'This Week'),
     'This Month':   L('Dieser Monat', 'This Month'),
   }
@@ -102,14 +115,14 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
     // Phase 2 #3 — planned/actual filters
     if (filter === 'Planned') {
       result = result.filter(e => e.is_planned === true)
-    } else if (filter === 'Actual') {
-      result = result.filter(e => !e.is_planned)
+    } else if (filter === 'Draft') {
+      result = result.filter(e => entryStatus(e) === 'draft' || entryStatus(e) === 'running')
     } else if (filter === 'Pending') {
-      result = result.filter(e => !e.is_verified && !e.is_planned)
+      result = result.filter(e => entryStatus(e) === 'submitted')
     } else if (filter === 'Approved') {
-      result = result.filter(e => e.is_verified && !e.is_planned)
-    } else if (filter === 'Rejected') {
-      result = result.filter(() => false)
+      result = result.filter(e => entryStatus(e) === 'approved')
+    } else if (filter === 'Issues') {
+      result = result.filter(e => shiftIssues(e).length > 0)
     } else if (filter === 'This Week') {
       result = result.filter(e => {
         try {
@@ -232,6 +245,31 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                 {L('Stundenzettel', 'Timesheet')}
               </Button>
             )}
+            {onOpenMonthlyReport && (
+              <Button
+                onClick={() => onOpenMonthlyReport(isAdminView && employeeFilter !== 'all' ? employeeFilter : null)}
+                variant="outline"
+                className="font-bold rounded-xl shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50 px-5"
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                {L('Monatsnachweis', 'Monthly statement')}
+              </Button>
+            )}
+            {onOpenApprovals && (
+              <Button
+                onClick={onOpenApprovals}
+                variant="outline"
+                className="font-bold rounded-xl shadow-sm border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-5"
+              >
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                {L('Freigaben', 'Approvals')}
+                {approvalsCount > 0 && (
+                  <span className="ml-2 min-w-5 h-5 px-1.5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">
+                    {approvalsCount}
+                  </span>
+                )}
+              </Button>
+            )}
             {canAdd && (
               <Button
                 onClick={onAddClick}
@@ -247,7 +285,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
         {/* Filter Pills + Employee Dropdown */}
         <div className="px-6 py-2 flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
           <div className="flex flex-wrap items-center gap-2">
-            {(['All', 'Planned', 'Actual', 'Pending', 'Approved', 'This Week', 'This Month'] as FilterStatus[]).map((f) => (
+            {(['All', 'Draft', 'Pending', 'Approved', 'Issues', 'Planned', 'This Week', 'This Month'] as FilterStatus[]).map((f) => (
               <button
                 key={f}
                 onClick={() => handleFilterChange(f)}
@@ -294,10 +332,10 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
               <tr className="bg-slate-50/50 text-slate-800 text-[11px] uppercase tracking-wider border-y border-slate-100">
                 <th className="px-6 py-4 font-black whitespace-nowrap">{L('Datum', 'Date')}</th>
                 {isAdminView && <th className="px-6 py-4 font-black whitespace-nowrap">{L('Mitarbeiter', 'Employee')}</th>}
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Startzeit', 'Start Time')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Endzeit', 'End Time')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Beginn', 'Start')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Ende', 'End')}</th>
                 <th className="px-6 py-4 font-black whitespace-nowrap">{L('Pause', 'Break')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Gesamtstunden', 'Total Hours')}</th>
+                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Arbeitszeit', 'Hours')}</th>
                 <th className="px-6 py-4 font-black whitespace-nowrap">{L('Kunde', 'Customer')}</th>
                 <th className="px-6 py-4 font-black whitespace-nowrap">{L('Standort', 'Location')}</th>
                 <th className="px-6 py-4 font-black whitespace-nowrap">{L('Status', 'Status')}</th>
@@ -325,17 +363,29 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                         </div>
                       </td>
                     )}
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
-                      {format(new Date(entry.start_time), 'HH:mm')}
+                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium tabular-nums">
+                      {formatTimeOfDay(entry.start_time)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium tabular-nums">
+                      {entry.end_time ? (
+                        <>
+                          {formatTimeOfDay(entry.end_time)}
+                          {endDayOffset(entry.start_time, entry.end_time) > 0 && (
+                            <span
+                              className="ml-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black"
+                              title={L('Ende am Folgetag', 'Ends next day')}
+                            >
+                              +{endDayOffset(entry.start_time, entry.end_time)}
+                            </span>
+                          )}
+                        </>
+                      ) : L('Läuft', 'Running')}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
-                      {entry.end_time ? format(new Date(entry.end_time), 'HH:mm') : L('Aktiv', 'Active')}
+                      {entry.break_minutes ?? 0} Min.
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
-                      {entry.break_minutes} min
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900 font-bold whitespace-nowrap">
-                      {entry.net_hours ? entry.net_hours.toFixed(2) : '0.0'}h
+                    <td className="px-6 py-4 text-sm text-slate-900 font-bold whitespace-nowrap tabular-nums">
+                      {formatHours(entryNetHours(entry), locale)} {L('Std.', 'h')}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
                       {entry.customer?.name || entry.plan?.customer?.name || '-'}
@@ -367,17 +417,34 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {entry.is_planned ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-100/70 text-sky-700">
-                            <CalendarClock className="w-3 h-3" />
-                            {L('Geplant', 'Planned')}
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border",
+                          ENTRY_STATUS_STYLE[entryStatus(entry)]
+                        )}>
+                          {entry.is_planned && <CalendarClock className="w-3 h-3" />}
+                          {entryStatusLabel(entryStatus(entry), locale)}
+                        </span>
+                        {shiftIssues(entry).length > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200"
+                            title={shiftIssues(entry).map((i) => shiftIssueLabel(i, locale)).join(' · ')}
+                          >
+                            <AlertTriangle className="w-3 h-3" />
+                            {L('Prüfen', 'Check')}
                           </span>
-                        ) : (
-                          <span className={cn(
-                            "inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
-                            entry.is_verified ? "bg-emerald-100/50 text-emerald-600" : "bg-orange-100/50 text-orange-600"
-                          )}>
-                            {entry.is_verified ? L('Genehmigt', 'Approved') : L('Ausstehend', 'Pending')}
+                        )}
+                        {pendingCorrectionIds?.has(entry.id) && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                            <FilePen className="w-3 h-3" />
+                            {L('Korrektur offen', 'Correction open')}
+                          </span>
+                        )}
+                        {entry.entered_by && entry.entered_by !== entry.employee_id && (
+                          <span
+                            className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600"
+                            title={L(`Stellvertretend erfasst von ${entry.enterer?.full_name ?? ''}`, `Entered on behalf by ${entry.enterer?.full_name ?? ''}`)}
+                          >
+                            {L('Stellv.', 'On behalf')}
                           </span>
                         )}
                         {/* Phase 3 #10 — Gastfahrt badge (informational) */}
@@ -409,17 +476,36 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                             <Play className="w-4 h-4" />
                           </Button>
                         )}
-                        {!entry.is_planned && onToggleStatus && canAdd && (
+                        {onReviewDraft && entryStatus(entry) === 'draft' && entry.employee_id === currentUserId && (
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
+                            title={L('Prüfen & absenden', 'Review & submit')}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onReviewDraft(entry)
+                            }}
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {!entry.is_planned && entry.end_time && onToggleStatus && canAdd && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={!entry.is_verified && shiftIssues(entry).length > 0}
                             className={cn(
                               "h-8 w-8 rounded-lg",
                               entry.is_verified
                                 ? "bg-orange-50 text-orange-500 hover:bg-orange-100 hover:text-orange-600"
                                 : "bg-emerald-50 text-emerald-500 hover:bg-emerald-100 hover:text-emerald-600"
                             )}
-                            title={entry.is_verified ? L('Auf ausstehend setzen', 'Mark as Pending') : L('Eintrag genehmigen', 'Approve Log')}
+                            title={
+                              !entry.is_verified && shiftIssues(entry).length > 0
+                                ? L('Erst Fehler korrigieren', 'Fix issues first')
+                                : entry.is_verified ? L('Freigabe zurücknehmen', 'Revoke approval') : L('Freigeben', 'Approve')
+                            }
                             onClick={(e) => {
                               e.stopPropagation();
                               onToggleStatus(entry.id, entry.is_verified);

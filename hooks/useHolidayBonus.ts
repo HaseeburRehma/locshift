@@ -1,119 +1,145 @@
 'use client'
 
+/**
+ * Sonderzahlungen (Kundenfeedback Punkt 6) — table `holiday_bonuses`.
+ * Payments appear automatically in the matching Monatsnachweis; the report
+ * computes the monthly share on read, so regenerating never double counts.
+ */
+
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { HolidayBonus } from '@/lib/types'
-import { useUser } from '@/lib/user-context'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
+import type { HolidayBonus } from '@/lib/types'
+import { useUser } from '@/lib/user-context'
+import { useTranslation } from '@/lib/i18n'
+import { dbErrorMessage } from '@/lib/times/entry-status'
+import { sendNotification } from '@/lib/notifications/service'
+import { formatEuro } from '@/lib/time/format'
+import { paymentPeriodLabel } from '@/lib/special-payments'
+import { fetchAllPages } from '@/lib/supabase/paginate'
+import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
 
-export function useHolidayBonus() {
-  const [bonuses, setBonuses] = useState<HolidayBonus[]>([])
+export type SpecialPaymentInput = Pick<
+  HolidayBonus,
+  'employee_id' | 'title' | 'amount' | 'bonus_type' | 'distribution' | 'billing_month' | 'period_start' | 'period_end' | 'notes'
+>
+
+export function useSpecialPayments() {
+  const [payments, setPayments] = useState<HolidayBonus[]>([])
   const [loading, setLoading] = useState(true)
-  const { profile, isAdmin, isDispatcher } = useUser()
+  const { profile, user, isAdmin, isDispatcher } = useUser()
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const supabase = createClient()
+  const isManager = isAdmin || isDispatcher
 
-  const fetchBonuses = useCallback(async (isSilent = false) => {
+  const fetchPayments = useCallback(async (silent = false) => {
     if (!profile?.organization_id) return
-    if (!isSilent) setLoading(true)
-
-    let query = supabase
-      .from('holiday_bonuses')
-      .select('*')
-      .eq('organization_id', profile.organization_id)
-      .order('created_at', { ascending: false })
-
-    if (!isAdmin && !isDispatcher) {
-      query = query.eq('employee_id', profile.id)
-    }
-
-    const { data, error } = await query
-    if (!error) {
-      setBonuses(data || [])
-    } else {
-      console.error('[useHolidayBonus] Operational fetch error:', error)
-    }
+    if (!silent) setLoading(true)
+    const orgId = profile.organization_id
+    const ownId = profile.id
+    // Rebuilt per page: PostgREST caps each response at 1000 rows.
+    const { data, error } = await fetchAllPages<HolidayBonus>((from, to) => {
+      let query = supabase
+        .from('holiday_bonuses')
+        .select('*')
+        .eq('organization_id', orgId)
+      if (!isManager) query = query.eq('employee_id', ownId)
+      return query
+        .order('billing_month', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to)
+    })
+    if (error) console.error('[useSpecialPayments]', error.message)
+    else setPayments(data)
     setLoading(false)
-  }, [profile, isAdmin, isDispatcher, supabase])
+  }, [profile?.organization_id, profile?.id, isManager, supabase])
+
+  // Realtime bursts → one silent refetch, never two at once.
+  const scheduleRefresh = useCoalescedRefetch(() => fetchPayments(true))
 
   useEffect(() => {
-    fetchBonuses()
-
+    fetchPayments()
     if (!profile?.organization_id) return
-
-    // Real-time synchronization for holiday bonus distribution
     const channel = supabase
-      .channel(`holiday-bonuses-sync-hub-${profile.organization_id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'holiday_bonuses', 
-        filter: `organization_id=eq.${profile.organization_id}` 
-      }, (payload: any) => {
-        console.log('[useHolidayBonus] Live operational update:', payload)
-        fetchBonuses(true) // Silent background synchronization
-      })
-      .subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('[useHolidayBonus] Connected to bonus monitoring stream')
-        }
-      })
-
+      .channel(`special-payments-${profile.organization_id}-${Math.random().toString(36).slice(2, 8)}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'holiday_bonuses', filter: `organization_id=eq.${profile.organization_id}` },
+        () => scheduleRefresh(),
+      )
+      .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [profile, fetchBonuses, supabase])
+  }, [profile?.organization_id, fetchPayments, scheduleRefresh, supabase])
 
-  const createHolidayBonus = async (data: Partial<HolidayBonus>) => {
-    if (!profile?.organization_id) return
-    try {
-      const { data: newBonus, error } = await supabase
-        .from('holiday_bonuses')
-        .insert({
-           ...data,
-           organization_id: profile.organization_id
-        })
-        .select()
-        .single()
+  const normalize = (data: SpecialPaymentInput): SpecialPaymentInput => ({
+    ...data,
+    title: data.title?.trim() || null,
+    notes: data.notes?.trim() || null,
+    billing_month: data.distribution === 'once' ? data.billing_month : null,
+    period_start: data.distribution === 'once' ? null : data.period_start,
+    period_end: data.distribution === 'once' ? null : data.period_end,
+  })
 
-      if (error) throw error
-
-      // Immediate local sync for zero-delay reflection
-      setBonuses(prev => [newBonus, ...prev])
-      toast.success('Holiday bonus distributed')
-      return true
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to distribute bonus')
+  const createPayment = async (data: SpecialPaymentInput) => {
+    if (!profile?.organization_id) return false
+    const payload = normalize(data)
+    const { data: created, error } = await supabase
+      .from('holiday_bonuses')
+      .insert({ ...payload, organization_id: profile.organization_id, created_by: user?.id ?? null })
+      .select()
+      .single()
+    if (error) {
+      toast.error(dbErrorMessage(error, locale, L('Sonderzahlung konnte nicht gespeichert werden', 'Could not save special payment')))
       return false
     }
+    setPayments((prev) => [created as HolidayBonus, ...prev])
+    toast.success(L('Sonderzahlung angelegt', 'Special payment added'))
+    void sendNotification({
+      userId: payload.employee_id,
+      title: 'Neue Sonderzahlung',
+      message: `${payload.title ?? 'Sonderzahlung'}: ${formatEuro(payload.amount, 'de')} (${paymentPeriodLabel(payload, 'de')}).`,
+      module: 'bonuses',
+      moduleId: (created as HolidayBonus).id,
+      link: '/dashboard/holiday-bonus',
+    })
+    return true
   }
 
-  const deleteHolidayBonus = async (id: string) => {
-    // Optimistic local removal for instant responsive feel
-    setBonuses(prev => prev.filter(b => b.id !== id))
-
-    try {
-      const { error } = await supabase.from('holiday_bonuses').delete().eq('id', id)
-      if (error) throw error
-      toast.success('Bonus deleted')
-      return true
-    } catch (err: any) {
-      // Rollback on audit failure
-      fetchBonuses(true)
-      toast.error(err.message || 'Failed to delete bonus')
+  const updatePayment = async (id: string, data: SpecialPaymentInput) => {
+    const payload = normalize(data)
+    const { error } = await supabase
+      .from('holiday_bonuses')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) {
+      toast.error(dbErrorMessage(error, locale, L('Änderung konnte nicht gespeichert werden', 'Could not save changes')))
       return false
     }
+    toast.success(L('Sonderzahlung aktualisiert', 'Special payment updated'))
+    await fetchPayments(true)
+    return true
   }
 
-  const totalPaidThisYear = bonuses
-    .filter(b => new Date(b.created_at).getFullYear() === new Date().getFullYear())
+  const deletePayment = async (id: string) => {
+    setPayments((prev) => prev.filter((b) => b.id !== id))
+    const { error } = await supabase.from('holiday_bonuses').delete().eq('id', id)
+    if (error) {
+      fetchPayments(true)
+      toast.error(dbErrorMessage(error, locale, L('Löschen fehlgeschlagen', 'Delete failed')))
+      return false
+    }
+    toast.success(L('Sonderzahlung gelöscht', 'Special payment deleted'))
+    return true
+  }
+
+  const year = String(new Date().getFullYear())
+  const totalThisYear = payments
+    .filter((b) => (b.billing_month ?? b.period_start ?? b.created_at).startsWith(year))
     .reduce((sum, b) => sum + (Number(b.amount) || 0), 0)
 
-  return { 
-    bonuses, 
-    loading, 
-    createHolidayBonus, 
-    deleteHolidayBonus, 
-    totalPaidThisYear,
-    refresh: fetchBonuses 
-  }
+  return { payments, loading, createPayment, updatePayment, deletePayment, totalThisYear, refresh: fetchPayments }
 }

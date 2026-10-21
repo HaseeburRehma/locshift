@@ -1,675 +1,287 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
-import {
-  Plus, Download, Search, Gift, User, Calendar, Trash2,
-  ChevronLeft, ChevronRight, ChevronDown, Users, Euro,
-  CheckCircle, Loader2, AlertCircle
-} from 'lucide-react'
+/**
+ * Sonderzahlungen (Kundenfeedback Punkt 6) — formerly "Urlaubsgeld".
+ * Each payment has employee, title, amount, billing month or period and a
+ * note on the agreement; it shows up automatically in the Monatsnachweis.
+ */
+
+import React, { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { ChevronLeft, ChevronRight, Download, Edit2, Gift, Loader2, Plus, Search, Trash2, Users } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
-import { HolidayBonus, Profile, HolidayBonusType } from '@/lib/types'
-import { useHolidayBonus } from '@/hooks/useHolidayBonus'
-import { HolidayBonusForm, holidayBonusTypeLabel } from '@/components/shared/HolidayBonusForm'
-import { exportHolidayBonusPdf, slugify } from '@/lib/pdf/exportPdf'
+import type { HolidayBonus } from '@/lib/types'
+import { useSpecialPayments } from '@/hooks/useHolidayBonus'
+import { SpecialPaymentForm } from '@/components/shared/SpecialPaymentForm'
+import { exportHolidayBonusPdf } from '@/lib/pdf/exportPdf'
 import { exportTableToExcel } from '@/lib/excel/exportExcel'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { paymentPeriodLabel, specialPaymentTypeLabel } from '@/lib/special-payments'
+import { formatEuro } from '@/lib/time/format'
+import { localDateKey } from '@/lib/time/shift-hours'
 
-// ─── Helpers ────────────────────────────────────────────────
-function formatCurrency(amount: number, locale: string): string {
-  return new Intl.NumberFormat(locale === 'de' ? 'de-DE' : 'en-US', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-  }).format(amount)
-}
+const PAGE_SIZE = 10
 
-function exportBonusesCSV(bonuses: HolidayBonus[], profiles: Record<string, Profile>, locale: string) {
-  const L = (de: string, en: string) => locale === 'de' ? de : en
-  if (bonuses.length === 0) {
-    toast.error(L('Keine Bonusdaten zum Exportieren.', 'No bonuses to export.'))
-    return
-  }
-  const headers = [
-    L('Mitarbeiter', 'Employee'),
-    L('Art', 'Type'),
-    L('Betrag', 'Amount'),
-    L('Beschreibung', 'Description'),
-    L('Auszahlungsdatum', 'Date Paid'),
-  ]
-  const rows = bonuses.map(b => [
-    profiles[b.employee_id]?.full_name || b.employee_id,
-    holidayBonusTypeLabel((b.bonus_type ?? 'holiday_pay') as HolidayBonusType, locale),
-    b.amount.toFixed(2),
-    (b.notes || '').replace(/,/g, ';'),
-    new Date(b.created_at).toLocaleDateString('de-DE'),
-  ])
-  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `holiday_bonuses_${new Date().toISOString().split('T')[0]}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-  toast.success(L('CSV erfolgreich exportiert.', 'CSV exported successfully.'))
-}
-
-// ─── Delete Confirm Inline ──────────────────────────────────
-function InlineDeleteConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+export default function SpecialPaymentsPage() {
+  const { isAdmin, isDispatcher, profile } = useUser()
+  const isManager = isAdmin || isDispatcher
   const { locale } = useTranslation()
-  const L = (de: string, en: string) => locale === 'de' ? de : en
-  return (
-    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-150">
-      <span className="text-xs font-semibold text-gray-500">{L('Löschen?', 'Delete?')}</span>
-      <button
-        onClick={onConfirm}
-        className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
-      >
-        {L('Ja', 'Yes')}
-      </button>
-      <button
-        onClick={onCancel}
-        className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors"
-      >
-        {L('Nein', 'No')}
-      </button>
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const { payments, loading, createPayment, updatePayment, deletePayment, totalThisYear } = useSpecialPayments()
+
+  const [names, setNames] = useState<Record<string, string>>({})
+  const [editing, setEditing] = useState<HolidayBonus | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [search, setSearch] = useState('')
+  const [employeeFilter, setEmployeeFilter] = useState('all')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    if (!isManager || !profile?.organization_id) return
+    createClient()
+      .from('profiles')
+      .select('id, full_name')
+      .eq('organization_id', profile.organization_id)
+      .then(({ data }: { data: Array<{ id: string; full_name: string | null }> | null }) => {
+        const map: Record<string, string> = {}
+        for (const p of data ?? []) map[p.id] = p.full_name ?? '—'
+        setNames(map)
+      })
+  }, [isManager, profile?.organization_id])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return payments.filter((p) => {
+      if (employeeFilter !== 'all' && p.employee_id !== employeeFilter) return false
+      if (!q) return true
+      return [names[p.employee_id], p.title, p.notes, specialPaymentTypeLabel(p.bonus_type, locale), String(p.amount)]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q))
+    })
+  }, [payments, employeeFilter, search, names, locale])
+
+  useEffect(() => setPage(1), [search, employeeFilter])
+
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const recipients = new Set(payments.map((p) => p.employee_id)).size
+  const employeeOptions = Object.entries(names).sort((a, b) => a[1].localeCompare(b[1], 'de'))
+
+  const exportRows = () =>
+    filtered.map((p) => ({
+      ...p,
+      employee_name: names[p.employee_id] ?? null,
+    }))
+
+  const exportExcel = () => {
+    if (!filtered.length) return toast.error(L('Keine Daten zum Exportieren.', 'No data to export.'))
+    exportTableToExcel({
+      sheetName: L('Sonderzahlungen', 'Special payments'),
+      filename: `sonderzahlungen_${localDateKey()}`,
+      headers: [L('Mitarbeiter', 'Employee'), L('Bezeichnung', 'Title'), L('Art', 'Type'), L('Abrechnung', 'Billing'), L('Betrag (€)', 'Amount (€)'), L('Bemerkung', 'Note')],
+      rows: filtered.map((p) => [
+        names[p.employee_id] ?? p.employee_id,
+        p.title ?? '',
+        specialPaymentTypeLabel(p.bonus_type, locale),
+        paymentPeriodLabel(p, locale),
+        Number(Number(p.amount).toFixed(2)),
+        p.notes ?? '',
+      ]),
+      totalsRow: [L('Summe', 'Total'), '', '', '', Number(filtered.reduce((s, p) => s + (Number(p.amount) || 0), 0).toFixed(2)), ''],
+    })
+  }
+
+  const exportPdf = () => {
+    if (!filtered.length) return toast.error(L('Keine Daten zum Exportieren.', 'No data to export.'))
+    exportHolidayBonusPdf(exportRows(), {
+      title: L('Sonderzahlungen', 'Special payments'),
+      filename: `sonderzahlungen_${localDateKey()}.pdf`,
+      locale,
+    })
+  }
+
+  const table = (rows: HolidayBonus[], showEmployee: boolean) => (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm min-w-[760px]">
+          <thead>
+            <tr className="border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              {showEmployee && <th className="px-5 py-3.5">{L('Mitarbeiter', 'Employee')}</th>}
+              <th className="px-5 py-3.5">{L('Bezeichnung', 'Title')}</th>
+              <th className="px-5 py-3.5">{L('Art', 'Type')}</th>
+              <th className="px-5 py-3.5">{L('Abrechnung', 'Billing')}</th>
+              <th className="px-5 py-3.5 text-right">{L('Betrag', 'Amount')}</th>
+              <th className="px-5 py-3.5">{L('Bemerkung', 'Note')}</th>
+              {isManager && <th className="px-5 py-3.5 text-right">{L('Aktionen', 'Actions')}</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {rows.map((p) => (
+              <tr key={p.id} className="hover:bg-gray-50/50">
+                {showEmployee && <td className="px-5 py-3.5 font-bold text-gray-900">{names[p.employee_id] ?? '—'}</td>}
+                <td className="px-5 py-3.5 font-semibold text-gray-900">{p.title || specialPaymentTypeLabel(p.bonus_type, locale)}</td>
+                <td className="px-5 py-3.5 text-gray-500">{specialPaymentTypeLabel(p.bonus_type, locale)}</td>
+                <td className="px-5 py-3.5 text-gray-600">{paymentPeriodLabel(p, locale)}</td>
+                <td className="px-5 py-3.5 text-right font-bold text-emerald-600 tabular-nums">{formatEuro(p.amount, locale)}</td>
+                <td className="px-5 py-3.5 text-gray-500 max-w-[260px] truncate" title={p.notes ?? ''}>{p.notes || '—'}</td>
+                {isManager && (
+                  <td className="px-5 py-3.5">
+                    {confirmDelete === p.id ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-xs font-semibold text-gray-500">{L('Löschen?', 'Delete?')}</span>
+                        <button className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg" onClick={() => { setConfirmDelete(null); deletePayment(p.id) }}>
+                          {L('Ja', 'Yes')}
+                        </button>
+                        <button className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg" onClick={() => setConfirmDelete(null)}>
+                          {L('Nein', 'No')}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-blue-600 hover:bg-blue-50" onClick={() => setEditing(p)} aria-label={L('Bearbeiten', 'Edit')}>
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-red-500 hover:bg-red-50" onClick={() => setConfirmDelete(p.id)} aria-label={L('Löschen', 'Delete')}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
-}
 
-// ─── Page Component ─────────────────────────────────────────
-export default function HolidayBonusPage() {
-  const { isAdmin, isDispatcher, profile } = useUser()
-  const { locale } = useTranslation()
-  const { bonuses, loading, createHolidayBonus, deleteHolidayBonus, totalPaidThisYear } = useHolidayBonus()
+  const empty = (
+    <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">
+      <Gift className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+      <p className="text-sm text-gray-400">{L('Keine Sonderzahlungen vorhanden.', 'No special payments yet.')}</p>
+    </div>
+  )
 
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [employeeProfiles, setEmployeeProfiles] = useState<Record<string, Profile>>({})
-  const [searchTerm, setSearchTerm] = useState('')
-  const [employeeFilter, setEmployeeFilter] = useState<string>('all')
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
-
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 8
-
-  // Fetch employee profiles for admin view
-  useEffect(() => {
-    const fetchProfiles = async () => {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('organization_id', profile?.organization_id)
-      if (data) {
-        const map: Record<string, Profile> = {}
-        ;(data as Profile[]).forEach(p => { map[p.id] = p })
-        setEmployeeProfiles(map)
-      }
-    }
-    if ((isAdmin || isDispatcher) && profile?.organization_id) fetchProfiles()
-  }, [isAdmin, isDispatcher, profile?.organization_id])
-
-  // Employee options for the filter
-  const employeeOptions = useMemo(() => {
-    const empMap = new Map<string, string>()
-    Object.values(employeeProfiles).forEach(p => {
-      if (p.full_name) empMap.set(p.id, p.full_name)
-    })
-    bonuses.forEach(b => {
-      if (b.employee_id && employeeProfiles[b.employee_id]?.full_name) {
-        empMap.set(b.employee_id, employeeProfiles[b.employee_id].full_name!)
-      }
-    })
-    return Array.from(empMap.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [bonuses, employeeProfiles])
-
-  // Filtered + searched bonuses
-  const filteredBonuses = useMemo(() => {
-    let result = bonuses
-
-    // Employee filter
-    if (employeeFilter !== 'all') {
-      result = result.filter(b => b.employee_id === employeeFilter)
-    }
-
-    // Search
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase()
-      result = result.filter(b => {
-        const name = employeeProfiles[b.employee_id]?.full_name?.toLowerCase() || ''
-        const notes = b.notes?.toLowerCase() || ''
-        return name.includes(q) || notes.includes(q) || String(b.amount).includes(q)
-      })
-    }
-
-    return result
-  }, [bonuses, employeeFilter, searchTerm, employeeProfiles])
-
-  // Pagination
-  const totalPages = Math.ceil(filteredBonuses.length / itemsPerPage)
-  const paginatedBonuses = useMemo(() => {
-    return filteredBonuses.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-  }, [filteredBonuses, currentPage])
-
-  // Reset page on filter change
-  useMemo(() => {
-    setCurrentPage(1)
-  }, [searchTerm, employeeFilter])
-
-  // Filtered total for display
-  const filteredTotal = useMemo(() => {
-    return filteredBonuses
-      .filter(b => new Date(b.created_at).getFullYear() === new Date().getFullYear())
-      .reduce((sum, b) => sum + (Number(b.amount) || 0), 0)
-  }, [filteredBonuses])
-
-  const handleDelete = async (id: string) => {
-    setConfirmingDeleteId(null)
-    await deleteHolidayBonus(id)
-  }
-
-  // ─── Employee View ──────────────────────────────────────
-  if (!isAdmin && !isDispatcher) {
+  if (!isManager) {
     return (
-      <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
-        {/* Header */}
+      <div className="max-w-4xl mx-auto space-y-8 pb-16 px-4 md:px-0">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-[#0064E0] tracking-tight">
-            {locale === 'de' ? 'Urlaubsgeld' : 'Holiday Bonus'}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {locale === 'de' ? 'Urlaubsbezogene Bonuszahlungen anzeigen' : 'View holiday-related bonus payments'}
-          </p>
+          <h1 className="text-2xl font-bold text-[#0064E0] tracking-tight">{L('Sonderzahlungen', 'Special payments')}</h1>
+          <p className="text-sm text-gray-500">{L('Ihre zusätzlichen Zahlungen und Vereinbarungen', 'Your additional payments and agreements')}</p>
         </div>
-
-        {/* Total Year-to-Date Card */}
         <div className="bg-[#0064E0] rounded-2xl p-8 text-white text-center shadow-lg">
-          <p className="text-sm font-medium text-white/70 mb-2">
-            {locale === 'de' ? 'Gesamt Jahresbetrag' : 'Total Year-to-Date'}
-          </p>
-          <h2 className="text-5xl font-bold tracking-tight tabular-nums">
-            {formatCurrency(totalPaidThisYear, locale)}
-          </h2>
-          <p className="text-sm text-white/50 mt-2">
-            {locale === 'de' ? `Jahr ${new Date().getFullYear()}` : `Year ${new Date().getFullYear()}`}
+          <p className="text-sm font-medium text-white/70 mb-2">{L(`Summe ${new Date().getFullYear()}`, `Total ${new Date().getFullYear()}`)}</p>
+          <h2 className="text-5xl font-bold tracking-tight tabular-nums">{formatEuro(totalThisYear, locale)}</h2>
+          <p className="text-xs text-white/60 mt-3">
+            {L('Die Zahlungen erscheinen auch in Ihrem ', 'Payments also appear in your ')}
+            <Link href="/dashboard/times/monthly" className="underline font-bold">{L('Monatsnachweis', 'monthly statement')}</Link>.
           </p>
         </div>
-
-        {/* Bonus History */}
-        <div className="space-y-4">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-            {locale === 'de' ? 'Bonusverlauf' : 'Bonus History'}
-          </h2>
-
-          {loading ? (
-            <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">
-              <Loader2 className="w-6 h-6 text-gray-300 animate-spin mx-auto" />
-            </div>
-          ) : bonuses.length === 0 ? (
-            <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center">
-                  <Gift className="w-5 h-5 text-gray-300" />
-                </div>
-                <p className="text-sm text-gray-400">
-                  {locale === 'de' ? 'Noch keine Bonuszahlungen erhalten.' : 'No bonus payments received yet.'}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                        {locale === 'de' ? 'Bonustyp' : 'Bonus Type'}
-                      </th>
-                      <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                        {locale === 'de' ? 'Zeitraum' : 'Period'}
-                      </th>
-                      <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                        {locale === 'de' ? 'Betrag' : 'Amount'}
-                      </th>
-                      <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                        {locale === 'de' ? 'Zahlungsdatum' : 'Payment Date'}
-                      </th>
-                      <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {bonuses.map(b => (
-                      <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-5 py-4">
-                          <span className="text-sm font-semibold text-gray-900">
-                            {b.notes || (locale === 'de' ? 'Urlaubsgeld' : 'Holiday Bonus')}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className="text-sm text-gray-500">
-                            {b.period_start
-                              ? format(new Date(b.period_start), 'MMMM yyyy')
-                              : format(new Date(b.created_at), 'MMMM yyyy')}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className="text-sm font-bold text-emerald-600 tabular-nums">
-                            {formatCurrency(b.amount, locale)}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className="text-sm text-gray-500">
-                            {format(new Date(b.created_at), 'MMM d, yyyy')}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100">
-                            <CheckCircle className="w-3 h-3" />
-                            {locale === 'de' ? 'Bezahlt' : 'Paid'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
+        {loading ? <Loader2 className="w-6 h-6 animate-spin text-gray-300 mx-auto" /> : payments.length === 0 ? empty : table(payments, false)}
       </div>
     )
   }
 
-  // ─── Admin / Dispatcher View ────────────────────────────
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="max-w-6xl mx-auto space-y-8 pb-16 px-4 md:px-0">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-[#0064E0] tracking-tight">
-            {locale === 'de' ? 'Urlaubsgeld' : 'Holiday Bonus'}
-          </h1>
+          <h1 className="text-2xl font-bold text-[#0064E0] tracking-tight">{L('Sonderzahlungen', 'Special payments')}</h1>
           <p className="text-sm text-gray-500">
-            {locale === 'de' ? 'Bonuszahlungen verwalten und verteilen' : 'Manage and distribute bonus payments'}
+            {L('Urlaubsgeld, Prämien und weitere Zahlungen – erscheinen automatisch im Monatsnachweis', 'Holiday pay, bonuses and other payments – shown automatically in the monthly statement')}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 rounded-xl text-xs font-medium gap-1.5 text-gray-600"
-            onClick={() => exportBonusesCSV(filteredBonuses, employeeProfiles, locale)}
-          >
-            <Download className="w-3.5 h-3.5" />
-            {locale === 'de' ? 'CSV Export' : 'Export CSV'}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className="h-9 rounded-xl text-xs font-medium gap-1.5" onClick={exportExcel}>
+            <Download className="w-3.5 h-3.5" /> Excel
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 rounded-xl text-xs font-medium gap-1.5 text-gray-600"
-            onClick={() => {
-              if (filteredBonuses.length === 0) {
-                toast.error(locale === 'de' ? 'Keine Daten zum Exportieren.' : 'No data to export.')
-                return
-              }
-              exportTableToExcel({
-                sheetName: locale === 'de' ? 'Urlaubsgeld' : 'HolidayBonus',
-                filename: `holiday_bonuses_${new Date().toISOString().split('T')[0]}`,
-                headers: [
-                  locale === 'de' ? 'Mitarbeiter' : 'Employee',
-                  locale === 'de' ? 'Art' : 'Type',
-                  locale === 'de' ? 'Betrag (€)' : 'Amount (€)',
-                  locale === 'de' ? 'Beschreibung' : 'Description',
-                  locale === 'de' ? 'Auszahlungsdatum' : 'Date Paid',
-                ],
-                rows: filteredBonuses.map(b => [
-                  employeeProfiles[b.employee_id]?.full_name || b.employee_id,
-                  holidayBonusTypeLabel((b.bonus_type ?? 'holiday_pay') as HolidayBonusType, locale),
-                  Number(b.amount.toFixed(2)),
-                  b.notes ?? '',
-                  new Date(b.created_at).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US'),
-                ]),
-                totalsRow: [
-                  locale === 'de' ? 'Summe' : 'Total', '',
-                  Number(filteredBonuses.reduce((s, b) => s + (Number(b.amount) || 0), 0).toFixed(2)),
-                  '', '',
-                ],
-              })
-            }}
-          >
-            <Download className="w-3.5 h-3.5" />
-            {locale === 'de' ? 'Excel' : 'Excel'}
+          <Button variant="outline" size="sm" className="h-9 rounded-xl text-xs font-medium gap-1.5" onClick={exportPdf}>
+            <Download className="w-3.5 h-3.5" /> PDF
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 rounded-xl text-xs font-medium gap-1.5 text-gray-600"
-            onClick={() => {
-              if (filteredBonuses.length === 0) {
-                toast.error(locale === 'de' ? 'Keine Daten zum Exportieren.' : 'No data to export.')
-                return
-              }
-              exportHolidayBonusPdf(
-                filteredBonuses.map(b => ({
-                  ...b,
-                  employee_name: employeeProfiles[b.employee_id]?.full_name ?? null,
-                })),
-                {
-                  title: locale === 'de' ? 'Urlaubsgeld' : 'Holiday Bonus',
-                  filename: `holiday_bonuses_${slugify(new Date().toISOString().split('T')[0])}.pdf`,
-                  locale,
-                  bonusTypeLabel: (k) => holidayBonusTypeLabel(k as HolidayBonusType, locale),
-                },
-              )
-            }}
-          >
-            <Download className="w-3.5 h-3.5" />
-            {locale === 'de' ? 'PDF Export' : 'Export PDF'}
+          <Button size="sm" className="h-9 rounded-xl bg-[#0064E0] hover:bg-blue-700 text-white text-xs font-bold gap-1.5" onClick={() => setCreating(true)}>
+            <Plus className="w-3.5 h-3.5" /> {L('Sonderzahlung anlegen', 'Add special payment')}
           </Button>
-          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-9 rounded-xl bg-[#0064E0] hover:bg-blue-700 text-white text-xs font-medium gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                {locale === 'de' ? 'Neuer Bonus' : 'New Bonus'}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-2xl p-6 sm:max-w-[460px]">
-              <DialogHeader>
-                <DialogTitle className="text-lg font-bold">
-                  {locale === 'de' ? 'Bonus vergeben' : 'Award Holiday Bonus'}
-                </DialogTitle>
-              </DialogHeader>
-              <HolidayBonusForm
-                onSubmit={async (data): Promise<boolean> => {
-                  const success = await createHolidayBonus(data)
-                  if (success) setIsFormOpen(false)
-                  return !!(success ?? false)
-                }}
-                onCancel={() => setIsFormOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-[#0064E0] rounded-2xl p-6 text-white shadow-md">
-          <p className="text-xs font-medium text-white/60 mb-1">
-            {locale === 'de' ? 'Gesamt bezahlt (Jahr)' : 'Total Paid (Year)'}
-          </p>
-          <h3 className="text-3xl font-bold tracking-tight tabular-nums">
-            {formatCurrency(totalPaidThisYear, locale)}
-          </h3>
-          <p className="text-xs text-white/40 mt-1">{new Date().getFullYear()}</p>
+          <p className="text-xs font-medium text-white/60 mb-1">{L(`Summe ${new Date().getFullYear()}`, `Total ${new Date().getFullYear()}`)}</p>
+          <h3 className="text-3xl font-bold tracking-tight tabular-nums">{formatEuro(totalThisYear, locale)}</h3>
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <p className="text-xs font-medium text-gray-400 mb-1">
-            {locale === 'de' ? 'Gesamte Auszahlungen' : 'Total Distributions'}
-          </p>
-          <h3 className="text-3xl font-bold tracking-tight text-gray-900 tabular-nums">
-            {bonuses.length}
-          </h3>
-          <p className="text-xs text-gray-300 mt-1">{locale === 'de' ? 'Alle Zeiten' : 'All time'}</p>
+          <p className="text-xs font-medium text-gray-400 mb-1">{L('Anzahl Zahlungen', 'Number of payments')}</p>
+          <h3 className="text-3xl font-bold text-gray-900 tabular-nums">{payments.length}</h3>
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <p className="text-xs font-medium text-gray-400 mb-1">
-            {locale === 'de' ? 'Gefilterte Summe' : 'Filtered Total'}
-          </p>
-          <h3 className="text-3xl font-bold tracking-tight text-gray-900 tabular-nums">
-            {formatCurrency(filteredTotal, locale)}
-          </h3>
-          <p className="text-xs text-gray-300 mt-1">
-            {filteredBonuses.length} {locale === 'de' ? 'Einträge' : 'entries'}
-          </p>
+          <p className="text-xs font-medium text-gray-400 mb-1">{L('Empfänger', 'Recipients')}</p>
+          <h3 className="text-3xl font-bold text-gray-900 tabular-nums">{recipients}</h3>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        {/* Employee filter */}
-        <div className="relative w-full sm:w-52">
-          <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <select
-            value={employeeFilter}
-            onChange={e => setEmployeeFilter(e.target.value)}
-            className={cn(
-              "w-full h-10 pl-9 pr-9 rounded-xl border bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/5 transition-all font-medium text-xs appearance-none cursor-pointer",
-              employeeFilter !== 'all'
-                ? 'border-blue-300 bg-blue-50 text-blue-700'
-                : 'border-gray-200 text-gray-600'
-            )}
-          >
-            <option value="all">{locale === 'de' ? 'Alle Mitarbeiter' : 'All Employees'}</option>
-            {employeeOptions.map(emp => (
-              <option key={emp.id} value={emp.id}>{emp.name}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-        </div>
-
-        {/* Search */}
-        <div className="relative w-full sm:max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
-            type="text"
-            placeholder={locale === 'de' ? 'Suchen...' : 'Search...'}
-            className="w-full h-10 pl-9 pr-4 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/5 transition-all font-medium text-xs"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={L('Suche nach Name, Bezeichnung, Bemerkung …', 'Search name, title, note …')}
+            className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500/10"
           />
         </div>
-
-        {/* Clear filters */}
-        {(employeeFilter !== 'all' || searchTerm.trim()) && (
-          <button
-            onClick={() => { setEmployeeFilter('all'); setSearchTerm('') }}
-            className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors whitespace-nowrap"
-          >
-            {locale === 'de' ? 'Filter zurücksetzen' : 'Clear filters'}
-          </button>
-        )}
+        <div className="relative sm:w-60">
+          <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold appearance-none">
+            <option value="all">{L('Alle Mitarbeiter', 'All employees')}</option>
+            {employeeOptions.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Bonus History Table */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                  {locale === 'de' ? 'Mitarbeiter' : 'Employee'}
-                </th>
-                <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                  {locale === 'de' ? 'Beschreibung' : 'Description'}
-                </th>
-                <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                  {locale === 'de' ? 'Zeitraum' : 'Period'}
-                </th>
-                <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                  {locale === 'de' ? 'Betrag' : 'Amount'}
-                </th>
-                <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                  {locale === 'de' ? 'Zahlungsdatum' : 'Payment Date'}
-                </th>
-                <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-5 py-3.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider text-right">
-                  {locale === 'de' ? 'Aktionen' : 'Actions'}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={7} className="px-5 py-5">
-                      <div className="h-5 bg-gray-100 rounded-lg animate-pulse w-full" />
-                    </td>
-                  </tr>
-                ))
-              ) : paginatedBonuses.length > 0 ? (
-                paginatedBonuses.map(b => {
-                  const emp = employeeProfiles[b.employee_id]
-                  return (
-                    <tr key={b.id} className="hover:bg-gray-50/50 transition-colors group">
-                      {/* Employee */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={emp?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(emp?.full_name || 'U')}&background=0064E0&color=fff&size=32`}
-                            alt=""
-                            className="w-8 h-8 rounded-lg object-cover border border-gray-100"
-                          />
-                          <span className="text-sm font-semibold text-gray-900 truncate max-w-[140px]">
-                            {emp?.full_name || '...'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Description */}
-                      <td className="px-5 py-4">
-                        <span className="text-sm text-gray-500 truncate max-w-[160px] block">
-                          {b.notes || '—'}
-                        </span>
-                      </td>
-
-                      {/* Period */}
-                      <td className="px-5 py-4">
-                        <span className="text-sm text-gray-500">
-                          {b.period_start
-                            ? format(new Date(b.period_start), 'MMMM yyyy')
-                            : format(new Date(b.created_at), 'MMMM yyyy')}
-                        </span>
-                      </td>
-
-                      {/* Amount */}
-                      <td className="px-5 py-4">
-                        <span className="text-sm font-bold text-emerald-600 tabular-nums">
-                          {formatCurrency(b.amount, locale)}
-                        </span>
-                      </td>
-
-                      {/* Payment Date */}
-                      <td className="px-5 py-4">
-                        <span className="text-sm text-gray-500">
-                          {format(new Date(b.created_at), 'MMM d, yyyy')}
-                        </span>
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-5 py-4">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100">
-                          <CheckCircle className="w-3 h-3" />
-                          {locale === 'de' ? 'Bezahlt' : 'Paid'}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-5 py-4 text-right">
-                        {confirmingDeleteId === b.id ? (
-                          <InlineDeleteConfirm
-                            onConfirm={() => handleDelete(b.id)}
-                            onCancel={() => setConfirmingDeleteId(null)}
-                          />
-                        ) : (
-                          <button
-                            onClick={() => setConfirmingDeleteId(b.id)}
-                            className="text-gray-300 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"
-                            title={locale === 'de' ? 'Löschen' : 'Delete'}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center">
-                        <Gift className="w-5 h-5 text-gray-300" />
-                      </div>
-                      <p className="text-sm text-gray-400">
-                        {searchTerm || employeeFilter !== 'all'
-                          ? (locale === 'de' ? 'Keine Ergebnisse gefunden.' : 'No results found.')
-                          : (locale === 'de' ? 'Noch keine Bonuszahlungen vorhanden.' : 'No bonus distributions yet.')}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {!loading && filteredBonuses.length > itemsPerPage && (
-          <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
-            <p className="text-xs font-medium text-gray-400">
-              {locale === 'de' ? 'Zeige' : 'Showing'}{' '}
-              <span className="text-gray-700">{(currentPage - 1) * itemsPerPage + 1}</span>
-              {' '}{locale === 'de' ? 'bis' : 'to'}{' '}
-              <span className="text-gray-700">{Math.min(currentPage * itemsPerPage, filteredBonuses.length)}</span>
-              {' '}{locale === 'de' ? 'von' : 'of'}{' '}
-              <span className="text-gray-700">{filteredBonuses.length}</span>
-            </p>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 rounded-lg border-gray-200"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+      ) : filtered.length === 0 ? (
+        empty
+      ) : (
+        <>
+          {table(visible, true)}
+          {pages > 1 && (
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <div className="flex items-center gap-1 px-2">
-                {Array.from({ length: totalPages }).map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentPage(i + 1)}
-                    className={cn(
-                      "w-8 h-8 rounded-lg text-xs font-bold transition-colors",
-                      currentPage === i + 1
-                        ? "bg-gray-900 text-white"
-                        : "text-gray-500 hover:bg-gray-100"
-                    )}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 rounded-lg border-gray-200"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
+              <span className="text-xs font-bold text-gray-500">{page} / {pages}</span>
+              <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" disabled={page === pages} onClick={() => setPage((p) => p + 1)}>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </>
+      )}
+
+      <Dialog open={creating || !!editing} onOpenChange={(o) => { if (!o) { setCreating(false); setEditing(null) } }}>
+        <DialogContent className="rounded-2xl p-6 sm:max-w-[560px] max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              {editing ? L('Sonderzahlung bearbeiten', 'Edit special payment') : L('Neue Sonderzahlung', 'New special payment')}
+            </DialogTitle>
+          </DialogHeader>
+          <SpecialPaymentForm
+            key={editing?.id ?? 'new'}
+            initial={editing}
+            onSubmit={(data) => (editing ? updatePayment(editing.id, data) : createPayment(data))}
+            onCancel={() => { setCreating(false); setEditing(null) }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

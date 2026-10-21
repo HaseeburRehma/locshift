@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useCallback } from 'react'
+import Link from 'next/link'
 import {
   FileText,
   Download,
@@ -18,7 +19,8 @@ import { Button } from '@/components/ui/button'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import { usePerDiem } from '@/hooks/usePerDiem'
-import { useHolidayBonus } from '@/hooks/useHolidayBonus'
+import { useSpecialPayments } from '@/hooks/useHolidayBonus'
+import { paymentPeriodLabel, specialPaymentTypeLabel } from '@/lib/special-payments'
 import { useTimeEntries } from '@/hooks/times/useTimeEntries'
 import { useOrganizationTimeAccounts } from '@/hooks/times/useOrgTimeAccounts'
 import { toast } from 'sonner'
@@ -76,7 +78,7 @@ export default function ReportsPage() {
   // ─── Data Hooks ─────────────────────────────────────────
   const { entries, loading: loadingTimes } = useTimeEntries()
   const { perDiems, loading: loadingPerDiem } = usePerDiem()
-  const { bonuses, loading: loadingBonuses } = useHolidayBonus()
+  const { payments: bonuses, loading: loadingBonuses } = useSpecialPayments()
   const { accounts, loading: loadingAccounts } = useOrganizationTimeAccounts()
 
   const loading = loadingTimes || loadingPerDiem || loadingBonuses || loadingAccounts
@@ -110,7 +112,7 @@ export default function ReportsPage() {
     return {
       times: entries.filter(e => filterByDate(e.date) && matchesEmployee(e.employee_id)),
       perDiems: perDiems.filter(pd => filterByDate(pd.date) && matchesEmployee(pd.employee_id)),
-      bonuses: bonuses.filter(b => filterByDate(b.created_at) && matchesEmployee(b.employee_id)),
+      bonuses: bonuses.filter(b => filterByDate(b.billing_month ?? b.period_start ?? b.created_at) && matchesEmployee(b.employee_id)),
       accounts: employeeFilter === 'all'
         ? accounts
         : accounts.filter(a => a.employee_id === employeeFilter),
@@ -248,12 +250,11 @@ export default function ReportsPage() {
     status: pd.status,
   }))
   const bonusRows = () => filteredData.bonuses.map(b => ({
-    date_paid: b.created_at,
     employee_id: b.employee_id,
-    bonus_type: (b as any).bonus_type ?? '',
+    title: b.title || specialPaymentTypeLabel(b.bonus_type, locale),
+    type: specialPaymentTypeLabel(b.bonus_type, locale),
+    billing: paymentPeriodLabel(b, locale),
     amount: b.amount,
-    period_start: b.period_start || '',
-    period_end: b.period_end || '',
     notes: b.notes || '',
   }))
 
@@ -353,26 +354,26 @@ export default function ReportsPage() {
     },
     {
       id: 'holiday-bonus',
-      title: locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report',
-      subtitle: locale === 'de' ? 'Zusammenfassung der Bonuszahlungen' : 'Bonus payments summary',
+      title: locale === 'de' ? 'Sonderzahlungen' : 'Special payments',
+      subtitle: locale === 'de' ? 'Alle Sonderzahlungen im Zeitraum' : 'All special payments in the period',
       icon: Gift,
       onExportCSV: () => downloadCSV(
         bonusRows(),
-        makeFilename('urlaubsgeld-bericht'),
-        locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report'
+        makeFilename('sonderzahlungen'),
+        locale === 'de' ? 'Sonderzahlungen' : 'Special payments'
       ),
       onExportExcel: () => downloadExcel(
         bonusRows(),
-        makeFilename('urlaubsgeld-bericht'),
-        locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report'
+        makeFilename('sonderzahlungen'),
+        locale === 'de' ? 'Sonderzahlungen' : 'Special payments'
       ),
       onExportPDF: () => {
         if (warnIfEmpty(filteredData.bonuses.length)) return
-        const reportTitle = locale === 'de' ? 'Urlaubsgeld-Bericht' : 'Holiday Bonus Report'
+        const reportTitle = locale === 'de' ? 'Sonderzahlungen' : 'Special payments'
         exportHolidayBonusPdf(filteredData.bonuses, {
           title: reportTitle,
           subtitle: makeSubtitle(reportTitle),
-          filename: makeFilename('urlaubsgeld-bericht'),
+          filename: makeFilename('sonderzahlungen'),
           locale,
         })
         trackReport(reportTitle, 'pdf')
@@ -453,6 +454,39 @@ export default function ReportsPage() {
         <p className="text-sm text-gray-500">
           {locale === 'de' ? 'Berichte erstellen und exportieren' : 'Generate and export reports'}
         </p>
+      </div>
+
+      {/* ── Auswertungen (Kundenfeedback Punkte 5 + 18) ─────── */}
+      <div className="grid sm:grid-cols-3 gap-3">
+        {[
+          {
+            href: '/dashboard/times/monthly',
+            title: locale === 'de' ? 'Monatsnachweis' : 'Monthly statement',
+            text: locale === 'de' ? 'Ein Mitarbeiter, ein Monat – alle Tage, Zuschläge, Spesen, Sonderzahlungen' : 'One employee, one month – all days, premiums, per diem, payments',
+          },
+          {
+            href: '/dashboard/reports/overview?tab=month',
+            title: locale === 'de' ? 'Gesamtauswertung' : 'All drivers',
+            text: locale === 'de' ? 'Alle Lokführer eines Monats mit Gesamtsummen' : 'All drivers for one month with totals',
+          },
+          {
+            href: '/dashboard/reports/overview?tab=multi',
+            title: locale === 'de' ? 'Mehrmonatsreport' : 'Multi-month report',
+            text: locale === 'de' ? 'Ein Mitarbeiter über mehrere Monate mit Diagrammen' : 'One employee over several months with charts',
+          },
+        ].map((c) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            className="group rounded-2xl border border-blue-100 bg-blue-50/40 p-4 hover:bg-blue-50 transition-colors"
+          >
+            <p className="flex items-center justify-between text-sm font-black text-[#0064E0]">
+              {c.title}
+              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+            </p>
+            <p className="text-xs text-slate-500 mt-1">{c.text}</p>
+          </Link>
+        ))}
       </div>
 
       {/* ── Date Range + Employee Selector ───────────────── */}

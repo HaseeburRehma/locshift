@@ -17,7 +17,9 @@ export async function PATCH(
   try {
     const { id: targetId } = await context.params
     const supabase = await createServerClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    // getUser() verifies the JWT with the auth server (getSession() trusts the cookie).
+    const { data: { user: verifiedUser } } = await supabase.auth.getUser()
+    const session = verifiedUser ? { user: verifiedUser } : null
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

@@ -21,7 +21,6 @@ import {
   ChevronRight,
   Play
 } from 'lucide-react'
-import { useTimeTracking } from '@/hooks/useTimeTracking'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useUser } from '@/lib/user-context'
 import Link from 'next/link'
@@ -30,7 +29,12 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
 import { Badge } from '@/components/ui/badge'
 import { ClockInOutCard } from '@/components/time/ClockInOutCard'
-import { ActiveShiftsDashboard } from '@/components/time/ActiveShiftsDashboard'
+import { OnDutyNow } from '@/components/dashboard/OnDutyNow'
+import { AttentionCards } from '@/components/dashboard/AttentionCards'
+import { EmployeeWeekGlance } from '@/components/dashboard/EmployeeWeekGlance'
+import { entryNetHours } from '@/lib/time/shift-hours'
+import { formatHours } from '@/lib/time/format'
+import { ENTRY_STATUS_STYLE, entryStatus, entryStatusLabel } from '@/lib/times/entry-status'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { de as deLocale } from 'date-fns/locale'
@@ -78,87 +82,25 @@ function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { pro
         </p>
       </div>
 
-      {/* Operations Bar (Unified Clock) */}
-      <ClockInOutCard />
+      {/* Kundenfeedback Punkt 10 — current operations first */}
+      <OnDutyNow />
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatItem label={L('Aktive Mitarbeiter', 'Active Employees')} value={stats.activeEmployees || 0} />
-        <StatItem label={L('Offene Einsatzpläne', 'Pending Plans')} value={stats.openPlans || 0} />
-        <StatItem label={L('Stunden diese Woche', 'Hours this week')} value={`${stats.totalHours || 0}${hr}`} />
-        <StatItem label={L('Heutige Schichten', "Today's shifts")} value={stats.activeShiftsCount || 0} />
-      </div>
+      <AttentionCards />
 
-      {/* Quick Actions — Dispatchers see operational quick-actions per spec
-          §5.2: create new plan, view time entries, generate quick report.
-          Admins additionally see "Add user". */}
-      <div className="space-y-6">
+      {/* Quick Actions */}
+      <div className="space-y-4">
         <h3 className="text-sm font-bold text-slate-900 tracking-tight">{L('Schnellaktionen', 'Quick Actions')}</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          <QuickActionItem
-            icon={<Calendar className="w-8 h-8" />}
-            label={L('Einsatzplan erstellen', 'Create Plan')}
-            href="/dashboard/plans/new"
-            color="bg-indigo-50 text-indigo-600"
-          />
-          <QuickActionItem
-            icon={<Plus className="w-8 h-8" />}
-            label={L('Mehrere Pläne', 'Bulk plans')}
-            href="/dashboard/plans/bulk"
-            color="bg-purple-50 text-purple-600"
-          />
-          <QuickActionItem
-            icon={<Clock className="w-8 h-8" />}
-            label={L('Zeiten ansehen', 'View time entries')}
-            href="/dashboard/times"
-            color="bg-blue-50 text-blue-600"
-          />
-          <QuickActionItem
-            icon={<ArrowUpRight className="w-8 h-8" />}
-            label={L('Bericht erstellen', 'Generate Report')}
-            href="/dashboard/reports"
-            color="bg-sky-50 text-sky-600"
-          />
-          {!isDispatcher && (
-            <QuickActionItem
-              icon={<Users className="w-8 h-8" />}
-              label={L('Benutzer anlegen', 'Add User')}
-              href="/dashboard/users"
-              color="bg-cyan-50 text-cyan-600"
-            />
-          )}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <QuickActionItem icon={<Calendar className="w-7 h-7" />} label={L('Wochenplanung', 'Weekly planning')} href="/dashboard/plans/week" color="bg-indigo-50 text-indigo-600" />
+          <QuickActionItem icon={<Plus className="w-7 h-7" />} label={L('Schicht anlegen', 'Add shift')} href="/dashboard/plans/new" color="bg-purple-50 text-purple-600" />
+          <QuickActionItem icon={<Clock className="w-7 h-7" />} label={L('Zeiten erfassen', 'Enter times')} href="/dashboard/times" color="bg-blue-50 text-blue-600" />
+          <QuickActionItem icon={<CheckCircle2 className="w-7 h-7" />} label={L('Freigaben', 'Approvals')} href="/dashboard/times/approvals" color="bg-emerald-50 text-emerald-600" />
+          <QuickActionItem icon={<ArrowUpRight className="w-7 h-7" />} label={L('Auswertungen', 'Reports')} href="/dashboard/reports" color="bg-sky-50 text-sky-600" />
         </div>
       </div>
 
-      {/* Employees on duty today — spec §5.2 dispatcher dashboard requirement.
-          The data is already available through stats.activeShifts (anyone
-          clocked in right now). */}
-      {(stats.activeShifts && stats.activeShifts.length > 0) && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-              {L('Heute im Einsatz', 'On duty today')}
-            </h3>
-            <Link href="/dashboard/live" className="text-xs font-bold text-blue-600 hover:underline">
-              {L('Live-Ansicht', 'Live view')}
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stats.activeShifts.slice(0, 6).map((s: any) => (
-              <div key={s.id ?? `${s.employee_id}-${s.start_time}`}
-                   className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{s.employee?.full_name ?? L('Mitarbeiter', 'Employee')}</p>
-                  <p className="text-[11px] font-medium text-slate-400 truncate">
-                    {s.customer?.name ?? L('Kein Kunde', 'No customer')} · {L('seit', 'since')} {format(new Date(s.start_time), 'HH:mm')}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Own time tracking (dispatchers also drive) */}
+      <ClockInOutCard />
 
       {/* Live Operations Map */}
       <LiveOperationsMap 
@@ -191,7 +133,7 @@ function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { pro
                 {(stats.recentEntries || []).slice(0, 5).map((entry: any) => (
                   <tr key={entry.id} className="hover:bg-slate-50/30 transition-colors group">
                     <td className="px-6 py-4 text-[13px] font-medium text-slate-600">
-                      {format(new Date(entry.date), 'MMM d, yyyy')}
+                      {entry.date?.split('-').reverse().join('.')}
                     </td>
                     <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
                       {entry.employee?.full_name}
@@ -199,26 +141,25 @@ function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { pro
                     <td className="px-6 py-4 text-[13px] font-medium text-slate-500">
                       {entry.customer?.name || L('—', 'N/A')}
                     </td>
-                    <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
-                      {entry.net_hours}{hr}
+                    <td className="px-6 py-4 text-[13px] font-bold text-slate-900 tabular-nums">
+                      {formatHours(entryNetHours(entry), locale === 'de' ? 'de' : 'en')} {hr}
                     </td>
                     <td className="px-6 py-4">
-                      <Badge className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-lg border-none", 
-                        entry.is_verified ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
-                        {entry.is_verified ? L('Genehmigt', 'Approved') : L('Ausstehend', 'Pending')}
+                      <Badge className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-lg border", ENTRY_STATUS_STYLE[entryStatus(entry)])}>
+                        {entryStatusLabel(entryStatus(entry), locale === 'de' ? 'de' : 'en')}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-slate-300 hover:text-blue-600 transition-colors hover:bg-blue-50 rounded-lg">
+                      <Link href={`/dashboard/times?entry=${entry.id}`} className="inline-flex p-2 text-slate-300 hover:text-blue-600 transition-colors hover:bg-blue-50 rounded-lg">
                         <ArrowRight className="w-4 h-4" />
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
                 {(!stats.recentEntries || stats.recentEntries.length === 0) && (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-slate-300 font-medium text-sm italic">
-                      No recent time entries found.
+                      {L('Keine aktuellen Zeiteinträge.', 'No recent time entries found.')}
                     </td>
                   </tr>
                 )}
@@ -261,16 +202,6 @@ function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { pro
   )
 }
 
-function StatItem({ label, value }: { label: string, value: string | number }) {
-  return (
-    <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-      <div className="space-y-1">
-        <p className="text-3xl font-bold text-blue-600 tracking-tight">{value}</p>
-        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
-      </div>
-    </div>
-  )
-}
 
 function QuickActionItem({ icon, label, href, color }: { icon: React.ReactNode, label: string, href: string, color: string }) {
   return (
@@ -286,7 +217,6 @@ function QuickActionItem({ icon, label, href, color }: { icon: React.ReactNode, 
 }
 
 function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, locale: string, stats: any, loading: boolean }) {
-  const { clockIn, activeEntry } = useTimeTracking()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const hr = L('Std.', 'h')
 
@@ -317,43 +247,14 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
       {/* Operations Bar (Unified Clock) */}
       <ClockInOutCard />
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatItem label={L('Stunden diese Woche', 'Hours this week')} value={`${stats.weeklyHours || 0}${hr}`} />
-        <StatItem label={L('Saldo', 'Balance')} value={`${stats.hoursBalance || 0}${hr}`} />
-        <StatItem label={L('Spesen (Monat)', 'Monthly Per Diem')} value={`${stats.monthlyPerDiem || 0}€`} />
-        <StatItem label={L('Aktiver Einsatz', 'Active Mission')} value={stats.activeShiftsCount > 0 ? L('Aktiv', 'Active') : L('Keiner', 'None')} />
-      </div>
+      {/* Kundenfeedback Punkte 9 + 14 — own shifts first */}
+      <EmployeeWeekGlance />
 
-      {/* Quick Actions */}
-      <div className="space-y-6">
-        <h3 className="text-sm font-bold text-slate-900 tracking-tight">{L('Persönliche Werkzeuge', 'Personal Tools')}</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          <QuickActionItem
-            icon={<Clock className="w-8 h-8" />}
-            label={L('Meine Zeiteinträge', 'My Time Entries')}
-            href="/dashboard/times"
-            color="bg-blue-50 text-blue-600"
-          />
-          <QuickActionItem
-            icon={<Calendar className="w-8 h-8" />}
-            label={L('Mein Kalender', 'My Calendar')}
-            href="/dashboard/calendar"
-            color="bg-indigo-50 text-indigo-600"
-          />
-          <QuickActionItem
-            icon={<TrendingUp className="w-8 h-8" />}
-            label={L('Zeitkonto', 'Time Account')}
-            href="/dashboard/times"
-            color="bg-sky-50 text-sky-600"
-          />
-          <QuickActionItem
-            icon={<MessageSquare className="w-8 h-8" />}
-            label={L('Team-Chat', 'Team Chat')}
-            href="/dashboard/chat"
-            color="bg-cyan-50 text-cyan-600"
-          />
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <QuickActionItem icon={<Calendar className="w-7 h-7" />} label={L('Meine Woche', 'My week')} href="/dashboard/plans/my-week" color="bg-indigo-50 text-indigo-600" />
+        <QuickActionItem icon={<Clock className="w-7 h-7" />} label={L('Meine Zeiten', 'My times')} href="/dashboard/times" color="bg-blue-50 text-blue-600" />
+        <QuickActionItem icon={<TrendingUp className="w-7 h-7" />} label={L('Monatsnachweis', 'Monthly statement')} href="/dashboard/times/monthly" color="bg-sky-50 text-sky-600" />
+        <QuickActionItem icon={<MessageSquare className="w-7 h-7" />} label={L('Team-Chat', 'Team Chat')} href="/dashboard/chat" color="bg-cyan-50 text-cyan-600" />
       </div>
 
       {/* Recent Time Entries & Tables */}
@@ -379,24 +280,23 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
                 {(stats.recentEntries || []).slice(0, 5).map((entry: any) => (
                   <tr key={entry.id} className="hover:bg-slate-50/30 transition-colors group">
                     <td className="px-6 py-4 text-[13px] font-medium text-slate-600">
-                      {format(new Date(entry.date), 'MMM d, yyyy')}
+                      {entry.date?.split('-').reverse().join('.')}
                     </td>
                     <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
                       {entry.customer?.name || L('Standardeinsatz', 'Standard Protocol')}
                     </td>
-                    <td className="px-6 py-4 text-[13px] font-bold text-slate-900">
-                      {entry.net_hours}{hr}
+                    <td className="px-6 py-4 text-[13px] font-bold text-slate-900 tabular-nums">
+                      {formatHours(entryNetHours(entry), locale === 'de' ? 'de' : 'en')} {hr}
                     </td>
                     <td className="px-6 py-4">
-                      <Badge className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-lg border-none",
-                        entry.is_verified ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
-                        {entry.is_verified ? L('Bestätigt', 'Verified') : L('Prüfung ausstehend', 'Pending Verification')}
+                      <Badge className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-lg border", ENTRY_STATUS_STYLE[entryStatus(entry)])}>
+                        {entryStatusLabel(entryStatus(entry), locale === 'de' ? 'de' : 'en')}
                       </Badge>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-slate-300 hover:text-blue-600 transition-colors hover:bg-blue-50 rounded-lg">
+                      <Link href={`/dashboard/times?entry=${entry.id}`} className="inline-flex p-2 text-slate-300 hover:text-blue-600 transition-colors hover:bg-blue-50 rounded-lg">
                         <ArrowRight className="w-4 h-4" />
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -413,141 +313,9 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
         </div>
       </div>
 
-      {/* Today's Confirmed Shifts */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900 tracking-tight">{L('Heutige bestätigte Schichten', "Today's Confirmed Shifts")}</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(stats.upcomingShifts || [])
-            .filter((s: any) => {
-              const today = new Date().toISOString().split('T')[0]
-              return s.start_time.startsWith(today) && s.status === 'confirmed'
-            })
-            .map((shift: any) => (
-            <div key={shift.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm border-l-4 border-l-emerald-500 flex flex-col gap-4 group hover:shadow-md transition-all">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-bold text-slate-900">
-                    {format(new Date(shift.start_time), 'EEEE - MMM d')}
-                  </p>
-                  <Badge className="bg-emerald-50 text-emerald-600 border-none text-[10px] font-bold">{L('BESTÄTIGT', 'CONFIRMED')}</Badge>
-                </div>
-                <p className="text-[11px] font-medium text-slate-400">
-                  {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                </p>
-              </div>
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-2">
-                <MapPin className="w-3 h-3 text-emerald-500" />
-                {shift.customer?.name || L('Einsatzort', 'Mission Site')}
-              </div>
-              {!activeEntry && (
-                <Button
-                  onClick={() => clockIn(shift.id)}
-                  className="mt-2 w-full h-10 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 shrink-0"
-                >
-                  <Play className="w-3.5 h-3.5 mr-2 fill-current" />
-                  {L('Schicht beginnen', 'Begin Shift')}
-                </Button>
-              )}
-            </div>
-          ))}
-          {((stats.upcomingShifts || []).filter((s: any) => {
-              const today = new Date().toISOString().split('T')[0]
-              return s.start_time.startsWith(today) && s.status === 'confirmed'
-            }).length === 0) && (
-            <div className="col-span-full py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl text-slate-300 font-medium tracking-tight">
-              {L('Keine bestätigten Schichten für heute.', 'No confirmed shifts for today.')}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Upcoming Shifts */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900 tracking-tight">{L('Ihre kommenden Einsätze', 'Your Upcoming Assignments')}</h3>
-          <Link href="/dashboard/calendar" className="text-xs font-bold text-blue-600 hover:underline">{L('Kalender öffnen', 'View Calendar')}</Link>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(stats.upcomingShifts || [])
-            .filter((s: any) => {
-              const today = new Date().toISOString().split('T')[0]
-              return !(s.start_time.startsWith(today) && s.status === 'confirmed')
-            })
-            .slice(0, 3).map((shift: any) => (
-            <div key={shift.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm border-l-4 border-l-blue-600 flex flex-col gap-4 group hover:shadow-md transition-all">
-              <div className="space-y-1">
-                <p className="text-[13px] font-bold text-slate-900">
-                  {format(new Date(shift.start_time), 'EEEE - MMM d')}
-                </p>
-                <p className="text-[11px] font-medium text-slate-400">
-                  {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
-                </p>
-              </div>
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-2">
-                <MapPin className="w-3 h-3 text-blue-500" />
-                {shift.customer?.name || L('Einsatzort', 'Mission Site')}
-              </div>
-            </div>
-          ))}
-          {((stats.upcomingShifts || []).filter((s: any) => {
-              const today = new Date().toISOString().split('T')[0]
-              return !(s.start_time.startsWith(today) && s.status === 'confirmed')
-            }).length === 0) && (
-            <div className="col-span-full py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl text-slate-300 font-medium tracking-tight">
-              {L('Keine weiteren kommenden Schichten für Sie.', 'No additional upcoming shifts assigned to you.')}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
 
-function StatCard({ title, value, icon: Icon, color = "primary" }: any) {
-  const themes: any = {
-    primary: "text-blue-600",
-    blue: "text-blue-600",
-    orange: "text-orange-600",
-    emerald: "text-emerald-600"
-  }
-  return (
-    <Card className="border-slate-200/60 rounded-xl shadow-sm bg-white p-4 group hover:border-blue-200 transition-all duration-300">
-      <div className="flex items-center gap-3">
-        <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border border-slate-100 bg-slate-50 transition-transform group-hover:scale-105", themes[color])}>
-          <Icon className="w-4 h-4" />
-        </div>
-        <div>
-          <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">{title}</p>
-          <p className="text-3xl font-serif italic tracking-tight leading-none tabular-nums text-slate-900">{value}</p>
-        </div>
-      </div>
-    </Card>
-  )
-}
 
-function StatCardSmall({ icon, label, value, color = "blue" }: any) {
-  return (
-    <Card className="border-slate-200/60 rounded-xl shadow-sm bg-white p-4 flex flex-col gap-3">
-      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center border border-slate-100 bg-slate-50", color === 'emerald' ? 'text-emerald-600' : 'text-blue-600')}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-2xl font-serif italic text-slate-900 tracking-tight leading-none tabular-nums mb-1">{value}</p>
-        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-      </div>
-    </Card>
-  )
-}
 
-function QuickLink({ label, icon: Icon, href }: any) {
-  return (
-    <Link href={href}>
-       <div className="bg-white border border-slate-200/60 rounded-xl p-3 flex flex-col items-center gap-2 hover:border-blue-400 hover:shadow-md transition-all group">
-          <Icon className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-900">{label}</span>
-       </div>
-    </Link>
-  )
-}

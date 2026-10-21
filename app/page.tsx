@@ -430,7 +430,7 @@ function Features() {
     },
     {
       icon: Wallet,
-      title: L('Urlaubs- & Bonus', 'Vacation & bonus'),
+      title: L('Sonderzahlungen', 'Special payments'),
       desc: L(
         'Urlaubsgeld, Weihnachts­bonus und Sonderzahlungen zentral verwalten und auszahlen.',
         'Vacation pay, Christmas bonuses and special payments — managed and paid centrally.'

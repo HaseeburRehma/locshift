@@ -32,12 +32,17 @@ const moduleBg: Record<string, string> = {
 }
 
 const moduleRoutes: Record<string, string> = {
-  plans:     '/dashboard/plans',
-  calendar:  '/dashboard/calendar',
-  customers: '/dashboard/customers',
-  shifts:    '/dashboard/times',
-  system:    '/dashboard',
-  chat:      '/dashboard/chat',
+  plans:        '/dashboard/plans',
+  calendar:     '/dashboard/calendar',
+  customers:    '/dashboard/customers',
+  shifts:       '/dashboard/times',
+  time_entries: '/dashboard/times',
+  corrections:  '/dashboard/times/approvals',
+  personnel:    '/dashboard/personnel',
+  bonuses:      '/dashboard/holiday-bonus',
+  per_diem:     '/dashboard/per-diem',
+  system:       '/dashboard',
+  chat:         '/dashboard/chat',
 }
 
 /**
@@ -251,7 +256,7 @@ export function NotificationPanel() {
         duration: 5000,
         action: {
           label: L('Anzeigen', 'View'),
-          onClick: () => router.push(moduleRoutes[latest.type as string] || '/dashboard')
+          onClick: () => router.push(latest.action_url || moduleRoutes[latest.type as string] || '/dashboard')
         }
       })
     }
@@ -363,7 +368,7 @@ export function NotificationPanel() {
                   key={n.id}
                   onClick={() => {
                     markAsRead(n.id)
-                    router.push(moduleRoutes[n.type] || '/dashboard')
+                    router.push(n.action_url || moduleRoutes[n.type] || '/dashboard')
                     setOpen(false)
                   }}
                   className={cn(
