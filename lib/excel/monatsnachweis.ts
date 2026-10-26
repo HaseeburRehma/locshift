@@ -196,7 +196,7 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
   for (const p of t.specialPayments) line(`${p.title} (${p.periodLabel})${p.note ? ` – ${p.note}` : ''}`, p.amount, EURO)
   line('Sonderzahlungen gesamt', t.specialPaymentsTotal, EURO)
   ws.addRow([])
-  ws.addRow([`Hinweis: Dezimalstunden – 7,50 Std. = ${formatHoursLong(7.5, 'de')}.`]).font = { italic: true, color: { argb: 'FF64748B' } }
+  ws.addRow([`Hinweis: Dezimalstunden – 7,50 Std. = ${formatHoursLong(7.5, 'de')}`]).font = { italic: true, color: { argb: 'FF64748B' } }
   for (const w of report.warnings) ws.addRow([w]).font = { italic: true, color: { argb: 'FFB45309' } }
 
   landscape(ws, headerRowNumber)

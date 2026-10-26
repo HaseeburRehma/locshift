@@ -378,7 +378,7 @@ function MonthlyStatement() {
 
           <p className="text-xs text-slate-500 leading-relaxed">
             {L(
-              `Dezimalstunden: 7,50 Std. = ${formatHoursLong(7.5, 'de')}. Eine Schicht zählt zum Tag ihres Beginns. Spesen werden je Kalendertag einmal berücksichtigt. Gastfahrt wird separat ausgewiesen und nicht doppelt gezählt. Sonn- und Feiertagsstunden zählen nur, soweit sie auf den Tag fallen.`,
+              `Dezimalstunden: 7,50 Std. = ${formatHoursLong(7.5, 'de')} Eine Schicht zählt zum Tag ihres Beginns. Spesen werden je Kalendertag einmal berücksichtigt. Gastfahrt wird separat ausgewiesen und nicht doppelt gezählt. Sonn- und Feiertagsstunden zählen nur, soweit sie auf den Tag fallen.`,
               'Decimal hours: 7.50 h = 7 h 30 min. A shift belongs to the day it starts. Per diem counts once per calendar day. Gastfahrt is shown separately and never counted twice. Sunday/holiday hours only count for the part of the shift on that day.',
             )}
           </p>

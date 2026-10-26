@@ -10,7 +10,7 @@ import {
   weekdayOfDateKey,
 } from '@/lib/time/berlin'
 import { calculateNetHours, toInstantIso, localDateKey, endDayOffset } from '@/lib/time/shift-hours'
-import { formatInstantDate, formatInstantDateTime, formatShiftRange, formatTimeOfDay } from '@/lib/time/format'
+import { formatInstantDate, formatInstantDateTime, formatInstantDayMonth, formatShiftRange, formatTimeOfDay } from '@/lib/time/format'
 import { calculateSurcharges } from '@/lib/time/zuschlag'
 
 // These run under several TZ values (see test:tz) and must give the same
@@ -71,6 +71,13 @@ describe('device timezone no longer matters', () => {
     expect(formatInstantDate('2026-10-10T22:30:00Z')).toBe('11.10.2026')
     expect(formatInstantDateTime('2026-10-14T20:00:00Z')).toBe('14.10.2026, 22:00')
     expect(formatShiftRange('2026-10-10T20:00:00Z', '2026-10-11T06:00:00Z')).toBe('22:00 – 08:00 (+1)')
+  })
+  it('German short month names (no "Mai.")', () => {
+    expect(formatInstantDayMonth('2026-05-06T10:00:00Z')).toBe('6. Mai')
+    expect(formatInstantDayMonth('2026-09-30T22:30:00Z')).toBe('1. Okt.')
+    expect(formatInstantDayMonth('2026-03-10T10:00:00Z')).toBe('10. März')
+    expect(formatInstantDayMonth('2026-09-10T10:00:00Z')).toBe('10. Sept.')
+    expect(formatInstantDayMonth('2026-05-06T10:00:00Z', 'en')).toBe('May 6')
   })
   it('entry math', () => {
     expect(toInstantIso('2026-10-10', '22:00')).toBe('2026-10-10T20:00:00.000Z')
