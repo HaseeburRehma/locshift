@@ -25,13 +25,14 @@
 
 import { jsPDF } from 'jspdf'
 import autoTable, { type RowInput } from 'jspdf-autotable'
-import { format } from 'date-fns'
 import { calculateShiftTimes } from '@/lib/time/shift-hours'
 import {
   calculateZuschlag,
   sumZuschlag,
   type ZuschlagBreakdown,
 } from '@/lib/time/zuschlag'
+import { berlinDateKey, weekdayOfDateKey } from '@/lib/time/berlin'
+import { formatDateDE, formatInstantDateTime, formatTimeOfDay } from '@/lib/time/format'
 
 /** Row shape this exporter accepts — matches the joined TimeEntry. */
 export interface StundenzettelEntry {
@@ -71,23 +72,15 @@ const MONTH_DE = [
 
 function fmtHHMM(iso?: string | null): string {
   if (!iso) return ''
-  try {
-    return format(new Date(iso), 'HH:mm')
-  } catch {
-    return ''
-  }
+  return formatTimeOfDay(iso)
 }
 
 function fmtDate(date: string): string {
-  try {
-    return format(new Date(`${date}T00:00:00`), 'dd.MM.yyyy')
-  } catch {
-    return date
-  }
+  return formatDateDE(date)
 }
 
 function weekdayOf(date: string): string {
-  const d = new Date(`${date}T00:00:00`).getDay()
+  const d = weekdayOfDateKey(date)
   return WEEKDAY_DE[d] ?? ''
 }
 
@@ -170,7 +163,7 @@ export function exportStundenzettelPdf(opts: StundenzettelOptions): void {
 
   doc.setFontSize(8)
   doc.setTextColor(148, 163, 184)
-  doc.text(`Erstellt am ${format(new Date(), 'dd.MM.yyyy HH:mm')}`, marginX, 27)
+  doc.text(`Erstellt am ${formatInstantDateTime(new Date())}`, marginX, 27)
 
   // ─── Main table — column labels mirror the client's Excel exactly ──
   // (Source: row 3 of "Orkan Parlar Oktober Stundenzettel.xlsx").
@@ -325,7 +318,7 @@ export function exportStundenzettelPdf(opts: StundenzettelOptions): void {
   doc.text('Unterschrift Disposition', marginX + 120, finalY + 5)
 
   // ─── Save ──────────────────────────────────────────────────────────
-  const stamp = format(new Date(), 'yyyy-MM-dd')
+  const stamp = berlinDateKey()
   const base = filenameBase ?? `Stundenzettel_${slugify(employeeName)}_${monthKey}`
   doc.save(`${base}_${stamp}.pdf`)
 }

@@ -24,13 +24,48 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { format, isSameMonth, parseISO } from 'date-fns'
+import { formatDateDE, formatEuro, type Locale } from '@/lib/time/format'
+import { localDateKey } from '@/lib/time/shift-hours'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
 type StatusFilter = 'all' | 'submitted' | 'approved' | 'rejected'
 
 const ITEMS_PER_PAGE = 10
+
+/** Employee name: joined row first, then the org profile list. */
+function claimEmployeeName(pd: PerDiem, profiles: Record<string, Profile>, locale: Locale): string {
+  return pd.employee?.full_name || profiles[pd.employee_id]?.full_name || (locale === 'de' ? 'Unbekannt' : 'Unknown')
+}
+
+/** Calendar days of a claim (num_days, else its date range, else 1). */
+function claimDays(pd: PerDiem): number {
+  if (pd.num_days && pd.num_days > 0) return pd.num_days
+  if (pd.start_date && pd.end_date) {
+    const days = Math.round((Date.parse(pd.end_date) - Date.parse(pd.start_date)) / 86_400_000) + 1
+    if (days > 0) return days
+  }
+  return 1
+}
+
+/** Destination; older claims stored the English default. */
+function countryLabel(country: string | null | undefined, locale: Locale): string {
+  if (!country) return '—'
+  if (/^germany( \(domestic\))?$/i.test(country.trim())) return locale === 'de' ? 'Deutschland' : 'Germany'
+  return country
+}
+
+function claimRange(pd: PerDiem): string {
+  const start = pd.start_date ?? pd.date
+  const end = pd.end_date ?? start
+  return start === end ? formatDateDE(start) : `${formatDateDE(start)} – ${formatDateDE(end)}`
+}
+
+const STATUS_LABEL: Record<string, { de: string; en: string }> = {
+  submitted: { de: 'Ausstehend', en: 'Pending' },
+  approved: { de: 'Genehmigt', en: 'Approved' },
+  rejected: { de: 'Abgelehnt', en: 'Rejected' },
+}
 
 export default function PerDiemPage() {
   const { isAdmin, isDispatcher, profile } = useUser()
@@ -74,7 +109,7 @@ export default function PerDiemPage() {
       const matchesStatus =
         statusFilter === 'all' || pd.status === statusFilter
       const employeeName =
-        employeeProfiles[pd.employee_id]?.full_name?.toLowerCase() ?? ''
+        claimEmployeeName(pd, employeeProfiles, locale).toLowerCase()
       const matchesSearch =
         employeeName.includes(searchQuery.toLowerCase()) ||
         (pd.task ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -90,39 +125,40 @@ export default function PerDiemPage() {
   )
 
   const stats = useMemo(() => {
-    const now = new Date()
-    const thisMonth = perDiems.filter(pd =>
-      isSameMonth(parseISO(pd.date), now)
-    )
-    const totalAmount = thisMonth
-      .filter(pd => pd.status === 'approved')
-      .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+    const month = localDateKey().slice(0, 7)
+    const approved = perDiems.filter(pd => pd.status === 'approved')
+    const sum = (list: PerDiem[]) => list.reduce((a, c) => a + (Number(c.amount) || 0), 0)
+    // Rejected and pending claims are never money owed — only approved count.
+    const totalAmount = sum(approved.filter(pd => (pd.start_date ?? pd.date)?.slice(0, 7) === month))
     const pendingCount = perDiems.filter(pd => pd.status === 'submitted').length
-    const approvedCount = perDiems.filter(pd => pd.status === 'approved').length
-    const totalAll = perDiems.reduce((a, c) => a + (Number(c.amount) || 0), 0)
+    const approvedCount = approved.length
+    const totalAll = sum(approved)
     return { totalAmount, pendingCount, approvedCount, totalAll }
   }, [perDiems])
 
   const handleExport = () => {
-    const headers = ['Employee', 'Date', 'Task', 'Country', 'Days', 'Rate', 'Amount', 'Status']
+    const headers = locale === 'de'
+      ? ['Mitarbeiter', 'Zeitraum', 'Einsatz', 'Zielort', 'Tage', 'Satz (€/Tag)', 'Betrag (€)', 'Status']
+      : ['Employee', 'Period', 'Task', 'Destination', 'Days', 'Rate (€/day)', 'Amount (€)', 'Status']
+    const num = (n: number) => (locale === 'de' ? n.toFixed(2).replace('.', ',') : n.toFixed(2))
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
     const rows = filteredPerDiems.map(pd => [
-      employeeProfiles[pd.employee_id]?.full_name ?? 'Unknown',
-      pd.start_date
-        ? `${format(parseISO(pd.start_date), 'dd.MM')} - ${format(parseISO(pd.end_date ?? pd.start_date), 'dd.MM.yyyy')}`
-        : format(parseISO(pd.date), 'dd.MM.yyyy'),
-      pd.task ?? 'N/A',
-      pd.country,
-      pd.num_days ?? 1,
-      pd.rate?.toFixed(2) ?? '0.00',
-      pd.amount.toFixed(2),
-      pd.status,
+      claimEmployeeName(pd, employeeProfiles, locale),
+      claimRange(pd),
+      pd.task ?? '',
+      countryLabel(pd.country, locale as Locale),
+      claimDays(pd),
+      num((Number(pd.amount) || 0) / claimDays(pd)),
+      num(Number(pd.amount) || 0),
+      L(STATUS_LABEL[pd.status]?.de ?? pd.status, STATUS_LABEL[pd.status]?.en ?? pd.status),
     ])
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
+    // Semicolon + BOM: opens correctly in German Excel.
+    const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(cell).join(';')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `per_diems_${format(new Date(), 'yyyy-MM-dd')}.csv`
+    a.download = `spesenantraege_${localDateKey()}.csv`
     a.click()
     toast.success(L('Export gestartet', 'Export started'))
   }
@@ -138,22 +174,18 @@ export default function PerDiemPage() {
     />
   )
 
-  const formatDateRange = (pd: PerDiem) => {
-    if (pd.start_date && pd.end_date) {
-      return `${format(parseISO(pd.start_date), 'MMM d')} – ${format(parseISO(pd.end_date), 'MMM d, yyyy')}`
-    }
-    return format(parseISO(pd.date), 'MMM d, yyyy')
-  }
+  const formatDateRange = (pd: PerDiem) => claimRange(pd)
 
   const daysOrHours = (pd: PerDiem) => {
-    if (pd.working_hours) return `${pd.working_hours} ${L('Std.', 'hrs')}`
-    const n = pd.num_days ?? 1
+    const n = claimDays(pd)
     return `${n} ${n === 1 ? L('Tag', 'day') : L('Tage', 'days')}`
   }
 
+  // Per diem is paid per day. Derived from the amount so it always matches
+  // it (the stored `rate` defaults to 28 € and older claims used hours).
   const rateLabel = (pd: PerDiem) => {
-    if (pd.working_hours && pd.hourly_rate) return `€${pd.hourly_rate.toFixed(2)}/${L('Std.', 'hr')}`
-    return `€${(pd.rate ?? 0).toFixed(2)}/${L('Tag', 'day')}`
+    const perDay = (Number(pd.amount) || 0) / claimDays(pd)
+    return `${formatEuro(perDay, locale as Locale)}/${L('Tag', 'day')}`
   }
 
   return (
@@ -187,9 +219,9 @@ export default function PerDiemPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all col-span-1">
             <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-blue-600 leading-none tracking-tight">
-              €{stats.totalAmount.toFixed(2)}
+              {formatEuro(stats.totalAmount, locale as Locale)}
             </div>
-            <p className="text-[12px] text-slate-500 font-normal leading-none">{L('Gesamt diesen Monat', 'Total This Month')}</p>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">{L('Genehmigt diesen Monat', 'Approved this month')}</p>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all col-span-1">
@@ -208,9 +240,9 @@ export default function PerDiemPage() {
 
           <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2 hover:border-slate-300 hover:shadow-sm transition-all hidden md:block">
             <div className="text-[28px] md:text-[32px] font-bold tabular-nums text-slate-900 leading-none tracking-tight">
-              €{stats.totalAll.toFixed(0)}
+              {formatEuro(stats.totalAll, locale as Locale)}
             </div>
-            <p className="text-[12px] text-slate-500 font-normal leading-none">{L('Gesamtsumme', 'Total All Time')}</p>
+            <p className="text-[12px] text-slate-500 font-normal leading-none">{L('Genehmigt gesamt', 'Approved total')}</p>
           </div>
         </div>
 
@@ -311,10 +343,10 @@ export default function PerDiemPage() {
                     {isAdminView && (
                       <div className="col-span-2 flex items-center gap-2 min-w-0">
                         <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center text-[12px] font-bold text-slate-500 shrink-0">
-                          {employeeProfiles[pd.employee_id]?.full_name?.charAt(0) ?? '?'}
+                          {claimEmployeeName(pd, employeeProfiles, locale).charAt(0)}
                         </div>
                         <span className="text-[13px] font-medium text-slate-900 truncate">
-                          {employeeProfiles[pd.employee_id]?.full_name ?? 'Unknown'}
+                          {claimEmployeeName(pd, employeeProfiles, locale)}
                         </span>
                       </div>
                     )}
@@ -326,7 +358,7 @@ export default function PerDiemPage() {
 
                     {/* Destination */}
                     <div className="col-span-2">
-                      <p className="text-[13px] text-slate-600 truncate">{pd.country}</p>
+                      <p className="text-[13px] text-slate-600 truncate">{countryLabel(pd.country, locale as Locale)}</p>
                     </div>
 
                     {/* Days */}
@@ -342,13 +374,13 @@ export default function PerDiemPage() {
                     {/* Amount */}
                     <div className="col-span-1 text-right">
                       <span className="text-[14px] font-semibold text-emerald-600 tabular-nums">
-                        €{pd.amount.toFixed(2)}
+                        {formatEuro(pd.amount, locale as Locale)}
                       </span>
                     </div>
 
                     {/* Status */}
                     <div className="col-span-1 flex justify-center">
-                      <StatusBadge status={pd.status} />
+                      <StatusBadge status={pd.status} locale={locale as Locale} />
                     </div>
 
                     {/* Actions */}
@@ -387,15 +419,15 @@ export default function PerDiemPage() {
                       <div className="space-y-0.5 min-w-0">
                         {isAdminView && (
                           <p className="text-[12px] font-semibold text-blue-600">
-                            {employeeProfiles[pd.employee_id]?.full_name ?? 'Unknown'}
+                            {claimEmployeeName(pd, employeeProfiles, locale)}
                           </p>
                         )}
                         <p className="text-[14px] font-semibold text-slate-900 leading-none">{formatDateRange(pd)}</p>
-                        <p className="text-[12px] text-slate-400">{pd.country} · {daysOrHours(pd)}</p>
+                        <p className="text-[12px] text-slate-400">{countryLabel(pd.country, locale as Locale)} · {daysOrHours(pd)}</p>
                       </div>
                       <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        <span className="text-[15px] font-bold text-emerald-600 tabular-nums">€{pd.amount.toFixed(2)}</span>
-                        <StatusBadge status={pd.status} />
+                        <span className="text-[15px] font-bold text-emerald-600 tabular-nums">{formatEuro(pd.amount, locale as Locale)}</span>
+                        <StatusBadge status={pd.status} locale={locale as Locale} />
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
@@ -408,14 +440,14 @@ export default function PerDiemPage() {
                               className="h-8 px-3 flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-600 text-[12px] font-semibold hover:bg-emerald-100 transition-colors"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
-                              Approve
+                              {L('Genehmigen', 'Approve')}
                             </button>
                             <button
                               onClick={() => updatePerDiemStatus(pd.id, 'rejected')}
                               className="h-8 px-3 flex items-center gap-1 rounded-lg bg-red-50 text-red-500 text-[12px] font-semibold hover:bg-red-100 transition-colors"
                             >
                               <XCircle className="h-3.5 w-3.5" />
-                              Reject
+                              {L('Ablehnen', 'Reject')}
                             </button>
                           </>
                         )}
@@ -437,7 +469,7 @@ export default function PerDiemPage() {
           {totalPages > 1 && (
             <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
               <span className="text-[12px] text-slate-500 font-medium hidden md:block">
-                {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredPerDiems.length)} of {filteredPerDiems.length}
+                {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredPerDiems.length)} {L('von', 'of')} {filteredPerDiems.length}
               </span>
               <div className="flex items-center gap-1.5 mx-auto md:mx-0">
                 <button
@@ -480,7 +512,7 @@ export default function PerDiemPage() {
           <DialogContent className="rounded-2xl p-0 sm:max-w-xl border border-slate-200 shadow-xl overflow-hidden">
             <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
               <DialogTitle className="text-[18px] font-bold text-slate-900">
-                New Per Diem Claim
+                {L('Neuer Spesenantrag', 'New per diem claim')}
               </DialogTitle>
             </DialogHeader>
             <div className="px-6 pb-6 pt-4 overflow-y-auto max-h-[80vh]">
@@ -494,7 +526,7 @@ export default function PerDiemPage() {
             <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3" />
             <DrawerHeader className="px-5 pt-4 pb-2 text-left">
               <DrawerTitle className="text-[18px] font-bold text-slate-900">
-                New Per Diem Claim
+                {L('Neuer Spesenantrag', 'New per diem claim')}
               </DrawerTitle>
             </DrawerHeader>
             <div className="px-5 pb-8 overflow-y-auto max-h-[80vh]">
@@ -508,8 +540,9 @@ export default function PerDiemPage() {
       {selectedPd && (
         <PerDiemDetailModal
           pd={selectedPd}
-          employeeName={employeeProfiles[selectedPd.employee_id]?.full_name}
+          employeeName={claimEmployeeName(selectedPd, employeeProfiles, locale as Locale)}
           isAdminView={isAdminView}
+          locale={locale as Locale}
           onClose={() => setSelectedPd(null)}
           onApprove={id => { updatePerDiemStatus(id, 'approved'); setSelectedPd(null) }}
           onReject={id => { updatePerDiemStatus(id, 'rejected'); setSelectedPd(null) }}
@@ -521,14 +554,14 @@ export default function PerDiemPage() {
 }
 
 // ── Status Badge ──────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: string }) {
-  const cfg = {
-    submitted: { color: 'bg-amber-50 text-amber-600 border-amber-200', label: 'Pending' },
-    approved: { color: 'bg-emerald-50 text-emerald-600 border-emerald-200', label: 'Approved' },
-    rejected: { color: 'bg-red-50 text-red-500 border-red-200', label: 'Rejected' },
-  } as Record<string, { color: string; label: string }>
-
-  const s = cfg[status] ?? { color: 'bg-slate-50 text-slate-500 border-slate-200', label: status }
+function StatusBadge({ status, locale }: { status: string; locale: Locale }) {
+  const color: Record<string, string> = {
+    submitted: 'bg-amber-50 text-amber-600 border-amber-200',
+    approved: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    rejected: 'bg-red-50 text-red-500 border-red-200',
+  }
+  const label = STATUS_LABEL[status]
+  const s = { color: color[status] ?? 'bg-slate-50 text-slate-500 border-slate-200', label: label ? label[locale] : status }
   return (
     <span className={cn('inline-block px-2.5 py-1 rounded-lg text-[11px] font-semibold border', s.color)}>
       {s.label}
@@ -541,6 +574,7 @@ function PerDiemDetailModal({
   pd,
   employeeName,
   isAdminView,
+  locale,
   onClose,
   onApprove,
   onReject,
@@ -548,15 +582,14 @@ function PerDiemDetailModal({
   pd: PerDiem
   employeeName?: string | null
   isAdminView: boolean
+  locale: Locale
   onClose: () => void
   onApprove: (id: string) => void
   onReject: (id: string) => void
 }) {
-  const formatDateRange = () => {
-    if (pd.start_date && pd.end_date)
-      return `${format(parseISO(pd.start_date), 'MMM d')} – ${format(parseISO(pd.end_date), 'MMM d, yyyy')}`
-    return format(parseISO(pd.date), 'MMM d, yyyy')
-  }
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const days = claimDays(pd)
+  const perDay = (Number(pd.amount) || 0) / days
 
   return (
     <div
@@ -566,7 +599,7 @@ function PerDiemDetailModal({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md p-0 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-[16px] font-bold text-slate-900">Per Diem Detail</h3>
+          <h3 className="text-[16px] font-bold text-slate-900">{L('Spesenantrag', 'Per diem claim')}</h3>
           <button
             onClick={onClose}
             className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
@@ -578,26 +611,20 @@ function PerDiemDetailModal({
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
           {isAdminView && employeeName && (
-            <DetailRow label="Employee" value={employeeName} />
+            <DetailRow label={L('Mitarbeiter', 'Employee')} value={employeeName} />
           )}
-          <DetailRow label="Travel Dates" value={formatDateRange()} />
-          <DetailRow label="Destination" value={pd.country} />
-          <DetailRow
-            label="Duration"
-            value={pd.working_hours ? `${pd.working_hours} hrs` : `${pd.num_days ?? 1} days`}
-          />
-          <DetailRow
-            label="Rate"
-            value={pd.working_hours ? `€${pd.hourly_rate?.toFixed(2) ?? '0.00'}/hr` : `€${(pd.rate ?? 0).toFixed(2)}/day`}
-          />
-          {pd.task && <DetailRow label="Task / Note" value={pd.task} />}
+          <DetailRow label={L('Reisezeitraum', 'Travel dates')} value={claimRange(pd)} />
+          <DetailRow label={L('Zielort', 'Destination')} value={countryLabel(pd.country, locale)} />
+          <DetailRow label={L('Dauer', 'Duration')} value={`${days} ${days === 1 ? L('Tag', 'day') : L('Tage', 'days')}`} />
+          <DetailRow label={L('Satz', 'Rate')} value={`${formatEuro(perDay, locale)}/${L('Tag', 'day')}`} />
+          {pd.task && <DetailRow label={L('Einsatz / Bemerkung', 'Task / note')} value={pd.task} />}
           <div className="flex items-center justify-between py-3 border-t border-slate-100">
-            <span className="text-[13px] font-semibold text-slate-500">Total Amount</span>
-            <span className="text-[22px] font-bold text-emerald-600 tabular-nums">€{pd.amount.toFixed(2)}</span>
+            <span className="text-[13px] font-semibold text-slate-500">{L('Betrag', 'Amount')}</span>
+            <span className="text-[22px] font-bold text-emerald-600 tabular-nums">{formatEuro(pd.amount, locale)}</span>
           </div>
           <div className="flex items-center justify-between -mt-2">
             <span className="text-[13px] text-slate-400">Status</span>
-            <StatusBadge status={pd.status} />
+            <StatusBadge status={pd.status} locale={locale as Locale} />
           </div>
         </div>
 
@@ -608,13 +635,13 @@ function PerDiemDetailModal({
               onClick={() => onReject(pd.id)}
               className="flex-1 h-10 rounded-xl border border-red-200 text-red-500 text-[13px] font-semibold hover:bg-red-50 transition-colors"
             >
-              Reject
+              {L('Ablehnen', 'Reject')}
             </button>
             <button
               onClick={() => onApprove(pd.id)}
               className="flex-1 h-10 rounded-xl bg-emerald-600 text-white text-[13px] font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
             >
-              Approve
+              {L('Genehmigen', 'Approve')}
             </button>
           </div>
         )}

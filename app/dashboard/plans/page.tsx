@@ -21,45 +21,58 @@ import { toast } from 'sonner'
 import { sendNotification } from '@/lib/notifications/service'
 import { createClient } from '@/lib/supabase/client'
 import { Printer } from 'lucide-react'
-import { startOfWeek, endOfWeek } from 'date-fns'
+import { berlinDateKey } from '@/lib/time/berlin'
+import { formatHours, formatInstantDate, formatInstantDayMonth, formatInstantWeekdayDate, formatTimeOfDay } from '@/lib/time/format'
+import { addDays, localDateKey } from '@/lib/time/shift-hours'
+import { isoWeek, weekStartOf } from '@/lib/plans/week'
 import { exportPlansPdf } from '@/lib/pdf/exportPdf'
 import { exportTableToExcel } from '@/lib/excel/exportExcel'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function calcHours(start: string, end: string): string {
-  const h = (new Date(end).getTime() - new Date(start).getTime()) / 3_600_000
-  return `${h.toFixed(1)}h`
+/** ISO week of the German calendar day of an instant. */
+function getISOWeek(date: Date): number {
+  return isoWeek(berlinDateKey(date))
 }
 
-function getISOWeek(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const day = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - day)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7)
+/** "9,00 Std." — planned duration in German notation. */
+function hoursLabel(start: string, end: string): string {
+  return `${formatHours((new Date(end).getTime() - new Date(start).getTime()) / 3_600_000)} Std.`
+}
+
+const STATUS_LABELS: Record<string, { de: string; en: string }> = {
+  draft: { de: 'Entwurf', en: 'Draft' },
+  assigned: { de: 'Zugewiesen', en: 'Assigned' },
+  confirmed: { de: 'Bestätigt', en: 'Confirmed' },
+  rejected: { de: 'Abgelehnt', en: 'Rejected' },
+  cancelled: { de: 'Storniert', en: 'Cancelled' },
+}
+
+function statusLabel(status: string, locale: string): string {
+  const l = STATUS_LABELS[status]
+  return l ? (locale === 'en' ? l.en : l.de) : status
 }
 
 function exportCSV(plans: Plan[]) {
-  const headers = ['Employee', 'Customer', 'Location', 'Route', 'Date', 'Time', 'Hours', 'KW', 'Status', 'Notes']
+  const headers = ['Mitarbeiter', 'Kunde', 'Einsatzort', 'Route', 'Datum', 'Zeit', 'Stunden', 'KW', 'Status', 'Notizen']
   const rows = plans.map(p => [
     p.employee?.full_name ?? '',
     (p as any).customer?.name ?? '',
     p.location ?? '',
     p.route ?? '',
-    new Date(p.start_time).toLocaleDateString('de-DE'),
-    `${new Date(p.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(p.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-    calcHours(p.start_time, p.end_time),
+    formatInstantDate(p.start_time),
+    `${formatTimeOfDay(p.start_time)} - ${formatTimeOfDay(p.end_time)}`,
+    hoursLabel(p.start_time, p.end_time),
     `KW ${getISOWeek(new Date(p.start_time))}`,
-    p.status,
-    (p.notes ?? '').replace(/,/g, ';'),
+    statusLabel(p.status, 'de'),
+    (p.notes ?? '').replace(/"/g, '""'),
   ])
-  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(';')).join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `plans_${new Date().toISOString().split('T')[0]}.csv`
+  a.download = `einsatzplaene_${localDateKey()}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -75,13 +88,14 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 function StatusBadge({ status, isUpdating, hideIcon = false }: { status: string; isUpdating?: boolean; hideIcon?: boolean }) {
+  const { locale } = useTranslation()
   return (
     <span className={cn(
       'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-300',
       STATUS_STYLES[status] ?? STATUS_STYLES.draft
     )}>
       {isUpdating && !hideIcon && <Loader2 className="w-3 h-3 animate-spin" />}
-      {isUpdating ? 'Updating...' : status}
+      {isUpdating ? (locale === 'en' ? 'Updating…' : 'Wird gespeichert…') : statusLabel(status, locale)}
     </span>
   )
 }
@@ -121,11 +135,13 @@ function PlanRowSkeleton() {
 // ─── Inline Delete Confirm ────────────────────────────────────────────────────
 
 function InlineConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const { locale } = useTranslation()
+  const en = locale === 'en'
   return (
     <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-150">
-      <span className="text-xs font-bold text-gray-500">Sure?</span>
-      <button onClick={onConfirm} className="px-3 py-1.5 bg-red-500 text-white text-xs font-black rounded-xl hover:bg-red-600 transition-colors">Yes</button>
-      <button onClick={onCancel}  className="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-200 transition-colors">No</button>
+      <span className="text-xs font-bold text-gray-500">{en ? 'Sure?' : 'Wirklich löschen?'}</span>
+      <button onClick={onConfirm} className="px-3 py-1.5 bg-red-500 text-white text-xs font-black rounded-xl hover:bg-red-600 transition-colors">{en ? 'Yes' : 'Ja'}</button>
+      <button onClick={onCancel}  className="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-200 transition-colors">{en ? 'No' : 'Nein'}</button>
     </div>
   )
 }
@@ -147,7 +163,7 @@ function ChangeRequestModal({ plan, onClose }: { plan: Plan; onClose: () => void
       await sendNotification({
         userId: plan.creator_id,
         title: '🔄 Änderungsanfrage',
-        message: `${profile?.full_name} bittet um eine Änderung der Schicht am ${new Date(plan.start_time).toLocaleDateString('de-DE')}: „${message}"`,
+        message: `${profile?.full_name} bittet um eine Änderung der Schicht am ${formatInstantDate(plan.start_time)}: „${message}"`,
         module: 'plans',
         moduleId: plan.id,
       })
@@ -176,10 +192,10 @@ function ChangeRequestModal({ plan, onClose }: { plan: Plan; onClose: () => void
           <div className="bg-blue-50 rounded-2xl p-4 space-y-1">
             <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">{t('plans.shift')}</p>
             <p className="font-bold text-slate-900 text-sm">
-              {new Date(plan.start_time).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' })}
+              {formatInstantWeekdayDate(plan.start_time, 'de', false)}
             </p>
             <p className="text-xs font-bold text-slate-500">
-              {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {new Date(plan.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {formatTimeOfDay(plan.start_time)} – {formatTimeOfDay(plan.end_time)}
               {plan.location ? ` · ${plan.location}` : ''}
             </p>
           </div>
@@ -330,11 +346,9 @@ export default function PlansPage() {
         (p as any).customer?.name?.toLowerCase().includes(q)
       let matchStatus = statusFilter === 'all' || p.status === statusFilter
       if (statusFilter === 'this-week') {
-        const planDate = new Date(p.start_time)
-        const now = new Date()
-        const start = startOfWeek(now, { weekStartsOn: 1 })
-        const end = endOfWeek(now, { weekStartsOn: 1 })
-        matchStatus = planDate >= start && planDate <= end
+        const monday = weekStartOf(localDateKey())
+        const day = berlinDateKey(p.start_time)
+        matchStatus = day >= monday && day <= addDays(monday, 6)
       }
       const matchEmployee = employeeFilter === 'all' || p.employee_id === employeeFilter
       return matchText && matchStatus && matchEmployee
@@ -401,19 +415,21 @@ export default function PlansPage() {
                   return
                 }
                 exportTableToExcel({
-                  sheetName: 'Plans',
-                  filename: `plans_${new Date().toISOString().split('T')[0]}`,
-                  headers: ['Employee', 'Customer', 'Location', 'Date', 'Start', 'End', 'Hours', 'KW', 'Status', 'Notes'],
+                  sheetName: locale === 'en' ? 'Plans' : 'Einsatzpläne',
+                  filename: `einsatzplaene_${localDateKey()}`,
+                  headers: locale === 'en'
+                    ? ['Employee', 'Customer', 'Location', 'Date', 'Start', 'End', 'Hours', 'Week', 'Status', 'Notes']
+                    : ['Mitarbeiter', 'Kunde', 'Einsatzort', 'Datum', 'Beginn', 'Ende', 'Stunden', 'KW', 'Status', 'Notizen'],
                   rows: filteredPlans.map(p => [
                     p.employee?.full_name ?? '',
                     (p as any).customer?.name ?? '',
                     p.location ?? '',
-                    new Date(p.start_time).toLocaleDateString('de-DE'),
-                    new Date(p.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    new Date(p.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    formatInstantDate(p.start_time),
+                    formatTimeOfDay(p.start_time),
+                    formatTimeOfDay(p.end_time),
                     Number(((new Date(p.end_time).getTime() - new Date(p.start_time).getTime()) / 3_600_000).toFixed(2)),
                     `KW ${getISOWeek(new Date(p.start_time))}`,
-                    p.status,
+                    statusLabel(p.status, locale),
                     p.notes ?? '',
                   ]),
                 })
@@ -432,7 +448,7 @@ export default function PlansPage() {
                 }
                 exportPlansPdf(filteredPlans as any, {
                   title: locale === 'de' ? 'Einsatzpläne' : 'Plans & Schedules',
-                  filename: `plans_${new Date().toISOString().split('T')[0]}.pdf`,
+                  filename: `einsatzplaene_${localDateKey()}.pdf`,
                   locale,
                   showEmployee: true,
                 })
@@ -566,7 +582,7 @@ export default function PlansPage() {
                                />
                                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
                             </div>
-                            <span className="font-bold text-gray-900 text-sm tracking-tight whitespace-nowrap">{plan.employee?.full_name ?? 'Unassigned'}</span>
+                            <span className="font-bold text-gray-900 text-sm tracking-tight whitespace-nowrap">{plan.employee?.full_name ?? (locale === 'en' ? 'Unassigned' : 'Unbesetzt')}</span>
                           </div>
                         </td>
 
@@ -574,22 +590,22 @@ export default function PlansPage() {
                         <td className="px-8 py-5">
                            <div className="flex flex-col">
                              <span className="font-bold text-gray-900 text-sm whitespace-nowrap">
-                               {new Date(plan.start_time).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                               {formatInstantDayMonth(plan.start_time, locale === 'en' ? 'en' : 'de')}
                              </span>
                              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                               {new Date(plan.start_time).getFullYear()}
+                               {berlinDateKey(plan.start_time).slice(0, 4)}
                              </span>
                            </div>
                         </td>
 
                         {/* Start Time */}
                         <td className="px-4 py-5 font-bold text-gray-900 text-sm text-center tabular-nums">
-                          {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatTimeOfDay(plan.start_time)}
                         </td>
 
                         {/* End Time */}
                         <td className="px-4 py-5 font-bold text-gray-900 text-sm text-center tabular-nums">
-                          {new Date(plan.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatTimeOfDay(plan.end_time)}
                         </td>
 
                         {/* Customer */}
@@ -701,10 +717,12 @@ export default function PlansPage() {
                 <div className="px-8 py-6 border-t border-gray-50 bg-gray-50/20 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="flex flex-col">
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredPlans.length)} of {filteredPlans.length} plans
+                      {locale === 'en'
+                        ? `Showing ${(currentPage - 1) * itemsPerPage + 1} to ${Math.min(currentPage * itemsPerPage, filteredPlans.length)} of ${filteredPlans.length} plans`
+                        : `${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, filteredPlans.length)} von ${filteredPlans.length} Einsätzen`}
                     </p>
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      Page Total: {paginatedPlans.reduce((sum, p) => sum + (new Date(p.end_time).getTime() - new Date(p.start_time).getTime()) / 3_600_000, 0).toFixed(1)}h
+                      {locale === 'en' ? 'Page total' : 'Summe dieser Seite'}: {formatHours(paginatedPlans.reduce((sum, p) => sum + (new Date(p.end_time).getTime() - new Date(p.start_time).getTime()) / 3_600_000, 0), locale === 'en' ? 'en' : 'de')} {locale === 'en' ? 'h' : 'Std.'}
                     </p>
                   </div>
                   
@@ -715,7 +733,7 @@ export default function PlansPage() {
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
                     >
-                      Previous
+                      {locale === 'en' ? 'Previous' : 'Zurück'}
                     </Button>
                     <div className="flex items-center gap-1 mx-2">
                        {Array.from({ length: totalPages }).map((_, i) => (
@@ -737,7 +755,7 @@ export default function PlansPage() {
                       onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
                     >
-                      Next
+                      {locale === 'en' ? 'Next' : 'Weiter'}
                     </Button>
                   </div>
                 </div>
@@ -754,9 +772,7 @@ export default function PlansPage() {
   const groupedByDate = useMemo(() => {
     const groups: Record<string, Plan[]> = {}
     paginatedPlans.forEach(plan => {
-      const key = new Date(plan.start_time).toLocaleDateString(locale === 'en' ? 'en-US' : 'de-DE', {
-        weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
-      })
+      const key = formatInstantWeekdayDate(plan.start_time, locale === 'en' ? 'en' : 'de', false)
       if (!groups[key]) groups[key] = []
       groups[key].push(plan)
     })
@@ -773,7 +789,7 @@ export default function PlansPage() {
         {/* Header */}
         <div className="px-4 pt-4 flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">My Schedule</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">{locale === 'en' ? 'My schedule' : 'Meine Einsätze'}</span>
             <h2 className="text-3xl font-black tracking-tight text-[#001D3D] font-sans">
               {locale === 'en' ? 'My Plans' : 'Meine Pläne'}
             </h2>
@@ -841,9 +857,9 @@ export default function PlansPage() {
                             )}
                           </div>
                           <div className="text-right">
-                            <p className="text-lg font-black text-[#001D3D] tabular-nums leading-none mb-1">{calcHours(plan.start_time, plan.end_time)}</p>
+                            <p className="text-lg font-black text-[#001D3D] tabular-nums leading-none mb-1">{hoursLabel(plan.start_time, plan.end_time)}</p>
                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">
-                              {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {formatTimeOfDay(plan.start_time)}
                             </p>
                           </div>
                         </div>
@@ -851,7 +867,7 @@ export default function PlansPage() {
                         <div className="flex-1">
                           {plan.notes && (
                             <div className="bg-gray-50/50 rounded-2xl p-3 mb-4 border border-gray-100">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Notes</p>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">{locale === 'en' ? 'Notes' : 'Notizen'}</p>
                               <p className="text-xs text-gray-600 font-medium line-clamp-2">{plan.notes}</p>
                             </div>
                           )}
@@ -905,7 +921,9 @@ export default function PlansPage() {
           <div className="px-4 py-8 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100/60">
             <div className="flex flex-col text-center sm:text-left">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredPlans.length)} of {filteredPlans.length} plans
+                {locale === 'en'
+                  ? `Showing ${(currentPage - 1) * itemsPerPage + 1} to ${Math.min(currentPage * itemsPerPage, filteredPlans.length)} of ${filteredPlans.length} plans`
+                  : `${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, filteredPlans.length)} von ${filteredPlans.length} Einsätzen`}
               </p>
             </div>
             
@@ -916,7 +934,7 @@ export default function PlansPage() {
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                Previous
+                {locale === 'en' ? 'Previous' : 'Zurück'}
               </Button>
               <div className="flex items-center gap-1 mx-1 sm:mx-2 bg-white border border-gray-100 rounded-xl p-1 shadow-sm">
                  {Array.from({ length: totalPages }).map((_, i) => (
@@ -940,7 +958,7 @@ export default function PlansPage() {
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
               >
-                Next
+                {locale === 'en' ? 'Next' : 'Weiter'}
               </Button>
             </div>
           </div>

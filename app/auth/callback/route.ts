@@ -7,11 +7,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { type NextRequest } from 'next/server'
+import { safeRelativePath } from '@/lib/security/redirect'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  // Relative paths only — "@evil.com" or "//evil.com" would leave the app.
+  const next = safeRelativePath(searchParams.get('next'), '/dashboard')
 
   // Supabase appends ?error= / ?error_code= / ?error_description= when the
   // link in the email has already been consumed or has expired. Surface

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { MapPin, Users, Navigation } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
 import 'leaflet/dist/leaflet.css'
+import { formatTimeOfDay } from '@/lib/time/format'
 
 // Dynamic import for Leaflet elements (no SSR)
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
@@ -125,7 +126,7 @@ const LiveOperationsMap = ({ upcomingShifts, activeShifts, className }: MapProps
                         {tr('Aktive Schicht', 'Active shift')} @ {shift.customer?.name || tr('Unbekannt', 'Unknown')}
                       </p>
                       <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-none text-[10px]">
-                        {tr('Eingestempelt:', 'Clocked in:')} {new Date(shift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {tr('Eingestempelt:', 'Clocked in:')} {formatTimeOfDay(shift.start_time)}
                       </Badge>
                     </div>
                   </Popup>
@@ -148,7 +149,7 @@ const LiveOperationsMap = ({ upcomingShifts, activeShifts, className }: MapProps
                         {tr('Zugewiesener Einsatz', 'Assigned mission')} @ {plan.customer?.name}
                       </p>
                       <Badge variant="outline" className="text-[10px]">
-                        {tr('Beginn:', 'Starts:')} {new Date(plan.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {tr('Beginn:', 'Starts:')} {formatTimeOfDay(plan.start_time)}
                       </Badge>
                     </div>
                   </Popup>

@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { User, Shield, Briefcase, UserCog, KeyRound, PowerOff, Power } from 'lucide-react'
+import { User, Shield, Briefcase, KeyRound, PowerOff, Power } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n'
@@ -120,8 +120,7 @@ export function UserManagementPanel() {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin': return <Shield className="w-4 h-4 text-purple-600" />
-      case 'manager': return <Briefcase className="w-4 h-4 text-blue-600" />
-      case 'technician': return <UserCog className="w-4 h-4 text-orange-600" />
+      case 'dispatcher': return <Briefcase className="w-4 h-4 text-blue-600" />
       default: return <User className="w-4 h-4 text-slate-600" />
     }
   }
@@ -129,11 +128,7 @@ export function UserManagementPanel() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'admin': return 'bg-purple-100 text-purple-800 border-purple-200'
-      case 'manager': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'technician': return 'bg-orange-100 text-orange-800 border-orange-200'
-      case 'partner_admin': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-      case 'partner_agent': return 'bg-teal-100 text-teal-800 border-teal-200'
-      case 'disponent': return 'bg-indigo-100 text-indigo-800 border-indigo-200'
+      case 'dispatcher': return 'bg-blue-100 text-blue-800 border-blue-200'
       default: return 'bg-slate-100 text-slate-800 border-slate-200'
     }
   }
@@ -176,24 +171,20 @@ export function UserManagementPanel() {
                   <div className="col-span-4 flex items-center gap-2">
                     <Badge variant="outline" className={`flex items-center gap-1.5 px-2 py-0.5 ${getRoleBadge(user.role)}`}>
                       {getRoleIcon(user.role)}
-                      <span className="capitalize">{user.role?.replace('_', ' ') || 'Viewer'}</span>
+                      <span className="capitalize">{user.role?.replace('_', ' ') || 'Employee'}</span>
                     </Badge>
                   </div>
                   <div className="col-span-4 justify-self-end flex items-center gap-1 flex-wrap">
                     <select
                       title={locale === 'en' ? 'Select role' : 'Rolle auswählen'}
                       className="text-sm border rounded-md px-3 py-1.5 bg-slate-50 min-w-[140px]"
-                      value={user.role || 'viewer'}
+                      value={user.role || 'employee'}
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
                       disabled={updating === user.id}
                     >
-                      <option value="viewer">{locale === 'en' ? 'Viewer (Default)' : 'Betrachter (Standard)'}</option>
-                      <option value="admin">{locale === 'en' ? 'Admin' : 'Verwalter'}</option>
-                      <option value="manager">Manager</option>
-                      <option value="disponent">{locale === 'en' ? 'Dispatcher' : 'Disponent'}</option>
-                      <option value="technician">{locale === 'en' ? 'Technician' : 'Techniker'}</option>
-                      <option value="partner_admin">{locale === 'en' ? 'Partner Admin' : 'Partner-Administrator'}</option>
-                      <option value="partner_agent">{locale === 'en' ? 'Partner Agent' : 'Partner-Agent'}</option>
+                      <option value="admin">{locale === 'en' ? 'Administrator' : 'Administrator'}</option>
+                      <option value="dispatcher">{locale === 'en' ? 'Dispatcher' : 'Disposition'}</option>
+                      <option value="employee">{locale === 'en' ? 'Employee' : 'Mitarbeiter'}</option>
                     </select>
                     <Button
                       variant="ghost"

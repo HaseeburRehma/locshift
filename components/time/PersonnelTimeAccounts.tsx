@@ -24,6 +24,7 @@ import { groupByMonth } from '@/lib/times/calculations'
 import { fetchEmployeeYear } from '@/hooks/times/useTimeAccount'
 import { Loader2 } from 'lucide-react'
 import { de as deLocale } from 'date-fns/locale'
+import { berlinDateKey } from '@/lib/time/berlin'
 
 interface PersonnelTimeAccountsProps {
   accounts: TimeAccount[]
@@ -123,7 +124,7 @@ export function PersonnelTimeAccounts({ accounts, onSelectEmployee }: PersonnelT
                   })) as any,
                   {
                     title: L('Zeitkonten-Übersicht', 'Time Account Overview'),
-                    filename: `time_accounts_${new Date().toISOString().split('T')[0]}.pdf`,
+                    filename: `zeitkonten_${berlinDateKey()}.pdf`,
                     locale: locale === 'de' ? 'de' : 'en',
                   },
                 )

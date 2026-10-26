@@ -19,6 +19,8 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { sendEmailViaResend } from '@/lib/email/resend'
+import { clientIp, createRateLimiter } from '@/lib/security/rate-limit'
+import { safeRelativePath, siteOrigin } from '@/lib/security/redirect'
 
 interface Body {
   email?: string
@@ -28,13 +30,43 @@ interface Body {
   locale?: 'de' | 'en'
 }
 
+// Public endpoint: stop inbox flooding and enumeration by timing/volume.
+const perIp = createRateLimiter(10, 15 * 60_000)
+const perEmail = createRateLimiter(3, 60 * 60_000)
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/
+
+/**
+ * Link target inside the app: a relative path, or an absolute URL on our own
+ * origin (older app builds send `${webappUrl}/change-password`).
+ */
+function recoveryPath(raw: unknown, origin: string): string {
+  if (typeof raw === 'string' && raw.startsWith(origin + '/')) raw = raw.slice(origin.length)
+  return safeRelativePath(raw, '/change-password')
+}
+
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as Body
-    const email = body?.email?.trim().toLowerCase()
-    if (!email) {
+    let body: Body
+    try {
+      body = (await request.json()) as Body
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+    if (!email || email.length > 320 || !EMAIL_RE.test(email)) {
       return NextResponse.json({ error: 'email required' }, { status: 400 })
     }
+
+    const ipSlot = perIp(clientIp(request))
+    if (!ipSlot.ok) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(ipSlot.retryAfterSec) } },
+      )
+    }
+    // Same answer as success: a throttled address must not look different
+    // from an unknown one.
+    if (!perEmail(email).ok) return NextResponse.json({ success: true })
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -47,11 +79,10 @@ export async function POST(request: Request) {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const origin =
-      process.env.NEXT_PUBLIC_SITE_URL ??
-      request.headers.get('origin') ??
-      `https://${request.headers.get('host') ?? ''}`
-    const redirectTo = `${origin}${body.redirectTo ?? '/change-password'}`
+    // Never built from Origin/Host headers or an unchecked body value: the
+    // link carries a recovery token and must point at this app.
+    const origin = siteOrigin(request.url)
+    const redirectTo = `${origin}${recoveryPath(body.redirectTo, origin)}`
 
     // generateLink returns BOTH the action_link and the 6-digit email_otp.
     // It does NOT trigger Supabase's default email — we control delivery
@@ -93,7 +124,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('[send-recovery] Unexpected:', err)
-    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
 

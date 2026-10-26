@@ -6,7 +6,13 @@
 //         activation and the forced-password flag can't be set here.
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getApiCaller, organizationOf, PROTECTED_PROFILE_FIELDS } from '@/lib/supabase/api-auth'
+import {
+  getApiCaller,
+  organizationOf,
+  pickFields,
+  PROTECTED_PROFILE_FIELDS,
+  SELF_EDITABLE_PROFILE_FIELDS,
+} from '@/lib/supabase/api-auth'
 
 export async function DELETE(
   _request: Request,
@@ -50,10 +56,19 @@ export async function PATCH(
       }
     }
 
-    const body = (await request.json()) as Record<string, unknown>
-    const updates = Object.fromEntries(
-      Object.entries(body ?? {}).filter(([k]) => !(PROTECTED_PROFILE_FIELDS as readonly string[]).includes(k)),
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    // Self: personal fields only (the service role below bypasses the DB
+    // guard, so HR fields like target_hours must be filtered here).
+    // Admin: anything except the protected columns.
+    const adminFields = Object.keys(body && typeof body === 'object' ? body : {}).filter(
+      (k) => /^[a-z_][a-z0-9_]{0,62}$/.test(k) && !(PROTECTED_PROFILE_FIELDS as readonly string[]).includes(k),
     )
+    const updates = pickFields(body, isSelf ? SELF_EDITABLE_PROFILE_FIELDS : adminFields)
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No updatable fields' }, { status: 400 })
     }

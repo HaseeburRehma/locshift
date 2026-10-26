@@ -24,7 +24,7 @@ export function usePerDiem() {
     const { data, error } = await fetchAllPages<PerDiem>((from, to) => {
       let query = supabase
         .from('per_diems')
-        .select('*, plan:plans(*, customer:customers(*))')
+        .select('*, employee:profiles!employee_id(id, full_name), plan:plans(*, customer:customers(*))')
         .eq('organization_id', orgId)
 
       if (!isAdmin && !isDispatcher) {

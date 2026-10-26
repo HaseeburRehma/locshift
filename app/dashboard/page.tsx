@@ -32,12 +32,10 @@ import { ClockInOutCard } from '@/components/time/ClockInOutCard'
 import { OnDutyNow } from '@/components/dashboard/OnDutyNow'
 import { AttentionCards } from '@/components/dashboard/AttentionCards'
 import { EmployeeWeekGlance } from '@/components/dashboard/EmployeeWeekGlance'
-import { entryNetHours } from '@/lib/time/shift-hours'
-import { formatHours } from '@/lib/time/format'
+import { entryNetHours, localDateKey } from '@/lib/time/shift-hours'
+import { formatHours, formatInstantDayMonth, formatTimeOfDay, weekdayName } from '@/lib/time/format'
 import { ENTRY_STATUS_STYLE, entryStatus, entryStatusLabel } from '@/lib/times/entry-status'
 import { createClient } from '@/lib/supabase/client'
-import { format } from 'date-fns'
-import { de as deLocale } from 'date-fns/locale'
 import { Progress } from '@/components/ui/progress'
 import LiveOperationsMap from '@/components/dashboard/LiveOperationsMap'
 
@@ -55,7 +53,15 @@ export default function DashboardPage() {
   return <EmployeeDashboard profile={profile} locale={locale} stats={stats} loading={loading} />
 }
 
+/** First name for the greeting; empty when the profile has no name yet. */
+function greetingName(profile: any): string {
+  const first = String(profile?.first_name ?? '').trim()
+  if (first) return first
+  return String(profile?.full_name ?? '').trim().split(/\s+/)[0] ?? ''
+}
+
 function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { profile: any, locale: string, stats: any, loading: boolean, isDispatcher?: boolean }) {
+  const firstName = greetingName(profile)
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const hr = L('Std.', 'h')
   if (loading || !stats) {
@@ -75,10 +81,9 @@ function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { pro
       <div className="space-y-1">
         <h1 className="text-[32px] font-bold text-[#0064E0] tracking-tight leading-none">{L('Übersicht', 'Dashboard')}</h1>
         <p className="text-slate-400 text-sm font-medium">
-          {L(
-            `Willkommen zurück, ${profile.full_name?.split(' ')[0]}! Hier ist Ihre heutige Übersicht.`,
-            `Welcome back, ${profile.full_name?.split(' ')[0]}! Here's your overview for today.`,
-          )}
+          {firstName
+            ? L(`Willkommen zurück, ${firstName}! Hier ist Ihre heutige Übersicht.`, `Welcome back, ${firstName}! Here's your overview for today.`)
+            : L('Willkommen zurück! Hier ist Ihre heutige Übersicht.', "Welcome back! Here's your overview for today.")}
         </p>
       </div>
 
@@ -180,10 +185,10 @@ function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { pro
             <div key={shift.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm border-l-4 border-l-blue-600 flex flex-col gap-4">
               <div className="space-y-1">
                 <p className="text-[13px] font-bold text-slate-900">
-                  {format(new Date(shift.start_time), locale === 'de' ? 'EEEE - d. MMM' : 'EEEE - MMM d', { locale: locale === 'de' ? deLocale : undefined })}
+                  {`${weekdayName(localDateKey(new Date(shift.start_time)), locale === 'de' ? 'de' : 'en')} - ${formatInstantDayMonth(shift.start_time, locale === 'de' ? 'de' : 'en')}`}
                 </p>
                 <p className="text-[11px] font-medium text-slate-400">
-                  {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                  {formatTimeOfDay(shift.start_time)} - {formatTimeOfDay(shift.end_time)}
                 </p>
               </div>
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">
@@ -217,6 +222,7 @@ function QuickActionItem({ icon, label, href, color }: { icon: React.ReactNode, 
 }
 
 function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, locale: string, stats: any, loading: boolean }) {
+  const firstName = greetingName(profile)
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const hr = L('Std.', 'h')
 
@@ -237,10 +243,9 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
       <div className="space-y-1">
         <h1 className="text-[32px] font-bold text-[#0064E0] tracking-tight leading-none">{L('Meine Übersicht', 'Personal Dashboard')}</h1>
         <p className="text-slate-400 text-sm font-medium">
-          {L(
-            `Willkommen zurück, ${profile.full_name?.split(' ')[0]}! Hier ist Ihre persönliche Übersicht.`,
-            `Welcome back, ${profile.full_name?.split(' ')[0]}! Here's your personal overview.`,
-          )}
+          {firstName
+            ? L(`Willkommen zurück, ${firstName}! Hier ist Ihre persönliche Übersicht.`, `Welcome back, ${firstName}! Here's your personal overview.`)
+            : L('Willkommen zurück! Hier ist Ihre persönliche Übersicht.', "Welcome back! Here's your personal overview.")}
         </p>
       </div>
 

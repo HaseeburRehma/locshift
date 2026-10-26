@@ -22,6 +22,8 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/dashboard/holiday-bonus': ['admin', 'dispatcher', 'employee'],
 }
 
+const STATIC_FILE_RE = /\.(?:ico|png|jpe?g|gif|webp|avif|svg|css|js|map|txt|xml|json|webmanifest|woff2?|ttf|otf|pdf|mp3|mp4|webm)$/i
+
 const PUBLIC_AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/auth/callback', '/auth/auth-code-error']
 // Authenticated user must still be able to reach /change-password even when
 // must_change_password is TRUE — otherwise they'd loop forever.
@@ -31,12 +33,13 @@ export default async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   let response = NextResponse.next({ request })
 
-  // 1. Static/API Bypass
+  // 1. Static/API Bypass. Only real static file extensions — a bare "."
+  // check let "/dashboard/users/x.y" skip the auth + RBAC guard.
   if (
-    pathname.startsWith('/api/') || 
-    pathname === '/' || 
-    pathname.startsWith('/_next') || 
-    pathname.includes('.')
+    pathname.startsWith('/api/') ||
+    pathname === '/' ||
+    pathname.startsWith('/_next') ||
+    (STATIC_FILE_RE.test(pathname) && !pathname.startsWith('/dashboard') && !pathname.startsWith('/onboarding'))
   ) {
     return response
   }

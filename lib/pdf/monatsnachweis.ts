@@ -15,6 +15,7 @@ import type { MonthlyReport, MonthlyReportRow } from '@/lib/reports/monthly-repo
 import { formatDateDE, formatEuro, formatHours, formatHoursLong, formatSignedHours } from '@/lib/time/format'
 import { shiftIssueLabel } from '@/lib/time/shift-hours'
 import { DEFAULT_STATE } from '@/lib/time/holidays'
+import { formatInstantDate, formatTimeOfDay } from '@/lib/time/format'
 
 const BLUE: [number, number, number] = [0, 100, 224]
 const SLATE: [number, number, number] = [30, 41, 59]
@@ -57,9 +58,8 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const t = report.totals
   const marginX = 10
-  const created = new Date(report.createdAt)
-  const createdDate = `${String(created.getDate()).padStart(2, '0')}.${String(created.getMonth() + 1).padStart(2, '0')}.${created.getFullYear()}`
-  const createdTime = `${String(created.getHours()).padStart(2, '0')}:${String(created.getMinutes()).padStart(2, '0')}`
+  const createdDate = formatInstantDate(report.createdAt)
+  const createdTime = formatTimeOfDay(report.createdAt)
 
   // ── Header ───────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'bold')

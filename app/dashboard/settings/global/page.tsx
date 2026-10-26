@@ -167,7 +167,7 @@ export default function GlobalSettingsPage() {
 
                             <div className="pt-4 mt-auto">
                                 <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">
-                                    {L('Zuletzt aktualisiert:', 'Last updated:')} {new Date(model.updated_at).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US')}
+                                    {L('Zuletzt aktualisiert:', 'Last updated:')} {new Date(model.updated_at).toLocaleDateString(locale === 'de' ? 'de-DE' : 'en-US', { timeZone: 'Europe/Berlin' })}
                                 </div>
                             </div>
                         </div>

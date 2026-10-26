@@ -4,7 +4,6 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
 import { TimesList } from '@/components/time/TimesList'
 import { TimeEntryForm } from '@/components/time/TimeEntryForm'
 import { TimeEntryDetails } from '@/components/time/TimeEntryDetails'
@@ -17,7 +16,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { TimeEntry, TimeEntryFormData } from '@/lib/types'
 import { useProfiles } from '@/hooks/useProfiles'
 import { calculateSpesen } from '@/lib/spesen'
-import { calculateShiftTimes } from '@/lib/time/shift-hours'
+import { calculateShiftTimes, localDateKey } from '@/lib/time/shift-hours'
 import { formatDateDE, formatHours, formatShiftRange } from '@/lib/time/format'
 import { TIME_ENTRY_SELECT, dbErrorMessage, entryStatus } from '@/lib/times/entry-status'
 import { sendNotification } from '@/lib/notifications/service'
@@ -340,7 +339,7 @@ function TimesPageInner() {
             onOpenApprovals={isManager ? () => router.push('/dashboard/times/approvals') : undefined}
             approvalsCount={approvalsCount}
             onOpenMonthlyReport={(employeeId) => {
-              const month = format(new Date(), 'yyyy-MM')
+              const month = localDateKey().slice(0, 7)
               const qs = new URLSearchParams({ month })
               if (employeeId) qs.set('employee', employeeId)
               router.push(`/dashboard/times/monthly?${qs.toString()}`)
@@ -350,12 +349,11 @@ function TimesPageInner() {
                 toast.error(L('Keine Einträge zum Exportieren gefunden.', 'No entries to export.'))
                 return
               }
-              const today = new Date()
-              const stamp = format(today, 'yyyy-MM-dd')
+              const stamp = localDateKey()
               const subtitleParts: string[] = []
               if (activeName) subtitleParts.push(activeName)
               else if (!isManager && profile?.full_name) subtitleParts.push(profile.full_name)
-              subtitleParts.push(format(today, 'dd.MM.yyyy'))
+              subtitleParts.push(formatDateDE(stamp))
               const filenameBase = activeName
                 ? `arbeitszeitbericht_${slugify(activeName)}_${stamp}`
                 : !isManager && profile?.full_name

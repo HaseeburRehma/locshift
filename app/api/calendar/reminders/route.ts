@@ -59,14 +59,15 @@ async function authorizeRequest(req: NextRequest): Promise<{ ok: true } | { ok: 
   }
   // Fallback for local / ad-hoc use: require a signed-in admin
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user?.id) {
+  // getUser() verifies the JWT with the auth server (getSession() trusts the cookie).
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.id) {
     return { ok: false, status: 401, reason: 'Unauthorized — no CRON_SECRET configured and no admin session found' }
   }
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
   if (profile?.role !== 'admin') {
     return { ok: false, status: 403, reason: 'Admin role required when CRON_SECRET is not configured' }
@@ -100,7 +101,7 @@ async function dispatch(req: NextRequest) {
 
   if (error) {
     console.error('[calendar/reminders] Candidate fetch failed:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Candidate fetch failed' }, { status: 500 })
   }
 
   const due: RemindableEvent[] = (candidates || []).filter((e: RemindableEvent) => {
@@ -142,7 +143,7 @@ async function dispatch(req: NextRequest) {
       }
 
       const startDate = new Date(event.start_time)
-      const startLabel = startDate.toLocaleString('de-DE', {
+      const startLabel = startDate.toLocaleString('de-DE', { timeZone: 'Europe/Berlin',
         weekday: 'short',
         day: 'numeric',
         month: 'short',

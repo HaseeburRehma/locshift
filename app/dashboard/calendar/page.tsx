@@ -9,6 +9,7 @@ import { useCalendarEvents } from '@/hooks/calendar/useCalendarEvents'
 import { useUser } from '@/lib/user-context'
 import { CalendarEvent } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
+import { calendarDayKey } from '@/lib/time/berlin'
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -53,7 +54,7 @@ export default function CalendarPage() {
     setIsSheetOpen(true)
   }
 
-  const selectedDateKey = selectedDate.toISOString().split('T')[0]
+  const selectedDateKey = calendarDayKey(selectedDate)
   const selectedDayEvents = eventsByDate[selectedDateKey] || []
 
   return (

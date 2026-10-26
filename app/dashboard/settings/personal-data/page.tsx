@@ -79,10 +79,12 @@ export default function PersonalDataPage() {
     if (!profile) return
     setSaving(true)
     try {
+      // E-mail is read-only here (it belongs to the login account).
+      const { email: _email, ...editable } = formData
       const { error } = await supabase
         .from('profiles')
         .update({
-          ...formData,
+          ...editable,
           full_name: `${formData.first_name} ${formData.last_name}`.trim(),
         })
         .eq('id', profile.id)

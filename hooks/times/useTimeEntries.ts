@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { TimeEntry } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
-import { startOfWeek, endOfWeek } from 'date-fns'
 import { fetchAllPages } from '@/lib/supabase/paginate'
 import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
+import { berlinDateKey } from '@/lib/time/berlin'
+import { addDays } from '@/lib/time/shift-hours'
+import { weekStartOf } from '@/lib/plans/week'
 
 export type TimeFilter = 'all' | 'pending' | 'approved' | 'this_week'
 
@@ -43,10 +45,9 @@ export function useTimeEntries(filter: TimeFilter = 'all') {
       if (filter === 'pending')   query = query.eq('is_verified', false)
       if (filter === 'approved')  query = query.eq('is_verified', true)
       if (filter === 'this_week') {
-        const now = new Date()
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 }).toISOString()
-        const weekEnd = endOfWeek(now, { weekStartsOn: 1 }).toISOString()
-        query = query.gte('date', weekStart).lte('date', weekEnd)
+        // `date` is a calendar date: compare with German week date keys.
+        const monday = weekStartOf(berlinDateKey())
+        query = query.gte('date', monday).lte('date', addDays(monday, 6))
       }
 
       return query

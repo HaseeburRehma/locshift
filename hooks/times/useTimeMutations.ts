@@ -6,6 +6,7 @@ import { actionToasts } from '@/lib/toast/actionToasts'
 import { sendNotification } from '@/lib/notifications/service'
 import { calculateSpesen, DEFAULT_SPESEN_RATES } from '@/lib/spesen'
 import { calculateShiftTimes } from '@/lib/time/shift-hours'
+import { formatDateDE } from '@/lib/time/format'
 
 export function useTimeMutations() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -108,7 +109,8 @@ export function useTimeMutations() {
       // Stored DE-canonical; the panel's translateNotification flips to
       // EN automatically when the UI locale is English.
       if (employeeId) {
-        const dateStr = entryDate ? new Date(entryDate).toLocaleDateString('de-DE') : null
+        // entryDate is the entry's calendar date ("YYYY-MM-DD").
+        const dateStr = entryDate ? formatDateDE(entryDate.slice(0, 10)) : null
         await sendNotification({
           userId: employeeId,
           title: '✅ Zeiteintrag genehmigt',

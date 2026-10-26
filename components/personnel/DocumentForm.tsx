@@ -164,7 +164,15 @@ export function DocumentForm({ employees, initial, renewOf, defaultEmployeeId, o
         </label>
       </div>
 
-      <Textarea value={remark} onChange={(e) => setRemark(e.target.value)} placeholder={L('Bemerkung (optional)', 'Remark (optional)')} className="rounded-xl" />
+      <label className="block space-y-1">
+        <span className={label}>{L('Bemerkung (optional)', 'Remark (optional)')}</span>
+        <Textarea
+          value={remark}
+          onChange={(e) => setRemark(e.target.value)}
+          placeholder={L('z. B. Auflagen, Hinweise zur Erneuerung', 'e.g. conditions, notes on renewal')}
+          className="rounded-xl"
+        />
+      </label>
 
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700">

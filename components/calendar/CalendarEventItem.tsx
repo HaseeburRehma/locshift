@@ -5,6 +5,7 @@ import { CalendarEvent, EVENT_COLORS } from '@/lib/types'
 import { MapPin, Clock, Bell, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
+import { formatTimeOfDay } from '@/lib/time/format'
 
 interface CalendarEventItemProps {
   event: CalendarEvent
@@ -15,17 +16,9 @@ export function CalendarEventItem({ event, onClick }: CalendarEventItemProps) {
   const { locale } = useTranslation()
   const isShift = event.event_type === 'shift'
 
-  const startTime = new Date(event.start_time).toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    hour12: false
-  })
-  
-  const endTime = new Date(event.end_time).toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    hour12: false
-  })
+  // German time on every device.
+  const startTime = formatTimeOfDay(event.start_time)
+  const endTime = formatTimeOfDay(event.end_time)
 
   return (
     <div 

@@ -36,19 +36,15 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
   const [formData, setFormData] = useState({
     email: '',
     fullName: '',
-    role: 'viewer',
+    role: 'employee',
     password: '',
   })
 
   // Locale-aware role labels (was a module-level constant before).
   const ROLES = [
-    { value: 'admin',         label: L('Verwalter',          'Administrator') },
-    { value: 'manager',       label: L('Manager',            'Manager') },
-    { value: 'disponent',     label: L('Disponent',          'Disponent (Dispatcher)') },
-    { value: 'technician',   label: L('Techniker',           'Technician') },
-    { value: 'partner_admin', label: L('Partner-Admin',      'Partner Admin') },
-    { value: 'partner_agent', label: L('Partner-Agent',      'Partner Agent') },
-    { value: 'viewer',        label: L('Betrachter',         'Viewer') },
+    { value: 'admin',      label: L('Administrator', 'Administrator') },
+    { value: 'dispatcher', label: L('Disposition', 'Dispatcher') },
+    { value: 'employee',   label: L('Mitarbeiter', 'Employee') },
   ]
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,7 +65,7 @@ export function CreateUserModal({ open, onClose }: CreateUserModalProps) {
       const data = await res.json()
       if (res.ok) {
         toast.success(L(`Benutzer ${formData.email} erfolgreich angelegt`, `User ${formData.email} created successfully`))
-        setFormData({ email: '', fullName: '', role: 'viewer', password: '' })
+        setFormData({ email: '', fullName: '', role: 'employee', password: '' })
         onClose(true)
       } else {
         throw new Error(data.error || L('Benutzer konnte nicht angelegt werden', 'Failed to create user'))

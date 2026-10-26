@@ -18,6 +18,7 @@ import {
   formatDateDE, formatEuro, formatHours, formatHoursLong, formatShiftRange, formatTimeOfDay, weekdayName,
 } from '@/lib/time/format'
 import { ENTRY_STATUS_STYLE, entryStatus, entryStatusLabel } from '@/lib/times/entry-status'
+import { berlinDateKey } from '@/lib/time/berlin'
 
 interface TimeEntryDetailsProps {
   entry: TimeEntry
@@ -32,8 +33,8 @@ interface TimeEntryDetailsProps {
 
 function dateTime(iso: string | null | undefined, locale: 'de' | 'en') {
   if (!iso) return '—'
-  const d = new Date(iso)
-  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  // German calendar day, matching the German time printed next to it.
+  const key = berlinDateKey(iso)
   return `${weekdayName(key, locale, true)}, ${formatDateDE(key)} · ${formatTimeOfDay(iso)}`
 }
 

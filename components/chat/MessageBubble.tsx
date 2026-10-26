@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react'
 import { ChatMessage } from '@/lib/types'
-import { format } from 'date-fns'
 import { FileText, Download, Play, Pause } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
+import { formatTimeOfDay } from '@/lib/time/format'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -83,7 +83,7 @@ function AudioPlayer({ src, isOwn }: { src: string; isOwn: boolean }) {
 
 export function MessageBubble({ message, isOwn, showSender }: MessageBubbleProps) {
   const { t } = useTranslation()
-  const timestamp = format(new Date(message.created_at), 'HH:mm')
+  const timestamp = formatTimeOfDay(message.created_at)
   const isVoice = message.attachment_name?.endsWith('.webm') || message.attachment_name?.endsWith('.ogg')
   const isImage = message.attachment_type === 'image'
   const isFile = message.attachment_url && !isImage && !isVoice

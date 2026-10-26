@@ -18,7 +18,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { format, differenceInDays, parseISO } from 'date-fns'
+import { differenceInDays, parseISO } from 'date-fns'
+import { formatDateDE, formatEuro } from '@/lib/time/format'
 import { usePlans } from '@/hooks/plans/usePlans'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
@@ -41,7 +42,7 @@ export function PerDiemForm({ onSubmit, onCancel, isSubmitting }: PerDiemFormPro
     task: '',
     start_date: localDateKey(),
     end_date: localDateKey(),
-    country: 'Germany (Domestic)',
+    country: locale === 'de' ? 'Deutschland' : 'Germany',
     rate: 28.00,
     hourly_rate: 15.00,
     working_hours: 8,
@@ -128,7 +129,7 @@ export function PerDiemForm({ onSubmit, onCancel, isSubmitting }: PerDiemFormPro
           <SelectContent className="rounded-xl border-gray-200 shadow-xl">
             {myPlans.length > 0 ? myPlans.map(p => (
               <SelectItem key={p.id} value={p.id} className="py-2 text-sm">
-                {p.customer?.name || L('Unbenannter Auftrag', 'Unnamed Job')} — {format(parseISO(p.start_time), 'dd MMM yyyy')}
+                {p.customer?.name || L('Unbenannter Auftrag', 'Unnamed Job')} — {formatDateDE(localDateKey(new Date(p.start_time)))}
               </SelectItem>
             )) : (
               <div className="p-4 text-center text-xs font-medium text-gray-400">{L('Keine zugewiesenen Einsätze gefunden', 'No assigned jobs found')}</div>
@@ -210,11 +211,11 @@ export function PerDiemForm({ onSubmit, onCancel, isSubmitting }: PerDiemFormPro
         </div>
         <div className="flex justify-between items-center text-sm">
           <span className="font-medium text-gray-500">{L('Spesensatz', 'Per Diem Rate')}</span>
-          <span className="font-bold text-gray-900">€{formData.rate.toFixed(2)}/{L('Tag', 'day')}</span>
+          <span className="font-bold text-gray-900">{formatEuro(formData.rate, locale)}/{L('Tag', 'day')}</span>
         </div>
         <div className="pt-4 border-t border-gray-200/50 flex justify-between items-center">
           <span className="text-sm font-medium text-gray-600">{L('Gesamtbetrag', 'Total Amount')}</span>
-          <span className="text-lg font-black text-[#0064E0]">€{totalAmount.toFixed(2)}</span>
+          <span className="text-lg font-black text-[#0064E0]">{formatEuro(totalAmount, locale)}</span>
         </div>
       </div>
 

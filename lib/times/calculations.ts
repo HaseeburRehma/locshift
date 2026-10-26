@@ -1,5 +1,6 @@
 import { TimeEntry, MonthlyTimeData, Plan } from '../types'
-import { startOfMonth, endOfMonth, isSameMonth, differenceInMilliseconds } from 'date-fns'
+import { differenceInMilliseconds } from 'date-fns'
+import { berlinDateKey } from '../time/berlin'
 
 /**
  * Counts working days (Mon-Fri) in a specific month
@@ -28,8 +29,8 @@ export function scheduledHoursForMonth(
 ): number {
   return plans
     .filter(p => {
-      const d = new Date(p.start_time)
-      return d.getFullYear() === year && d.getMonth() + 1 === month
+      // German calendar month of the shift start.
+      return berlinDateKey(p.start_time).slice(0, 7) === `${year}-${String(month).padStart(2, '0')}`
     })
     .reduce((sum, p) => {
       const diff = differenceInMilliseconds(new Date(p.end_time), new Date(p.start_time))
@@ -49,12 +50,13 @@ export function groupByMonth(
   
   // 1. Process entries
   entries.forEach(entry => {
-    const d = new Date(entry.date)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    
+    // entry.date is a calendar date ("YYYY-MM-DD"); new Date() would read it
+    // as UTC midnight and shift it into the previous month west of UTC.
+    const key = String(entry.date).slice(0, 7)
+
     if (!months[key]) {
-      const year = d.getFullYear()
-      const month = d.getMonth() + 1
+      const year = Number(key.slice(0, 4))
+      const month = Number(key.slice(5, 7))
       const workingDays = countWorkingDays(year, month)
       const scheduled = scheduledHoursForMonth(plans, year, month)
       

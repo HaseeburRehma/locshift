@@ -30,8 +30,8 @@ import {
   startOfMonth,
   endOfMonth,
   subMonths,
-  isWithinInterval,
   startOfYear,
+  parseISO,
 } from 'date-fns'
 import { de as deLocale } from 'date-fns/locale'
 import {
@@ -42,6 +42,8 @@ import {
   slugify,
 } from '@/lib/pdf/exportPdf'
 import { exportTableToExcel } from '@/lib/excel/exportExcel'
+import { berlinDateKey, calendarDayKey } from '@/lib/time/berlin'
+import { formatInstantDate } from '@/lib/time/format'
 
 // ─── Types ──────────────────────────────────────────────────
 interface RecentReport {
@@ -102,9 +104,16 @@ export default function ReportsPage() {
 
   // ─── Filtered Data ──────────────────────────────────────
   const filteredData = useMemo(() => {
-    const filterByDate = (dateStr: string) => {
-      const d = new Date(dateStr)
-      return isWithinInterval(d, { start: dateRange.start, end: dateRange.end })
+    // Compare German calendar days as "YYYY-MM-DD" strings: a DATE column
+    // value is already a day; timestamps are converted to German time.
+    // (new Date('2026-10-01') is UTC midnight and fell outside the month
+    // on devices west of UTC.)
+    const startKey = calendarDayKey(dateRange.start)
+    const endKey = calendarDayKey(dateRange.end)
+    const filterByDate = (dateStr: string | null | undefined) => {
+      if (!dateStr) return false
+      const key = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : berlinDateKey(dateStr)
+      return key >= startKey && key <= endKey
     }
     const matchesEmployee = (employeeId: string | null | undefined) =>
       employeeFilter === 'all' || employeeId === employeeFilter
@@ -575,7 +584,7 @@ export default function ReportsPage() {
               value={format(dateRange.start, 'yyyy-MM-dd')}
               onChange={(e) => {
                 if (!e.target.value) return
-                const start = new Date(e.target.value)
+                const start = parseISO(e.target.value)
                 setDateRange(prev => ({ ...prev, start }))
               }}
               className="h-9 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -586,7 +595,7 @@ export default function ReportsPage() {
               value={format(dateRange.end, 'yyyy-MM-dd')}
               onChange={(e) => {
                 if (!e.target.value) return
-                const end = new Date(e.target.value)
+                const end = parseISO(e.target.value)
                 setDateRange(prev => ({ ...prev, end }))
               }}
               className="h-9 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -705,7 +714,7 @@ export default function ReportsPage() {
                   <p className="text-sm font-medium text-gray-900 truncate">{report.title}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {locale === 'de' ? 'Erstellt am' : 'Generated on'}{' '}
-                    {format(new Date(report.generatedAt), 'MMM d, yyyy')}
+                    {formatInstantDate(report.generatedAt)}
                     {' · '}
                     {report.scope}
                   </p>

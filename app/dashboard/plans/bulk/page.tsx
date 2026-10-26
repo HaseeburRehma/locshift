@@ -1,6 +1,6 @@
 'use client'
 
-import { calculateShiftTimes } from '@/lib/time/shift-hours'
+import { calculateShiftTimes, localDateKey } from '@/lib/time/shift-hours'
 
 /**
  * Bulk plan creation — closes spec §5.3 "Copy plan to multiple days" and
@@ -43,8 +43,8 @@ export default function BulkPlansPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([])
   const [customerId, setCustomerId] = useState<string>('')
-  const [fromDate, setFromDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [toDate, setToDate]     = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [fromDate, setFromDate] = useState(localDateKey())
+  const [toDate, setToDate]     = useState(localDateKey())
   const [startTime, setStartTime] = useState('06:00')
   const [endTime, setEndTime]     = useState('14:00')
   const [location, setLocation]   = useState('')

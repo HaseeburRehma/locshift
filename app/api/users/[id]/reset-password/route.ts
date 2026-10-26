@@ -10,9 +10,10 @@
  * still routes through /change-password regardless of which mode succeeded.
  */
 
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getApiCaller } from '@/lib/supabase/api-auth'
+import { siteOrigin } from '@/lib/security/redirect'
 
 export async function POST(
   request: Request,
@@ -20,40 +21,23 @@ export async function POST(
 ) {
   try {
     const { id: targetId } = await context.params
-    const supabase = await createServerClient()
-    // getUser() verifies the JWT with the auth server (getSession() trusts the cookie).
-    const { data: { user: verifiedUser } } = await supabase.auth.getUser()
-    const session = verifiedUser ? { user: verifiedUser } : null
-    if (!session?.user?.id) {
+    // getApiCaller verifies the JWT and rejects deactivated accounts.
+    const caller = await getApiCaller()
+    if (!caller) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    if (!serviceKey) {
-      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
-    }
-    const admin = createAdminClient(url, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-
-    const { data: caller } = await admin
-      .from('profiles')
-      .select('role, organization_id')
-      .eq('id', session.user.id)
-      .single()
-
-    if (caller?.role !== 'admin') {
+    if (caller.role !== 'admin') {
       return NextResponse.json({ error: 'Admins only' }, { status: 403 })
     }
 
+    const admin = createAdminClient()
     const { data: target } = await admin
       .from('profiles')
       .select('id, email, organization_id')
       .eq('id', targetId)
-      .single()
+      .maybeSingle()
 
-    if (!target?.email || target.organization_id !== caller.organization_id) {
+    if (!target?.email || !caller.organizationId || target.organization_id !== caller.organizationId) {
       return NextResponse.json({ error: 'User not in your organization' }, { status: 404 })
     }
 
@@ -67,24 +51,21 @@ export async function POST(
 
     // Use Supabase's transactional reset-password email. The link returns
     // the user to /change-password (configured in Supabase Auth → URL
-    // configuration).
+    // configuration). Never built from the Origin header.
     const { error } = await admin.auth.resetPasswordForEmail(target.email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? request.headers.get('origin') ?? ''}/change-password`,
+      redirectTo: `${siteOrigin(request.url)}/change-password`,
     })
 
     if (error) {
       // Don't bail — we still set the must_change_password flag, so an
       // admin can dictate a manual reset. Just surface the email issue.
-      return NextResponse.json({
-        success: true,
-        emailSent: false,
-        warning: error.message,
-      })
+      console.warn('[reset-password] email failed:', error.message)
+      return NextResponse.json({ success: true, emailSent: false, warning: 'Reset email could not be sent' })
     }
 
     return NextResponse.json({ success: true, emailSent: true })
   } catch (err: any) {
     console.error('[POST /api/users/:id/reset-password] Unexpected:', err)
-    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

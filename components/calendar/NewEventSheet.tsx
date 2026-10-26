@@ -24,6 +24,7 @@ import { EventTypeSelector } from './EventTypeSelector'
 import { useUser } from '@/lib/user-context'
 import { ContactPickerGrid } from '@/components/chat/ContactPickerGrid'
 import { cn } from '@/lib/utils'
+import { berlinDateKey, calendarDayKey, fromBerlinInputValue, toBerlinInputValue } from '@/lib/time/berlin'
 
 interface NewEventSheetProps {
   isOpen: boolean
@@ -64,11 +65,9 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
             : Number(eventToEdit.reminder_minutes_before)
         )
 
-        // Format dates for input type="datetime-local"
-        const start = new Date(eventToEdit.start_time)
-        const end = new Date(eventToEdit.end_time)
-        setStartTime(new Date(start.getTime() - start.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
-        setEndTime(new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
+        // datetime-local inputs show German time on every device.
+        setStartTime(toBerlinInputValue(eventToEdit.start_time))
+        setEndTime(toBerlinInputValue(eventToEdit.end_time))
 
         setSelectedMembers(eventToEdit.members?.map(m => m.user) || [])
       } else {
@@ -80,14 +79,9 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
         setIsAllDay(false)
         setReminderMinutes(null)
 
-        const baseDate = initialDate || new Date()
-        const start = new Date(baseDate)
-        start.setHours(9, 0, 0, 0)
-        const end = new Date(baseDate)
-        end.setHours(10, 0, 0, 0)
-
-        setStartTime(new Date(start.getTime() - start.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
-        setEndTime(new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
+        const day = initialDate ? calendarDayKey(initialDate) : berlinDateKey()
+        setStartTime(`${day}T09:00`)
+        setEndTime(`${day}T10:00`)
         setSelectedMembers([])
       }
       setStep('form')
@@ -106,8 +100,8 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
       location,
       event_type: eventType,
       is_all_day: isAllDay,
-      start_time: new Date(startTime).toISOString(),
-      end_time: new Date(endTime).toISOString(),
+      start_time: fromBerlinInputValue(startTime) ?? new Date(startTime).toISOString(),
+      end_time: fromBerlinInputValue(endTime) ?? new Date(endTime).toISOString(),
       color: EVENT_COLORS[eventType],
       member_ids: selectedMembers.map(m => m.id),
       // Phase 4 #7 — pass reminder choice through; useCreateEvent handles persistence

@@ -15,11 +15,10 @@ import { PersonnelMonitor } from '@/components/dashboard/PersonnelMonitor'
 import { useTimeTracking } from '@/hooks/useTimeTracking'
 import { useUser } from '@/lib/user-context'
 import { Badge } from '@/components/ui/badge'
-import { format } from 'date-fns'
-import { de } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n'
+import { formatInstantWeekdayDate, formatTimeOfDay } from '@/lib/time/format'
 
 export default function LiveShiftPage() {
   const { role, isAdmin, isDispatcher } = useUser()
@@ -62,7 +61,7 @@ export default function LiveShiftPage() {
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">{L('Einsatzzentrale in Echtzeit', 'Real-time operational center')}</p>
         </div>
         <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-4 py-2 rounded-full uppercase tracking-widest border border-blue-100/50">
-            {format(new Date(), 'EEEE, d. MMMM yyyy', { locale: de })}
+            {formatInstantWeekdayDate(new Date(), 'de', false)}
         </div>
       </div>
 
@@ -111,7 +110,7 @@ export default function LiveShiftPage() {
                       <div className="flex items-center gap-3">
                          <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             <Clock className="w-3.5 h-3.5" /> 
-                            {format(new Date(activePlan.start_time), 'HH:mm')} – {format(new Date(activePlan.end_time), 'HH:mm')}
+                            {formatTimeOfDay(activePlan.start_time)} – {formatTimeOfDay(activePlan.end_time)}
                          </div>
                          <div className="h-1 w-1 rounded-full bg-slate-200" />
                          <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{L('Einsatz-ID', 'Mission ID')}: {activePlan.id.slice(0, 8)}</span>

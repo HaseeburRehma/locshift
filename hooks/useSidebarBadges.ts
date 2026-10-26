@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
+import { berlinDateKey, berlinToInstant } from '@/lib/time/berlin'
+import { addDays } from '@/lib/time/shift-hours'
 
 interface SidebarBadges {
   chat: number
@@ -132,9 +134,9 @@ export function useSidebarBadges() {
     // ── Calendar: events happening today ───────────────
     let calendarCount = 0
     try {
-      const today = new Date()
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString()
+      const today = berlinDateKey()
+      const startOfDay = berlinToInstant(today).toISOString()
+      const endOfDay = berlinToInstant(addDays(today, 1)).toISOString()
 
       if (!isManagerRole) {
         const { count } = await supabase

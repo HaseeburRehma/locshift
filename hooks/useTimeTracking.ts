@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 import { calculateShiftTimes, localDateKey } from '@/lib/time/shift-hours'
 import { calculateSpesen } from '@/lib/spesen'
 import { TIME_ENTRY_SELECT, dbErrorMessage } from '@/lib/times/entry-status'
+import { berlinDateKey, berlinToInstant } from '@/lib/time/berlin'
+import { addDays } from '@/lib/time/shift-hours'
 
 export interface SubmitShiftValues {
   date: string
@@ -63,11 +65,11 @@ export function useTimeTracking() {
       .limit(10)
     setDrafts((open ?? []) as TimeEntry[])
 
-    // Plans touching today (local day), including a night shift that
+    // Plans touching today (German day), including a night shift that
     // started yesterday and is still running.
-    const now = new Date()
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+    const today = berlinDateKey()
+    const dayStart = berlinToInstant(today)
+    const dayEnd = berlinToInstant(addDays(today, 1))
     const { data: plans } = await supabase
       .from('plans')
       .select('*, customer:customers(id, name)')

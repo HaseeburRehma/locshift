@@ -36,6 +36,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isManagerRole, managerIds, prepareDispatch } from '@/lib/notifications/dispatch-server'
+import { safeRelativePath } from '@/lib/security/redirect'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -175,7 +176,7 @@ export async function POST(request: Request) {
     const module = String(body.module).slice(0, 40)
     const moduleId = typeof body.moduleId === 'string' && body.moduleId ? body.moduleId.slice(0, 100) : null
     // Relative app paths only ("//host" would be protocol-relative).
-    const link = typeof body.link === 'string' && /^\/(?![/\\])/.test(body.link) ? body.link.slice(0, 500) : null
+    const link = body.link == null ? null : safeRelativePath(body.link, '') || null
 
     let recipientIds: string[]
     // null = every recipient may get the email leg.

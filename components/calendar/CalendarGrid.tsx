@@ -5,6 +5,7 @@ import { CalendarDayCell } from './CalendarDayCell'
 import { CalendarEvent } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
+import { berlinDateKey, calendarDayKey } from '@/lib/time/berlin'
 
 interface CalendarGridProps {
   currentDate: Date
@@ -58,11 +59,8 @@ export function CalendarGrid({
 
   const allDays = [...prevMonthDays, ...currentMonthDays, ...nextMonthDays]
 
-  const today = new Date()
-  const isToday = (d: number, mOffset: number) => {
-    const targetDate = new Date(year, month + mOffset, d)
-    return targetDate.toDateString() === today.toDateString()
-  }
+  const todayKey = berlinDateKey()
+  const isToday = (d: number, mOffset: number) => calendarDayKey(new Date(year, month + mOffset, d)) === todayKey
 
   const isSelected = (d: number, mOffset: number) => {
     const targetDate = new Date(year, month + mOffset, d)
@@ -70,9 +68,8 @@ export function CalendarGrid({
   }
 
   const getEventsForDay = (d: number, mOffset: number) => {
-    const targetDate = new Date(year, month + mOffset, d)
-    const key = targetDate.toISOString().split('T')[0]
-    return eventsByDate[key] || []
+    // Never toISOString(): local midnight is the previous UTC day east of UTC.
+    return eventsByDate[calendarDayKey(new Date(year, month + mOffset, d))] || []
   }
 
   return (

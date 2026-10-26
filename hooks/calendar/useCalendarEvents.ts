@@ -6,6 +6,8 @@ import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n'
 import { fetchAllPages } from '@/lib/supabase/paginate'
 import { createCoalescer } from '@/hooks/useCoalescedRefetch'
+import { berlinDateKey, berlinToInstant } from '@/lib/time/berlin'
+import { addDays } from '@/lib/time/shift-hours'
 
 /**
  * Supabase PostgrestError uses non-enumerable properties — spreading it
@@ -44,8 +46,10 @@ export function useCalendarEvents(year: number, month: number) {
     const fetchAll = async () => {
       setIsLoading(true)
 
-      const startOfMonth = new Date(year, month - 1, 1).toISOString()
-      const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString()
+      // Month boundaries in German time (inclusive end, as before).
+      const monthKey = `${year}-${String(month).padStart(2, '0')}`
+      const startOfMonth = berlinToInstant(`${monthKey}-01`).toISOString()
+      const endOfMonth = new Date(berlinToInstant(addDays(`${monthKey}-01`, new Date(Date.UTC(year, month, 0)).getUTCDate())).getTime() - 1000).toISOString()
 
       // Fail-partially rather than fail-whole: each fetch is wrapped in its
       // own try/catch so a broken calendar_event_members join doesn't hide
@@ -206,7 +210,8 @@ export function useCalendarEvents(year: number, month: number) {
     
     // 1. Group by date first
     events.forEach(event => {
-      const dateKey = event.start_time.split('T')[0]
+      // German calendar day (the timestamp itself is UTC).
+      const dateKey = berlinDateKey(event.start_time)
       if (!map[dateKey]) map[dateKey] = []
       map[dateKey].push({ ...event }) // Clone to avoid mutation
     })

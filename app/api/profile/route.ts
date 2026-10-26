@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { pickFields, SELF_EDITABLE_PROFILE_FIELDS } from '@/lib/supabase/api-auth'
 
 export async function GET() {
   try {
@@ -38,7 +39,17 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const updates = await request.json()
+    let raw: unknown
+    try {
+      raw = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    // Whitelist: never spread the body (role, org, HR fields stay untouched).
+    const updates = pickFields(raw, SELF_EDITABLE_PROFILE_FIELDS)
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No updatable fields' }, { status: 400 })
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -48,7 +59,7 @@ export async function PATCH(request: Request) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json({ error: 'Could not update profile' }, { status: 400 })
     }
 
     return NextResponse.json(data)

@@ -28,7 +28,7 @@ import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import { toast } from 'sonner'
 import { notifyPlanAssigned, notifyPlanChanged, notifyPlanRemoved } from '@/lib/plans/notify'
-import { addDays, localDateKey, localTimeKey } from '@/lib/time/shift-hours'
+import { addDays, localDateKey, localTimeKey, toInstantIso } from '@/lib/time/shift-hours'
 import LocationPickerModal from './LocationPickerModal'
 import { ShiftTemplatePicker, type TemplatePayload } from './ShiftTemplatePicker'
 import { BetriebsstelleSelector } from './BetriebsstelleSelector'
@@ -105,9 +105,7 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
     setHotelAddress(tpl.hotel_address ?? '')
     if (tpl.duration_days > 1) {
       // Spread the end date across the template's duration
-      const baseEnd = new Date(`${startDate}T${tpl.end_time}:00`)
-      baseEnd.setDate(baseEnd.getDate() + (tpl.duration_days - 1))
-      setEndDate(localDateKey(baseEnd))
+      setEndDate(addDays(startDate, tpl.duration_days - 1))
     } else {
       setEndDate(startDate)
     }
@@ -116,9 +114,7 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
 
   const buildTemplatePayload = (): TemplatePayload => {
     // Duration measured in whole calendar days (inclusive).
-    const start = new Date(`${startDate}T00:00:00`)
-    const end = new Date(`${endDate}T00:00:00`)
-    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1)
+    const days = Math.max(1, Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000) + 1)
 
     return {
       name: '',                                // filled by the picker dialog
@@ -165,8 +161,9 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
 
       // A night shift entered with the same end date ends on the next day.
       const effectiveEndDate = endDate === startDate && endTime <= startTime ? addDays(startDate, 1) : endDate
-      const startDateTime = new Date(`${startDate}T${startTime}:00`).toISOString()
-      const endDateTime = new Date(`${effectiveEndDate}T${endTime}:00`).toISOString()
+      // Entered times are German wall-clock time, whatever the device timezone.
+      const startDateTime = toInstantIso(startDate, startTime)
+      const endDateTime = toInstantIso(effectiveEndDate, endTime)
 
       if (new Date(startDateTime) >= new Date(endDateTime)) {
         toast.error(locale === 'en' ? 'End time must be after start time' : 'Die Endzeit muss nach der Startzeit liegen')
@@ -223,10 +220,9 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
         // ── CREATE MODE (BULK SUPPORT) ────────────────────────────────────
         for (const empId of targetEmployees) {
           for (let d = 0; d <= repeatCount; d++) {
-            const currentStart = new Date(startDateTime)
-            currentStart.setDate(currentStart.getDate() + d)
-            const currentEnd = new Date(endDateTime)
-            currentEnd.setDate(currentEnd.getDate() + d)
+            // Same German wall-clock times on each following day (DST-safe).
+            const currentStart = new Date(toInstantIso(addDays(startDate, d), startTime))
+            const currentEnd = new Date(toInstantIso(addDays(effectiveEndDate, d), endTime))
 
             await createPlan({
               organization_id: currentUser.organization_id,

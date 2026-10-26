@@ -13,6 +13,7 @@ import type { MonthOverview, MultiMonthReport, OverviewRow, OverviewTotals } fro
 import { formatHours, monthShort } from '@/lib/time/format'
 import { localDateKey } from '@/lib/time/shift-hours'
 import { pdfText } from './monatsnachweis'
+import { formatInstantDateTime } from '@/lib/time/format'
 
 const BLUE: [number, number, number] = [0, 100, 224]
 const VIOLET: [number, number, number] = [124, 58, 237]
@@ -22,9 +23,7 @@ const SLATE: [number, number, number] = [30, 41, 59]
 const MUTED: [number, number, number] = [100, 116, 139]
 
 function created(iso: string): string {
-  const d = new Date(iso)
-  const [y, m, dd] = localDateKey(d).split('-')
-  return `${dd}.${m}.${y}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} Uhr`
+  return `${formatInstantDateTime(iso)} Uhr`
 }
 
 function header(doc: jsPDF, title: string, subtitle: string, createdAt: string) {

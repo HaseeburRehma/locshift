@@ -353,6 +353,7 @@ export interface PerDiem {
   updated_at: string
   // Joined fields
   plan?: Plan
+  employee?: { id: string; full_name: string | null } | null
 }
 
 export type HolidayBonusType =

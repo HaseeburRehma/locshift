@@ -121,7 +121,7 @@ export function useCreateEvent() {
         // Fire notifications via the canonical helper (single source of truth).
         // Stored in German — translateNotification() in NotificationPanel
         // flips known patterns to English at render time.
-        const startLabel = new Date(data.start_time).toLocaleString('de-DE', {
+        const startLabel = new Date(data.start_time).toLocaleString('de-DE', { timeZone: 'Europe/Berlin',
           weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
         })
         await Promise.all(
@@ -214,7 +214,7 @@ export function useCreateEvent() {
           const newcomers = data.member_ids.filter(uid => !existingIds.has(uid) && uid !== user?.id)
           if (newcomers.length > 0 && data.title) {
             const startLabel = data.start_time
-              ? new Date(data.start_time).toLocaleString('de-DE', {
+              ? new Date(data.start_time).toLocaleString('de-DE', { timeZone: 'Europe/Berlin',
                   weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                 })
               : ''

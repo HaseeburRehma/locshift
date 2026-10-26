@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
-import { startOfWeek, endOfWeek, format, startOfDay } from 'date-fns'
 import { fetchAllPages } from '@/lib/supabase/paginate'
 import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
+import { berlinDateKey, berlinToInstant } from '@/lib/time/berlin'
+import { addDays } from '@/lib/time/shift-hours'
+import { weekStartOf } from '@/lib/plans/week'
 
 export function useDashboardStats() {
   const { profile, isAdmin, isDispatcher } = useUser()
@@ -14,11 +16,15 @@ export function useDashboardStats() {
   const fetchStats = useCallback(async () => {
     if (!profile) return
     setLoading(true)
-    const now = new Date()
-    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 }).toISOString()
-    const weekEnd = endOfWeek(now, { weekStartsOn: 1 }).toISOString()
-    const startOfToday = startOfDay(now).toISOString()
+    // German calendar: month/week/day boundaries as instants, and the
+    // week as date keys for the DATE column (toISOString() of a local
+    // Monday 00:00 is still Sunday in UTC).
+    const today = berlinDateKey()
+    const firstDayOfMonth = berlinToInstant(`${today.slice(0, 7)}-01`).toISOString()
+    const monday = weekStartOf(today)
+    const weekStart = berlinToInstant(monday).toISOString()
+    const weekEnd = new Date(berlinToInstant(addDays(monday, 7)).getTime() - 1).toISOString()
+    const startOfToday = berlinToInstant(today).toISOString()
 
     try {
       if (isAdmin || isDispatcher) {
@@ -104,8 +110,8 @@ export function useDashboardStats() {
           supabase.from('time_entries').select('net_hours').eq('employee_id', profile.id)
             .gte('date', firstDayOfMonth.split('T')[0]),
           supabase.from('time_entries').select('net_hours').eq('employee_id', profile.id)
-            .gte('date', weekStart.split('T')[0])
-            .lte('date', weekEnd.split('T')[0]),
+            .gte('date', monday)
+            .lte('date', addDays(monday, 6)),
           supabase.from('per_diems').select('amount').eq('employee_id', profile.id)
             .gte('date', firstDayOfMonth.split('T')[0]),
           supabase.from('time_entries').select('*', { count: 'exact', head: true })

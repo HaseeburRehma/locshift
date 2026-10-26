@@ -1,8 +1,8 @@
 import React from 'react'
 import { ChatConversation, Profile } from '@/lib/types'
-import { format } from 'date-fns'
 import { RoleBadge } from './RoleBadge'
 import { OnlineIndicator } from './OnlineIndicator'
+import { formatTimeOfDay } from '@/lib/time/format'
 
 interface ChatListItemProps {
   conversation: ChatConversation
@@ -24,7 +24,7 @@ export function ChatListItem({ conversation, currentUserId, active, onClick, isO
   
   const lastMsg = conversation.last_message?.content || (conversation.last_message?.attachment_url ? 'Attachment' : 'No messages')
   const timestamp = conversation.last_message 
-    ? format(new Date(conversation.last_message.created_at), 'HH:mm')
+    ? formatTimeOfDay(conversation.last_message.created_at)
     : ''
 
   return (

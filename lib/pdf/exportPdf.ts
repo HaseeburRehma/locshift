@@ -15,10 +15,12 @@
 
 import { jsPDF } from 'jspdf'
 import autoTable, { type RowInput } from 'jspdf-autotable'
-import { format } from 'date-fns'
 import { paymentPeriodLabel, specialPaymentTypeLabel } from '@/lib/special-payments'
 import { endDayOffset } from '@/lib/time/shift-hours'
 import { formatHours } from '@/lib/time/format'
+import { berlinDateKey } from '@/lib/time/berlin'
+import { formatDateDE, formatInstantDate, formatInstantDateTime, formatTimeOfDay } from '@/lib/time/format'
+import { isoWeek as isoWeekOfDate } from '@/lib/plans/week'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -86,7 +88,7 @@ export function exportTableToPdf(opts: PdfTableOptions): void {
       ? `${rows.length} Einträge`
       : `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}`
   doc.text(
-    `${generatedLabel}: ${format(new Date(), 'dd.MM.yyyy HH:mm')}  ·  ${entryLabel}`,
+    `${generatedLabel}: ${formatInstantDateTime(new Date())}  ·  ${entryLabel}`,
     marginX,
     cursorY,
   )
@@ -124,7 +126,7 @@ export function exportTableToPdf(opts: PdfTableOptions): void {
     margin: { left: marginX, right: marginX },
   })
 
-  const stamp = format(new Date(), 'yyyy-MM-dd')
+  const stamp = berlinDateKey()
   doc.save(`${filename}_${stamp}.pdf`)
 }
 
@@ -351,13 +353,7 @@ export function exportPlansPdf(
 
   // Plain integer ISO week. We avoid `date-fns/getISOWeek` to keep this lib
   // dependency-free of locale-aware calendar logic.
-  const isoWeek = (d: Date): number => {
-    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    const day = t.getUTCDay() || 7
-    t.setUTCDate(t.getUTCDate() + 4 - day)
-    const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1))
-    return Math.ceil((((t.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7)
-  }
+  const isoWeek = (d: Date): number => isoWeekOfDate(berlinDateKey(d))
 
   const rows: RowInput[] = plans.map(p => {
     const start = new Date(p.start_time)
@@ -434,20 +430,14 @@ export function exportHolidayBonusPdf(
 
 function safeDate(value: string | null | undefined): string {
   if (!value) return '-'
-  try {
-    return format(new Date(value), 'dd.MM.yyyy')
-  } catch {
-    return value
-  }
+  // Calendar dates ("YYYY-MM-DD") as they are; instants in German time.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDateDE(value)
+  return formatInstantDate(value) || value
 }
 
 function safeTime(value: string | null | undefined): string {
   if (!value) return '-'
-  try {
-    return format(new Date(value), 'HH:mm')
-  } catch {
-    return '-'
-  }
+  return formatTimeOfDay(value) || '-'
 }
 
 /**
