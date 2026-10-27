@@ -8,6 +8,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { type NextRequest } from 'next/server'
 import { safeRelativePath } from '@/lib/security/redirect'
+import { authCookieOptions, REMEMBER_COOKIE, rememberFromCookie } from '@/lib/supabase/remember'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -34,8 +35,9 @@ export async function GET(request: NextRequest) {
         cookies: {
           getAll() { return request.cookies.getAll() },
           setAll(cookiesToSet) {
+            const remember = rememberFromCookie(request.cookies.get(REMEMBER_COOKIE)?.value)
             cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options)
+              response.cookies.set(name, value, authCookieOptions(options, remember))
             })
           },
         },

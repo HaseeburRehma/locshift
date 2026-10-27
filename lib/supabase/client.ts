@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { authCookieOptions, readRememberChoice, setRememberChoice } from './remember'
 
 // Tells the database this is a current client (see time_entries_normalize:
 // requests without it are treated as the previous app version).
@@ -72,46 +73,44 @@ async function safeAuthLock<R>(
   return fn()
 }
 
-// "Remember me" — when the user unchecks the option at login, we want the
-// session to live only until the browser is closed. We achieve this with a
-// storage adapter that picks between localStorage (persistent) and
-// sessionStorage (browser-session-only) based on a flag set at login time.
-//
-// We mirror reads across both stores so an existing session keeps working
-// even if the flag was cleared. setLoginRemember() below is the toggle.
-const REMEMBER_FLAG_KEY = 'lokshift_remember_me'
-
+// "Angemeldet bleiben": @supabase/ssr keeps the session in cookies and
+// ignores a custom `storage`, so the browser client writes the auth cookies
+// itself and applies the user's choice (see ./remember).
 export function setLoginRemember(remember: boolean) {
-  if (typeof window === 'undefined') return
-  if (remember) {
-    localStorage.setItem(REMEMBER_FLAG_KEY, 'true')
-  } else {
-    localStorage.setItem(REMEMBER_FLAG_KEY, 'false')
-  }
+  setRememberChoice(remember)
 }
 
-const rememberAwareStorage = {
-  getItem: (key: string): string | null => {
-    if (typeof window === 'undefined') return null
-    // Prefer sessionStorage so a non-remembered session shadows any stale
-    // localStorage entry from a previous "remember" login.
-    return sessionStorage.getItem(key) ?? localStorage.getItem(key)
-  },
-  setItem: (key: string, value: string): void => {
-    if (typeof window === 'undefined') return
-    const remember = localStorage.getItem(REMEMBER_FLAG_KEY) !== 'false'
-    if (remember) {
-      localStorage.setItem(key, value)
-      sessionStorage.removeItem(key)
-    } else {
-      sessionStorage.setItem(key, value)
-      localStorage.removeItem(key)
-    }
-  },
-  removeItem: (key: string): void => {
-    if (typeof window === 'undefined') return
-    sessionStorage.removeItem(key)
-    localStorage.removeItem(key)
+function readBrowserCookies(): { name: string; value: string }[] {
+  if (typeof document === 'undefined' || !document.cookie) return []
+  return document.cookie.split('; ').map((pair) => {
+    const i = pair.indexOf('=')
+    const name = i < 0 ? pair : pair.slice(0, i)
+    const raw = i < 0 ? '' : pair.slice(i + 1)
+    let value = raw
+    try { value = decodeURIComponent(raw) } catch { /* keep raw */ }
+    return { name, value }
+  })
+}
+
+function writeBrowserCookie(name: string, value: string, options: Record<string, any> = {}) {
+  const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${options.path ?? '/'}`]
+  if (typeof options.maxAge === 'number') parts.push(`Max-Age=${Math.floor(options.maxAge)}`)
+  if (options.expires) parts.push(`Expires=${new Date(options.expires).toUTCString()}`)
+  if (options.domain) parts.push(`Domain=${options.domain}`)
+  const sameSite = options.sameSite === true ? 'Strict' : options.sameSite
+  if (sameSite) parts.push(`SameSite=${String(sameSite).replace(/^./, (c) => c.toUpperCase())}`)
+  if (options.secure || (typeof location !== 'undefined' && location.protocol === 'https:')) parts.push('Secure')
+  document.cookie = parts.join('; ')
+}
+
+const browserCookies = {
+  getAll: () => readBrowserCookies(),
+  setAll: (cookiesToSet: { name: string; value: string; options?: Record<string, any> }[]) => {
+    // Read at write time: the login form sets the choice right before signIn.
+    const remember = readRememberChoice()
+    cookiesToSet.forEach(({ name, value, options }) =>
+      writeBrowserCookie(name, value, authCookieOptions(options, remember)),
+    )
   },
 }
 
@@ -138,8 +137,8 @@ export function createClient() {
           // Replace the default navigator.locks-based auth lock with our
           // wrapper that catches AbortError noise from cross-tab races.
           lock: safeAuthLock as any,
-          storage: rememberAwareStorage,
         },
+        cookies: browserCookies,
       },
     )
   }
