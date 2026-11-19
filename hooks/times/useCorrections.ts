@@ -19,6 +19,7 @@ import { TIME_ENTRY_SELECT, dbErrorMessage } from '@/lib/times/entry-status'
 import { notifyManagers, sendNotification } from '@/lib/notifications/service'
 import { formatDateDE, formatShiftRange } from '@/lib/time/format'
 import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
+import { notifyTimesChanged, onTimesChanged } from '@/lib/times/events'
 
 export const CORRECTION_SELECT = `*, employee:profiles!employee_id(id, full_name), reviewer:profiles!reviewed_by(id, full_name), entry:time_entries(${TIME_ENTRY_SELECT})`
 
@@ -75,7 +76,9 @@ export function useCorrections(opts: { entryId?: string; pendingOnly?: boolean }
         () => scheduleRefresh(),
       )
       .subscribe()
+    const off = onTimesChanged(() => scheduleRefresh())
     return () => {
+      off()
       supabase.removeChannel(channel)
     }
   }, [fetchCorrections, scheduleRefresh, profile?.organization_id, supabase])
@@ -108,7 +111,9 @@ export function useCorrections(opts: { entryId?: string; pendingOnly?: boolean }
       link: '/dashboard/times/approvals',
     })
     toast.success(L('Korrekturantrag gesendet. Bis zur Freigabe gelten die bisherigen Werte.', 'Correction requested. The current values stay valid until approved.'))
-    await fetchCorrections()
+    // Lists refresh in the background; the dialog closes at once (QA P2-5).
+    void fetchCorrections()
+    notifyTimesChanged()
     return true
   }
 
@@ -121,7 +126,9 @@ export function useCorrections(opts: { entryId?: string; pendingOnly?: boolean }
       return false
     }
     toast.success(L('Antrag zurückgezogen', 'Request withdrawn'))
-    await fetchCorrections()
+    // Lists refresh in the background; the dialog closes at once (QA P2-5).
+    void fetchCorrections()
+    notifyTimesChanged()
     return true
   }
 
@@ -147,35 +154,57 @@ export function useCorrections(opts: { entryId?: string; pendingOnly?: boolean }
       link: '/dashboard/times',
     })
     toast.success(approve ? L('Korrektur genehmigt und übernommen', 'Correction approved and applied') : L('Korrektur abgelehnt', 'Correction rejected'))
-    await fetchCorrections()
+    // Lists refresh in the background; the dialog closes at once (QA P2-5).
+    void fetchCorrections()
+    notifyTimesChanged()
     return true
   }
 
   return { corrections, loading, refetch: fetchCorrections, requestCorrection, cancelCorrection, reviewCorrection }
 }
 
-/** Change log of one entry (employee sees own, managers see all in org). */
-export function useEntryHistory(entryId: string | null | undefined) {
+/**
+ * Change log of one entry (employee sees own, managers see all in org).
+ * `version` changes whenever the entry or its corrections change, so the
+ * log reloads after every action (QA P1-2).
+ */
+export function useEntryHistory(entryId: string | null | undefined, version = '') {
   const supabase = createClient()
   const [rows, setRows] = useState<TimeEntryAuditRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
 
   const fetchRows = useCallback(async () => {
     if (!entryId) return
     setLoading(true)
+    setFailed(false)
+    // time_entry_audit has no foreign keys on purpose (rows outlive deleted
+    // users), so PostgREST cannot embed profiles — names are a 2nd query.
     const { data, error } = await supabase
       .from('time_entry_audit')
-      .select('*, changer:profiles!changed_by(id, full_name)')
+      .select('*')
       .eq('entry_id', entryId)
       .order('changed_at', { ascending: true })
-    if (error) console.warn('[useEntryHistory]', error.message)
-    setRows((data ?? []) as TimeEntryAuditRow[])
+    if (error) {
+      console.warn('[useEntryHistory]', error.message)
+      setFailed(true)
+    } else {
+      const audit = (data ?? []) as TimeEntryAuditRow[]
+      const ids = [...new Set(audit.map((r) => r.changed_by).filter((id): id is string => !!id))]
+      const names = new Map<string, string>()
+      if (ids.length) {
+        const { data: people } = await supabase.from('profiles').select('id, full_name').in('id', ids)
+        for (const p of (people ?? []) as { id: string; full_name: string | null }[]) names.set(p.id, p.full_name ?? '—')
+      }
+      setRows(audit.map((r) => ({ ...r, changer: r.changed_by && names.has(r.changed_by) ? { id: r.changed_by, full_name: names.get(r.changed_by)! } : null })))
+    }
     setLoading(false)
-  }, [entryId, supabase])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entryId, supabase, version])
 
   useEffect(() => {
     fetchRows()
   }, [fetchRows])
 
-  return { rows, loading, refetch: fetchRows }
+  return { rows, loading, failed, refetch: fetchRows }
 }

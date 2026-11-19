@@ -9,6 +9,7 @@ import { calculateSpesen } from '@/lib/spesen'
 import { TIME_ENTRY_SELECT, dbErrorMessage } from '@/lib/times/entry-status'
 import { berlinDateKey, berlinToInstant } from '@/lib/time/berlin'
 import { addDays } from '@/lib/time/shift-hours'
+import { notifyTimesChanged } from '@/lib/times/events'
 
 export interface SubmitShiftValues {
   date: string
@@ -27,6 +28,9 @@ type TodayPlan = Plan & { customer?: { id: string; name: string } | null }
  * Flow (Kundenfeedback Punkt 2): Schicht starten → Pause → Beenden (time
  * stops, entry stays an editable draft) → closing view → Schicht absenden.
  */
+/** id of the optimistic row shown while "Schicht starten" is saving. */
+export const PENDING_ID = 'pending-start'
+
 export function useTimeTracking() {
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null)
   const [drafts, setDrafts] = useState<TimeEntry[]>([])
@@ -44,41 +48,40 @@ export function useTimeTracking() {
   const fetchActiveEntry = useCallback(async () => {
     if (!user) return
 
-    const { data: running, error } = await supabase
-      .from('time_entries')
-      .select(TIME_ENTRY_SELECT)
-      .eq('employee_id', user.id)
-      .is('end_time', null)
-      .order('start_time', { ascending: false })
-      .limit(1)
-    if (error) console.error('[useTimeTracking] Fetch error:', error)
-    setActiveEntry(((running ?? [])[0] as TimeEntry | undefined) ?? null)
-
-    const { data: open } = await supabase
-      .from('time_entries')
-      .select(TIME_ENTRY_SELECT)
-      .eq('employee_id', user.id)
-      .not('end_time', 'is', null)
-      .is('submitted_at', null)
-      .eq('is_planned', false)
-      .order('end_time', { ascending: false })
-      .limit(10)
-    setDrafts((open ?? []) as TimeEntry[])
-
     // Plans touching today (German day), including a night shift that
-    // started yesterday and is still running.
+    // started yesterday and is still running. All three run in parallel.
     const today = berlinDateKey()
     const dayStart = berlinToInstant(today)
     const dayEnd = berlinToInstant(addDays(today, 1))
-    const { data: plans } = await supabase
-      .from('plans')
-      .select('*, customer:customers(id, name)')
-      .eq('employee_id', user.id)
-      .in('status', ['assigned', 'confirmed'])
-      .lt('start_time', dayEnd.toISOString())
-      .gt('end_time', dayStart.toISOString())
-      .order('start_time', { ascending: true })
-
+    const [{ data: running, error }, { data: open }, { data: plans }] = await Promise.all([
+      supabase
+        .from('time_entries')
+        .select(TIME_ENTRY_SELECT)
+        .eq('employee_id', user.id)
+        .is('end_time', null)
+        .order('start_time', { ascending: false })
+        .limit(1),
+      supabase
+        .from('time_entries')
+        .select(TIME_ENTRY_SELECT)
+        .eq('employee_id', user.id)
+        .not('end_time', 'is', null)
+        .is('submitted_at', null)
+        .eq('is_planned', false)
+        .order('end_time', { ascending: false })
+        .limit(10),
+      supabase
+        .from('plans')
+        .select('*, customer:customers(id, name)')
+        .eq('employee_id', user.id)
+        .in('status', ['assigned', 'confirmed'])
+        .lt('start_time', dayEnd.toISOString())
+        .gt('end_time', dayStart.toISOString())
+        .order('start_time', { ascending: true }),
+    ])
+    if (error) console.error('[useTimeTracking] Fetch error:', error)
+    setActiveEntry(((running ?? [])[0] as TimeEntry | undefined) ?? null)
+    setDrafts((open ?? []) as TimeEntry[])
     setTodayPlans((plans || []) as TodayPlan[])
     setLoading(false)
   }, [user, supabase])
@@ -137,67 +140,72 @@ export function useTimeTracking() {
     )[0]
   }, [todayPlans])
 
-  const clockIn = async (planId?: string, location?: string) => {
-    if (!user || !profile?.organization_id) return null
+  const [starting, setStarting] = useState(false)
 
-    let latitude: number | null = null
-    let longitude: number | null = null
-    try {
-      if (typeof window !== 'undefined' && navigator.geolocation) {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 0,
-          })
-        })
-        latitude = position.coords.latitude
-        longitude = position.coords.longitude
-      }
-    } catch (err) {
-      console.warn('[useTimeTracking] Geolocation error or denied:', err)
-    }
+  /** Location is evidence, never a gate: it is attached after the start (QA P2-4/P2-8). */
+  const attachLocation = (entryId: string) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        const at = new Date().toISOString()
+        await supabase.from('time_entries').update({ latitude, longitude }).eq('id', entryId)
+        if (user) {
+          await supabase.from('profiles').update({ last_lat: latitude, last_lng: longitude, last_location_update: at }).eq('id', user.id)
+        }
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.info(
+            L('Standort nicht freigegeben – die Schicht läuft trotzdem.', 'Location not shared – the shift is running anyway.'),
+          )
+        }
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    )
+  }
+
+  const clockIn = async (planId?: string, location?: string) => {
+    if (!user || !profile?.organization_id || starting) return null
 
     const plan = planId ? todayPlans.find((p) => p.id === planId) : suggestedPlan()
     const now = new Date()
-    const { data, error } = await supabase
-      .from('time_entries')
-      .insert({
-        organization_id: profile.organization_id,
-        employee_id: user.id,
-        plan_id: plan?.id ?? null,
-        customer_id: plan?.customer_id ?? null,
-        start_location_id: plan?.start_location_id ?? null,
-        destination_location_id: plan?.destination_location_id ?? null,
-        is_gastfahrt: !!plan?.is_gastfahrt,
-        overnight_stay: !!plan?.overnight_stay,
-        hotel_address: plan?.hotel_address ?? null,
-        location: location || plan?.location || null,
-        latitude,
-        longitude,
-        start_time: now.toISOString(),
-        date: localDateKey(now),
-        break_minutes: 0,
-        is_on_break: false,
-        total_break_seconds: 0,
-      })
-      .select(TIME_ENTRY_SELECT)
-      .single()
+    const row = {
+      organization_id: profile.organization_id,
+      employee_id: user.id,
+      plan_id: plan?.id ?? null,
+      customer_id: plan?.customer_id ?? null,
+      start_location_id: plan?.start_location_id ?? null,
+      destination_location_id: plan?.destination_location_id ?? null,
+      is_gastfahrt: !!plan?.is_gastfahrt,
+      overnight_stay: !!plan?.overnight_stay,
+      hotel_address: plan?.hotel_address ?? null,
+      location: location || plan?.location || null,
+      start_time: now.toISOString(),
+      date: localDateKey(now),
+      break_minutes: 0,
+      is_on_break: false,
+      total_break_seconds: 0,
+    }
+
+    // Optimistic: the card shows "Einsatz aktiv" at once; the controls stay
+    // disabled until the row exists.
+    setStarting(true)
+    setActiveEntry({ ...row, id: PENDING_ID, plan: plan ?? null } as unknown as TimeEntry)
+
+    const { data, error } = await supabase.from('time_entries').insert(row).select(TIME_ENTRY_SELECT).single()
+    setStarting(false)
 
     if (error) {
+      setActiveEntry(null)
       toast.error(dbErrorMessage(error, locale, L('Schicht konnte nicht gestartet werden', 'Failed to start shift')))
       return null
     }
 
-    if (latitude && longitude) {
-      await supabase
-        .from('profiles')
-        .update({ last_lat: latitude, last_lng: longitude, last_location_update: now.toISOString() })
-        .eq('id', user.id)
-    }
-
     setActiveEntry(data as TimeEntry)
     toast.success(L('Schicht gestartet', 'Shift started'))
+    notifyTimesChanged()
+    attachLocation((data as TimeEntry).id)
     return data as TimeEntry
   }
 
@@ -251,9 +259,9 @@ export function useTimeTracking() {
    * Stops the clock. The entry stays a draft so the closing view can show
    * planned vs. recorded times before it is submitted.
    */
-  const clockOut = async (): Promise<TimeEntry | null> => {
-    if (!activeEntry) return null
-    const now = Date.now()
+  const clockOut = async (endAt: number = Date.now()): Promise<TimeEntry | null> => {
+    if (!activeEntry || activeEntry.id === PENDING_ID) return null
+    const now = endAt
     const totalBreak = breakTotalSeconds(activeEntry, now)
 
     const { data, error } = await supabase
@@ -276,6 +284,7 @@ export function useTimeTracking() {
 
     setActiveEntry(null)
     setDrafts((prev) => [data as TimeEntry, ...prev.filter((d) => d.id !== (data as TimeEntry).id)])
+    notifyTimesChanged()
     return data as TimeEntry
   }
 
@@ -302,6 +311,7 @@ export function useTimeTracking() {
     }
     setDrafts((prev) => prev.filter((d) => d.id !== entryId))
     toast.success(L('Schicht abgesendet', 'Shift submitted'))
+    notifyTimesChanged()
     return true
   }
 
@@ -319,5 +329,7 @@ export function useTimeTracking() {
     clockOut,
     submitEntry,
     refresh: fetchActiveEntry,
+    starting,
+    breakTotalSeconds,
   }
 }

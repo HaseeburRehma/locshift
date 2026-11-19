@@ -44,6 +44,7 @@ import {
 import { exportTableToExcel } from '@/lib/excel/exportExcel'
 import { berlinDateKey, calendarDayKey } from '@/lib/time/berlin'
 import { formatInstantDate } from '@/lib/time/format'
+import { DateField } from '@/components/shared/DateField'
 
 // ─── Types ──────────────────────────────────────────────────
 interface RecentReport {
@@ -579,25 +580,15 @@ export default function ReportsPage() {
             {locale === 'de' ? 'Benutzerdefinierter Zeitraum' : 'Custom range'}
           </span>
           <div className="flex items-center gap-2">
-            <input
-              type="date"
+            <DateField
               value={format(dateRange.start, 'yyyy-MM-dd')}
-              onChange={(e) => {
-                if (!e.target.value) return
-                const start = parseISO(e.target.value)
-                setDateRange(prev => ({ ...prev, start }))
-              }}
+              onValueChange={(v) => setDateRange(prev => ({ ...prev, start: parseISO(v) }))}
               className="h-9 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
             <span className="text-gray-400 text-xs">→</span>
-            <input
-              type="date"
+            <DateField
               value={format(dateRange.end, 'yyyy-MM-dd')}
-              onChange={(e) => {
-                if (!e.target.value) return
-                const end = parseISO(e.target.value)
-                setDateRange(prev => ({ ...prev, end }))
-              }}
+              onValueChange={(v) => setDateRange(prev => ({ ...prev, end: parseISO(v) }))}
               className="h-9 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>

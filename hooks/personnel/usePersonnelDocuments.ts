@@ -44,7 +44,7 @@ export function usePersonnelDocuments(opts: { employeeId?: string; includeArchiv
     const { data, error } = await fetchAllPages<PersonnelDocument>((from, to) => {
       let q = supabase
         .from('qualifications')
-        .select('*, employee:profiles!user_id(id, full_name)')
+        .select('*, employee:profiles!user_id(id, full_name, is_internal)')
         .eq('organization_id', orgId)
       if (opts.employeeId) q = q.eq('user_id', opts.employeeId)
       if (!opts.includeArchived) q = q.is('archived_at', null)
@@ -55,9 +55,10 @@ export function usePersonnelDocuments(opts: { employeeId?: string; includeArchiv
     })
     // A failed page keeps the previous list instead of showing a partial one.
     if (error) console.warn('[usePersonnelDocuments]', error.message)
-    else setDocuments(data)
+    // Fristen never list internal test accounts to the client (QA cleanup).
+    else setDocuments(profile.is_internal ? data : data.filter((d) => !(d as { employee?: { is_internal?: boolean | null } | null }).employee?.is_internal))
     setLoading(false)
-  }, [profile?.organization_id, opts.employeeId, opts.includeArchived, supabase])
+  }, [profile?.organization_id, profile?.is_internal, opts.employeeId, opts.includeArchived, supabase])
 
   // Realtime bursts (bulk import / renewals) → one refetch at a time.
   const scheduleRefresh = useCoalescedRefetch(fetchDocs)

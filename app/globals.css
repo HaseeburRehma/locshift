@@ -154,3 +154,23 @@
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 100px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+
+/* Anleitung als PDF (QA P2-7): only the guide, all pages. */
+@media print {
+  html, body, body * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  body:has(.help-print) * {
+    visibility: hidden;
+  }
+  body:has(.help-print) .help-print,
+  body:has(.help-print) .help-print * {
+    visibility: visible;
+  }
+  body:has(.help-print) .help-print {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
+}

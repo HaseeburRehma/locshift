@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
+import { hideInternal } from '@/lib/profiles/internal'
 
 export function useProfiles() {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -14,11 +15,10 @@ export function useProfiles() {
 
     const fetchProfiles = async () => {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('organization_id', currentUser.organization_id)
-        .order('full_name', { ascending: true })
+      const { data, error } = await hideInternal(
+        supabase.from('profiles').select('*').eq('organization_id', currentUser.organization_id),
+        currentUser,
+      ).order('full_name', { ascending: true })
 
       if (!error) setProfiles(data || [])
       setLoading(false)

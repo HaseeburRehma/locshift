@@ -27,6 +27,11 @@ import { entryNetHours, hoursBetween, shiftIssueLabel, shiftIssues } from '@/lib
 import { formatDateDE, formatHours, formatShiftRange, formatTimeOfDay, weekdayName } from '@/lib/time/format'
 import { sendNotification, sendNotificationToMany } from '@/lib/notifications/service'
 import { fetchAllPages } from '@/lib/supabase/paginate'
+import { notifyTimesChanged, onTimesChanged } from '@/lib/times/events'
+import { findMissingShifts, type ReportEntry, type ReportPlan } from '@/lib/reports/monthly-report'
+import { berlinDateKey } from '@/lib/time/berlin'
+
+type MissingPlan = ReportPlan & { employee?: { full_name: string } | null }
 
 export default function ApprovalsPage() {
   const router = useRouter()
@@ -38,6 +43,7 @@ export default function ApprovalsPage() {
 
   const { corrections, reviewCorrection, loading: corrLoading } = useCorrections({ pendingOnly: true })
   const [entries, setEntries] = useState<TimeEntry[]>([])
+  const [missing, setMissing] = useState<MissingPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -48,7 +54,11 @@ export default function ApprovalsPage() {
     // Two queries so new submissions are never hidden behind old drafts:
     //   - every submitted, ended entry awaiting approval (paged), and
     //   - the most recent unsent drafts / running shifts.
-    const [submittedRes, unsentRes] = await Promise.all([
+    // Planned shifts of the last 45 days whose end has passed without a
+    // time entry (QA P1-1) — matched against every entry of that window.
+    const windowStart = new Date(Date.now() - 45 * 86_400_000).toISOString()
+    const nowIso = new Date().toISOString()
+    const [submittedRes, unsentRes, plansRes, windowRes] = await Promise.all([
       fetchAllPages<TimeEntry>((from, to) =>
         supabase
           .from('time_entries')
@@ -72,7 +82,30 @@ export default function ApprovalsPage() {
         .order('date', { ascending: false })
         .order('id', { ascending: false })
         .limit(500),
+      supabase
+        .from('plans')
+        .select('id, employee_id, start_time, end_time, status, shift_name, route, is_gastfahrt, customer:customers(name), employee:profiles!employee_id(full_name)')
+        .eq('organization_id', orgId)
+        .not('employee_id', 'is', null)
+        .not('status', 'in', '(cancelled,rejected)')
+        .gte('start_time', windowStart)
+        .lt('end_time', nowIso)
+        .order('start_time', { ascending: false })
+        .limit(1000),
+      supabase
+        .from('time_entries')
+        .select('id, employee_id, plan_id, start_time, end_time, is_planned, date, break_minutes, net_hours')
+        .eq('organization_id', orgId)
+        .gte('start_time', new Date(Date.now() - 46 * 86_400_000).toISOString())
+        .limit(5000),
     ])
+    if (!plansRes.error && !windowRes.error) {
+      const plans = (plansRes.data ?? []) as unknown as MissingPlan[]
+      const windowEntries = (windowRes.data ?? []) as unknown as ReportEntry[]
+      const now = new Date()
+      const byEmployee = [...new Set(plans.map((p) => p.employee_id as string))]
+      setMissing(byEmployee.flatMap((emp) => findMissingShifts(plans, windowEntries, emp, now) as MissingPlan[]))
+    }
     if (submittedRes.error || unsentRes.error) toast.error(L('Einträge konnten nicht geladen werden', 'Failed to load entries'))
     const unsentRows = ((unsentRes.data ?? []) as TimeEntry[]).slice().reverse()
     const merged = [...submittedRes.data, ...unsentRows].sort(
@@ -85,6 +118,7 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     fetchEntries()
+    return onTimesChanged(() => fetchEntries())
   }, [fetchEntries])
 
   useEffect(() => {
@@ -109,6 +143,10 @@ export default function ApprovalsPage() {
   const approve = async (ids: string[]) => {
     if (ids.length === 0) return
     setBusy(true)
+    // Optimistic: approved rows leave the list at once (QA P1-4).
+    const previous = entries
+    const idSet = new Set(ids)
+    setEntries((prev) => prev.filter((e) => !idSet.has(e.id)))
     // Only flip rows that are still unverified, so a second manager
     // approving the same entries never overwrites verified_by.
     const { data: flippedRows, error } = await supabase
@@ -119,6 +157,7 @@ export default function ApprovalsPage() {
       .select('id')
     setBusy(false)
     if (error) {
+      setEntries(previous)
       toast.error(dbErrorMessage(error, locale, L('Freigabe fehlgeschlagen', 'Approval failed')))
       return
     }
@@ -145,7 +184,18 @@ export default function ApprovalsPage() {
       })
     }
     setSelected(new Set())
-    fetchEntries()
+    notifyTimesChanged()
+  }
+
+  const remindMissing = async (p: MissingPlan) => {
+    if (!p.employee_id) return
+    await sendNotificationToMany([p.employee_id], {
+      title: 'Zeit für geplante Schicht fehlt',
+      message: `Für Ihre geplante Schicht vom ${formatDateDE(berlinDateKey(p.start_time))} (${formatShiftRange(p.start_time, p.end_time)}) wurde keine Zeit erfasst. Bitte nachtragen oder die Disposition informieren.`,
+      module: 'time_entries',
+      link: '/dashboard/times',
+    })
+    toast.success(L('Erinnerung gesendet', 'Reminder sent'))
   }
 
   const remind = async (e: TimeEntry) => {
@@ -271,10 +321,30 @@ export default function ApprovalsPage() {
 
       {/* 3. Unsent / still running */}
       <section className="space-y-3">
-        <SectionTitle title={L('Nicht abgesendet / nicht beendet', 'Not submitted / not ended')} count={unsent.length} />
-        {unsent.length === 0 ? (
+        <SectionTitle title={L('Nicht abgesendet / nicht beendet', 'Not submitted / not ended')} count={unsent.length + missing.length} />
+        {missing.length > 0 && (
+          <div className="bg-orange-50 rounded-2xl border border-orange-200 divide-y divide-orange-100">
+            {missing.map((p) => (
+              <div key={p.id} className="flex flex-wrap items-center gap-4 px-4 py-3">
+                <div className="flex-1 min-w-[220px]">
+                  <p className="text-sm font-black text-slate-900">{p.employee?.full_name ?? '—'}</p>
+                  <p className="text-xs font-semibold text-orange-800">
+                    {formatDateDE(berlinDateKey(p.start_time))} · {formatShiftRange(p.start_time, p.end_time, locale)}
+                    {p.shift_name || p.route ? ` · ${p.shift_name || p.route}` : ''}
+                    {p.customer?.name ? ` · ${p.customer.name}` : ''}
+                    <span className="ml-2 font-black">{L('Geplant – keine Zeit erfasst', 'Planned – no time recorded')}</span>
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="rounded-xl font-bold" onClick={() => remindMissing(p)}>
+                  <BellRing className="w-4 h-4 mr-2" /> {L('Erinnern', 'Remind')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        {unsent.length === 0 && missing.length === 0 ? (
           <Empty text={L('Alle beendeten Schichten sind abgesendet.', 'All finished shifts have been submitted.')} />
-        ) : (
+        ) : unsent.length === 0 ? null : (
           <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
             {unsent.map((e) => (
               <div key={e.id} className="flex flex-wrap items-center gap-4 px-4 py-3">

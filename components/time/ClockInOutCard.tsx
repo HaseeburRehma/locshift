@@ -32,6 +32,8 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
     loading,
     todayPlans,
     suggestedPlan,
+    starting,
+    breakTotalSeconds,
   } = useTimeTracking()
 
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>()
@@ -55,11 +57,25 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
   const isOnBreak = !!activeEntry?.is_on_break
   const defaultPlanId = selectedPlanId ?? suggestedPlan()?.id
 
+  // The review opens right away with the recorded times (QA P2-3);
+  // submitting waits until the end time is stored.
   const handleEnd = async () => {
+    if (!activeEntry || busy) return
+    const endAt = Date.now()
+    const endIso = new Date(endAt).toISOString()
+    const breakSecs = breakTotalSeconds(activeEntry, endAt)
+    setReviewEntry({
+      ...activeEntry,
+      end_time: endIso,
+      clock_end_time: endIso,
+      break_minutes: Math.round(breakSecs / 60),
+      is_on_break: false,
+    })
     setBusy(true)
-    const closed = await clockOut()
+    const closed = await clockOut(endAt)
     setBusy(false)
-    if (closed) setReviewEntry(closed)
+    // On failure the shift keeps running (the hook shows the error).
+    setReviewEntry(closed)
   }
 
   return (
@@ -94,7 +110,9 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
                 {activeEntry
                   ? isOnBreak
                     ? L('Pause läuft', 'On break')
-                    : L('Einsatz aktiv', 'Shift active')
+                    : starting
+                      ? L('Einsatz aktiv · wird gespeichert…', 'Shift active · saving…')
+                      : L('Einsatz aktiv', 'Shift active')
                   : L('Bereit', 'Ready')}
               </span>
               <div className="flex items-center gap-3">
@@ -136,6 +154,7 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
                 )}
                 <Button
                   onClick={() => clockIn(defaultPlanId)}
+                  disabled={starting}
                   className="h-10 px-6 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 shadow-md flex-1 sm:flex-none"
                 >
                   <Play className="w-3.5 h-3.5 mr-2 fill-current" />
@@ -146,6 +165,7 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Button
                   onClick={isOnBreak ? endBreak : startBreak}
+                  disabled={starting || busy}
                   variant="outline"
                   className={cn(
                     'h-10 flex-1 sm:px-6 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border-none',
@@ -157,7 +177,7 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
                 </Button>
                 <Button
                   onClick={handleEnd}
-                  disabled={busy}
+                  disabled={busy || starting}
                   className="h-10 flex-1 sm:px-6 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 border-none"
                 >
                   <Square className="w-3.5 h-3.5 mr-2 fill-current" />
@@ -192,6 +212,7 @@ export function ClockInOutCard({ className, compact = false }: ClockInOutCardPro
         open={!!reviewEntry}
         onOpenChange={(o) => !o && setReviewEntry(null)}
         onSubmit={submitEntry}
+        saving={busy}
       />
     </>
   )

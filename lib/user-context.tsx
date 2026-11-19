@@ -72,6 +72,38 @@ async function fetchProfile(
   return data as Profile;
 }
 
+// Per-tab cache of the signed-in user's profile + organisation, so a full
+// page load renders immediately instead of waiting on the network.
+const PROFILE_CACHE_KEY = "lokshift.profile";
+
+function readProfileCache(userId: string): { profile: Profile; org: OrganizationSettings | null } | null {
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { userId: string; profile: Profile; org: OrganizationSettings | null };
+    return c.userId === userId && c.profile ? { profile: c.profile, org: c.org } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileCache(userId: string, profile: Profile | null, org: OrganizationSettings | null) {
+  try {
+    if (profile) sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ userId, profile, org }));
+    else sessionStorage.removeItem(PROFILE_CACHE_KEY);
+  } catch {
+    /* storage unavailable — no cache */
+  }
+}
+
+function clearProfileCache() {
+  try {
+    sessionStorage.removeItem(PROFILE_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -82,23 +114,47 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    const ORG_COLUMNS = "id, name, timezone, settings, spesen_rate_partial, spesen_rate_full";
+
+    // Profile + organisation in one round trip (QA P0-2: the "Syncing
+    // operational data" screen waited for three requests in a row).
+    const loadProfileAndOrg = async (userId: string) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(`*, organization:organizations(${ORG_COLUMNS})`)
+        .eq("id", userId)
+        .maybeSingle();
+      if (!error && data) {
+        const { organization: org, ...rest } = data as Profile & { organization: OrganizationSettings | null };
+        return { profile: rest as Profile, org: org ?? null };
+      }
+      // Fallback (embed unavailable): the previous two requests.
+      const p = await fetchProfile(supabase, userId);
+      if (!p?.organization_id) return { profile: p, org: null };
+      const { data: org } = await supabase.from("organizations").select(ORG_COLUMNS).eq("id", p.organization_id).maybeSingle();
+      return { profile: p, org: (org as OrganizationSettings) ?? null };
+    };
+
     const handleUserAndProfile = async (sessionUser: User | null) => {
       if (!mounted) return;
-      
+
       setUser(sessionUser);
       if (sessionUser) {
-        // Fetch profile if not already loaded or if user changed
-        const p = await fetchProfile(supabase, sessionUser.id);
-        if (mounted) setProfile(p);
-        if (p?.organization_id) {
-          const { data: org } = await supabase
-            .from("organizations")
-            .select("id, name, timezone, settings, spesen_rate_partial, spesen_rate_full")
-            .eq("id", p.organization_id)
-            .maybeSingle();
-          if (mounted) setOrganization((org as OrganizationSettings) ?? null);
+        // Last known profile of this tab renders at once; fresh data follows.
+        const cached = readProfileCache(sessionUser.id);
+        if (cached && mounted) {
+          setProfile(cached.profile);
+          setOrganization(cached.org);
+          setIsLoading(false);
+        }
+        const { profile: p, org } = await loadProfileAndOrg(sessionUser.id);
+        if (mounted) {
+          setProfile(p);
+          setOrganization(org);
+          writeProfileCache(sessionUser.id, p, org);
         }
       } else {
+        clearProfileCache();
         if (mounted) {
           setProfile(null);
           setOrganization(null);
@@ -107,10 +163,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (mounted) setIsLoading(false);
     };
 
-    // 1. Initial Load
-    supabase.auth.getUser().then(({ data: { user: sessionUser } }: { data: { user: User | null } }) => {
-      handleUserAndProfile(sessionUser);
-    }).catch((err: Error) => {
+    // 1. Initial Load — the session cookie was already verified by the
+    // middleware, so the local session is enough to start rendering (no
+    // network round trip). Data access stays protected by RLS.
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
+      handleUserAndProfile(session?.user ?? null);
+    }).catch(() => {
        if (mounted) setIsLoading(false);
     });
 
@@ -132,6 +190,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signOut = async () => {
+    clearProfileCache();
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
@@ -142,6 +201,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (user) {
       const p = await fetchProfile(supabase, user.id);
       setProfile(p);
+      writeProfileCache(user.id, p, organization);
     }
   };
 

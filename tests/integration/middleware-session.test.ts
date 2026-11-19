@@ -6,8 +6,10 @@ import { authCookieOptions, rememberFromCookie } from '@/lib/supabase/remember'
 // middleware's setAll with new session cookies (what Supabase does when the
 // access token expired).
 const fake = vi.hoisted(() => ({
-  user: null as null | { id: string; user_metadata?: Record<string, unknown> },
+  user: null as null | { id: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> },
   refresh: false,
+  hang: false,
+  profileQueries: 0,
   profile: { role: 'admin', onboarding_completed: true, must_change_password: false } as Record<string, unknown>,
 }))
 
@@ -15,6 +17,7 @@ vi.mock('@supabase/ssr', () => ({
   createServerClient: (_url: string, _key: string, opts: any) => ({
     auth: {
       getUser: async () => {
+        if (fake.hang) await new Promise(() => {})
         if (fake.refresh) {
           opts.cookies.setAll([
             { name: 'sb-test-auth-token', value: 'base64-NEW-SESSION', options: { path: '/', sameSite: 'lax', maxAge: 34560000 } },
@@ -24,7 +27,7 @@ vi.mock('@supabase/ssr', () => ({
         return { data: { user: fake.user } }
       },
     },
-    from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: fake.profile }) }) }) }),
+    from: () => ({ select: () => ({ eq: () => ({ single: async () => { fake.profileQueries++; return { data: fake.profile } } }) }) }),
   }),
 }))
 
@@ -41,6 +44,8 @@ const setCookie = (res: Response) => res.headers.getSetCookie?.() ?? []
 beforeEach(() => {
   fake.user = null
   fake.refresh = false
+  fake.hang = false
+  fake.profileQueries = 0
   fake.profile = { role: 'admin', onboarding_completed: true, must_change_password: false }
 })
 
@@ -116,5 +121,59 @@ describe('remember helpers', () => {
     expect(authCookieOptions(opts, false)).toEqual({ path: '/', sameSite: 'lax' })
     expect(authCookieOptions({ path: '/', maxAge: 0 }, false)).toEqual({ path: '/', maxAge: 0 })
     expect(authCookieOptions(undefined, false)).toBeUndefined()
+  })
+})
+
+describe('no database queries in middleware (QA P0-2)', () => {
+  const meta = (role: string, extra: Record<string, unknown> = {}) => ({ lokshift: { role, onboarding_completed: true, must_change_password: false, ...extra } })
+
+  it('reads role and flags from app_metadata without a profiles query', async () => {
+    fake.user = { id: 'u1', app_metadata: meta('employee') }
+    fake.profile = { role: 'admin' } // would allow the page if it were read
+    const res = await middleware(req('/dashboard/users'))
+    expect(location(res)).toBe('/dashboard')
+    expect(fake.profileQueries).toBe(0)
+  })
+  it('forced password change and onboarding work from app_metadata', async () => {
+    fake.user = { id: 'u1', app_metadata: meta('admin', { must_change_password: true }) }
+    expect(location(await middleware(req('/dashboard')))).toBe('/change-password')
+    fake.user = { id: 'u1', app_metadata: meta('employee', { onboarding_completed: false }) }
+    expect(location(await middleware(req('/dashboard/times')))).toBe('/onboarding')
+    expect(fake.profileQueries).toBe(0)
+  })
+  it('falls back to one profiles query before the migration is applied', async () => {
+    fake.user = { id: 'u1' }
+    await middleware(req('/dashboard/times'))
+    expect(fake.profileQueries).toBe(1)
+  })
+  it('a user-editable user_metadata role is ignored', async () => {
+    fake.user = { id: 'u1', user_metadata: { lokshift: { role: 'admin' } }, app_metadata: meta('employee') }
+    expect(location(await middleware(req('/dashboard/users')))).toBe('/dashboard')
+  })
+})
+
+describe('a hanging Supabase never times out the site (QA P0-2)', () => {
+  it('answers within the time limit instead of hanging', async () => {
+    vi.useFakeTimers()
+    try {
+      fake.hang = true
+      const pending = middleware(req('/dashboard/times', { 'sb-test-auth-token': 'x' }))
+      await vi.advanceTimersByTimeAsync(4100)
+      const res = await pending
+      expect(location(res)).toBeNull() // page loads; RLS protects the data
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('without a session cookie a protected page still goes to the login', async () => {
+    vi.useFakeTimers()
+    try {
+      fake.hang = true
+      const pending = middleware(req('/dashboard/times'))
+      await vi.advanceTimersByTimeAsync(4100)
+      expect(location(await pending)).toBe('/login')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

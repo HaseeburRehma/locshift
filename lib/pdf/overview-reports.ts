@@ -47,15 +47,16 @@ function table(doc: jsPDF, startY: number, firstCol: string, rows: OverviewRow[]
     String(r.vacationDays), String(r.sickDays), String(r.workingDays),
     r.openEntries ? { content: String(r.openEntries), styles: { textColor: [180, 83, 9], fontStyle: 'bold' } } : '0',
     r.issueCount ? { content: String(r.issueCount), styles: { textColor: [185, 28, 28], fontStyle: 'bold' } } : '0',
+    r.missingShifts ? { content: String(r.missingShifts), styles: { textColor: [194, 65, 12], fontStyle: 'bold' } } : '0',
   ])
   autoTable(doc, {
     startY,
-    head: [[firstCol, 'Soll (Std.)', 'Arbeitszeit (Std.)', 'Gastfahrt (Std.)', 'Ist (Std.)', 'Differenz (Std.)', 'Urlaub (Tage)', 'Krank (Tage)', 'Arbeitstage', 'Offene Einträge', 'Fehlerhafte Einträge']],
+    head: [[firstCol, 'Soll (Std.)', 'Arbeitszeit (Std.)', 'Gastfahrt (Std.)', 'Ist (Std.)', 'Differenz (Std.)', 'Urlaub (Tage)', 'Krank (Tage)', 'Arbeitstage', 'Offene Einträge', 'Fehlerhafte Einträge', 'Fehlende Schichten']],
     body,
     foot: [[
       totalsLabel, h(totals.targetHours), h(totals.workHours), h(totals.gastfahrtHours), h(totals.actualHours),
       totals.differenceHours == null ? '–' : `${totals.differenceHours > 0 ? '+' : ''}${formatHours(totals.differenceHours, 'de')}`,
-      String(totals.vacationDays), String(totals.sickDays), String(totals.workingDays), String(totals.openEntries), String(totals.issueCount),
+      String(totals.vacationDays), String(totals.sickDays), String(totals.workingDays), String(totals.openEntries), String(totals.issueCount), String(totals.missingShifts),
     ]],
     theme: 'grid',
     showHead: 'everyPage',
@@ -64,7 +65,7 @@ function table(doc: jsPDF, startY: number, firstCol: string, rows: OverviewRow[]
     headStyles: { fillColor: BLUE, textColor: 255, fontStyle: 'bold', halign: 'center' },
     footStyles: { fillColor: [241, 245, 249], textColor: SLATE, fontStyle: 'bold', halign: 'center' },
     bodyStyles: { halign: 'center' },
-    columnStyles: { 0: { halign: 'left', cellWidth: 60 } },
+    columnStyles: { 0: { halign: 'left', cellWidth: 52 } },
   })
 }
 
@@ -78,6 +79,7 @@ function legend(doc: jsPDF, y: number, totals: OverviewTotals, gastfahrtCountsAs
     'Abwesenheitstage: Arbeitstage (Mo–Fr ohne Feiertag) mit genehmigtem Urlaub bzw. Krankmeldung. Die Übersicht ist keine Leistungsbewertung.',
     totals.openEntries ? `${totals.openEntries} Eintrag/Einträge sind noch nicht freigegeben – Werte können sich noch ändern.` : 'Alle Einträge sind freigegeben.',
     ...(totals.issueCount ? [`${totals.issueCount} Eintrag/Einträge mit Fehlern (z. B. 0 Stunden oder fehlendes Ende) – bitte im Monatsnachweis prüfen.`] : []),
+    ...(totals.missingShifts ? [`${totals.missingShifts} geplante Schicht(en) ohne erfasste Zeit (Fehlende Schichten) – bitte klären.`] : []),
   ]
   lines.forEach((l, i) => doc.text(pdfText(l), 12, y + i * 3.6))
 }

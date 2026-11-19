@@ -6,6 +6,7 @@ import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
 import { berlinDateKey, berlinToInstant } from '@/lib/time/berlin'
 import { addDays } from '@/lib/time/shift-hours'
 import { weekStartOf } from '@/lib/plans/week'
+import { hideInternal } from '@/lib/profiles/internal'
 
 export function useDashboardStats() {
   const { profile, isAdmin, isDispatcher } = useUser()
@@ -37,8 +38,8 @@ export function useDashboardStats() {
           { data: recentEntries },
           { data: activeEmployeesList }
         ] = await Promise.all([
-          supabase.from('profiles').select('*', { count: 'exact', head: true })
-            .eq('is_active', true).eq('organization_id', profile.organization_id),
+          hideInternal(supabase.from('profiles').select('*', { count: 'exact', head: true })
+            .eq('is_active', true).eq('organization_id', profile.organization_id), profile),
           supabase.from('plans').select('*', { count: 'exact', head: true })
             .in('status', ['assigned', 'draft']).eq('organization_id', profile.organization_id),
           supabase.from('time_entries').select('*', { count: 'exact', head: true })
@@ -53,9 +54,9 @@ export function useDashboardStats() {
             .eq('user_id', profile.id).eq('is_read', false),
           supabase.from('time_entries').select('*, employee:profiles!employee_id(*), customer:customers(*)')
             .eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(5),
-          supabase.from('profiles').select('id, full_name, avatar_url, role, last_lat, last_lng, last_location_update')
+          hideInternal(supabase.from('profiles').select('id, full_name, avatar_url, role, last_lat, last_lng, last_location_update')
             .eq('organization_id', profile.organization_id)
-            .eq('is_active', true)
+            .eq('is_active', true), profile)
             .limit(10)
         ])
 

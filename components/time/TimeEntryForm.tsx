@@ -15,11 +15,12 @@ import {
 } from '@/components/ui/select'
 import { TimeEntry, TimeEntryFormData, Plan } from '@/lib/types'
 import { calculateSpesen, spesenTierLabel } from '@/lib/spesen'
-import { addDays, calculateShiftTimes, isValidTime, localDateKey, localTimeKey } from '@/lib/time/shift-hours'
+import { addDays, calculateShiftTimes, isValidDate, isValidTime, localDateKey, localTimeKey } from '@/lib/time/shift-hours'
 import { formatDateDE, formatHours, formatHoursLong, formatShiftRange } from '@/lib/time/format'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import { BetriebsstelleSelector } from '@/components/shared/BetriebsstelleSelector'
+import { DateField } from '@/components/shared/DateField'
 import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 import { useTranslation } from '@/lib/i18n'
 
@@ -120,7 +121,8 @@ export function TimeEntryForm({
   // one pre-fills times, customer and Betriebsstellen (Punkt 4).
   useEffect(() => {
     const emp = formData.employeeId || (!showEmployeePicker ? initialData?.employee_id : '')
-    if (!emp || !formData.date) {
+    // Half-typed years (0002 → 0202 → 2026) arrive here while typing.
+    if (!emp || !isValidDate(formData.date)) {
       setPlans([])
       return
     }
@@ -186,6 +188,7 @@ export function TimeEntryForm({
   const errors: string[] = []
   if (showEmployeePicker && !formData.employeeId) errors.push(t('Bitte einen Mitarbeiter auswählen.', 'Please select an employee.'))
   if (!formData.date) errors.push(t('Bitte ein Datum angeben.', 'Please enter a date.'))
+  else if (!isValidDate(formData.date)) errors.push(t('Bitte ein gültiges Datum angeben (TT.MM.JJJJ).', 'Please enter a valid date.'))
   if (!isValidTime(formData.startTime) || !isValidTime(formData.endTime)) {
     errors.push(t('Bitte Beginn und Ende angeben (HH:MM).', 'Please enter start and end (HH:MM).'))
   } else if (formData.startTime === formData.endTime) {
@@ -303,10 +306,10 @@ export function TimeEntryForm({
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center transition-all group-focus-within:bg-blue-100">
                     <Calendar className="w-5 h-5 text-blue-600" />
                     </div>
-                    <Input 
-                    type="date"
+                    <DateField
+                    as={Input}
                     value={formData.date}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, date: e.target.value })}
+                    onValueChange={(date) => setFormData((f) => ({ ...f, date }))}
                     className="h-14 pl-16 rounded-2xl border-gray-100 bg-gray-50/50 font-bold focus:bg-white transition-all border-2 focus:border-blue-500/20"
                     />
                 </div>

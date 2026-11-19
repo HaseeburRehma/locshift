@@ -101,6 +101,21 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
   const body: RowInput[] = []
   for (const d of report.days) {
     const dateCell = formatDateDE(d.date)
+    // Planned shifts without any time entry (QA P1-1).
+    const MISSING: [number, number, number] = [255, 237, 213]
+    for (const m of d.missing) {
+      const style = { fillColor: MISSING, textColor: [154, 52, 18] as [number, number, number] }
+      const info = [m.label, m.isGastfahrt ? 'Gastfahrt' : null, m.customer, m.route].filter(Boolean).join(' · ')
+      body.push([
+        { content: dateCell, styles: style },
+        { content: d.weekdayShort, styles: style },
+        { content: m.start, styles: style },
+        { content: `${m.end}${m.endDayOffset > 0 ? ` (+${m.endDayOffset})` : ''}`, styles: style },
+        { content: '', colSpan: 9, styles: style },
+        { content: pdfText(`Geplant – keine Zeit erfasst${info ? ` · ${info}` : ''}`), styles: { ...style, fontStyle: 'bold' } },
+      ])
+    }
+    if (d.rows.length === 0 && d.missing.length > 0) continue
     if (d.rows.length === 0) {
       const remark = d.absence?.label ?? d.holidayName ?? (d.isWeekend ? '' : '')
       const fill: [number, number, number] | undefined = d.absence
@@ -243,6 +258,7 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
     `Nachtzuschlag 25 %: ${hhmm(rules.night25From)}–${hhmm(rules.night25To)} Uhr, 40 %: ${hhmm(rules.night40From)}–${hhmm(rules.night40To)} Uhr. Sonn-/Feiertag: nur die Stunden, die auf den Tag fallen (Feiertage ${rules.holidayState ?? DEFAULT_STATE}; ${rules.excludedHolidayNames.join(', ')} separat vergütet).`,
     'Eine Schicht zählt zum Tag ihres Beginns. Spesen werden je Kalendertag einmal berücksichtigt. Gastfahrt wird separat ausgewiesen und nicht doppelt gezählt.',
     t.openEntries ? `${t.openEntries} Eintrag/Einträge noch nicht freigegeben (in der Spalte Status markiert).` : 'Alle Einträge sind freigegeben.',
+    ...(t.missingShifts ? [`${t.missingShifts} geplante Schicht(en) ohne erfasste Zeit (orange markiert).`] : []),
     ...report.warnings,
   ]
   if (y > 175) {

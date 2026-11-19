@@ -18,6 +18,7 @@ import { usePersonnelDocuments } from '@/hooks/personnel/usePersonnelDocuments'
 import { DocumentForm } from '@/components/personnel/DocumentForm'
 import { DocumentTable } from '@/components/personnel/DocumentTable'
 import { DOC_TYPES, docStatus, docTypeLabel, type DocStatus, type DocType, type PersonnelDocument } from '@/lib/personnel/documents'
+import { hideInternal } from '@/lib/profiles/internal'
 
 export default function PersonnelPage() {
   const { profile } = useUser()
@@ -34,10 +35,10 @@ export default function PersonnelPage() {
 
   useEffect(() => {
     if (!profile?.organization_id) return
-    createClient()
-      .from('profiles')
-      .select('id, full_name, role, is_active')
-      .eq('organization_id', profile.organization_id)
+    hideInternal(
+      createClient().from('profiles').select('id, full_name, role, is_active').eq('organization_id', profile.organization_id),
+      profile,
+    )
       .order('full_name')
       .then(({ data }: { data: Array<{ id: string; full_name: string | null; role: string | null; is_active: boolean | null }> | null }) =>
         setEmployees((data ?? []).filter((p) => p.is_active !== false)),
@@ -180,7 +181,7 @@ export default function PersonnelPage() {
       )}
 
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <DialogContent className="max-w-xl rounded-2xl p-6 max-h-[92vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-xl rounded-2xl p-6 max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">
               {form?.mode === 'renew' ? L('Nachweis erneuern', 'Renew document') : form?.mode === 'edit' ? L('Nachweis bearbeiten', 'Edit document') : L('Nachweis hinzufügen', 'Add document')}

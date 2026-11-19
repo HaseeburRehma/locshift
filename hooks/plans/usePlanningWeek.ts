@@ -10,6 +10,7 @@ import { addDays, localDateKey } from '@/lib/time/shift-hours'
 import type { WeekAbsence, WeekQualification } from '@/lib/plans/week'
 import { notifyPlanAssigned, notifyPlanRemoved } from '@/lib/plans/notify'
 import { dbErrorMessage } from '@/lib/times/entry-status'
+import { hideInternal } from '@/lib/profiles/internal'
 
 export const WEEK_PLAN_SELECT =
   '*, employee:profiles!employee_id(id, full_name), customer:customers(id, name), start_location:operational_locations!start_location_id(id, name, short_code), destination_location:operational_locations!destination_location_id(id, name, short_code)'
@@ -56,11 +57,10 @@ export function usePlanningWeek(weekStart: string, opts: { onlyEmployeeId?: stri
       .order('start_time')
     if (opts.onlyEmployeeId) plansQ = plansQ.eq('employee_id', opts.onlyEmployeeId)
 
-    let empQ = supabase
-      .from('profiles')
-      .select('id, full_name, role, phone, avatar_url, is_active')
-      .eq('organization_id', orgId)
-      .order('full_name')
+    let empQ = hideInternal(
+      supabase.from('profiles').select('id, full_name, role, phone, avatar_url, is_active').eq('organization_id', orgId),
+      profile,
+    ).order('full_name')
     if (opts.onlyEmployeeId) empQ = empQ.eq('id', opts.onlyEmployeeId)
 
     let absQ = supabase
@@ -105,7 +105,7 @@ export function usePlanningWeek(weekStart: string, opts: { onlyEmployeeId?: stri
     setQualifications((qualRes.data ?? []) as WeekQualification[])
     setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.organization_id, weekStart, opts.onlyEmployeeId, supabase])
+  }, [profile?.organization_id, profile?.is_internal, weekStart, opts.onlyEmployeeId, supabase])
 
   useEffect(() => {
     fetchAll()

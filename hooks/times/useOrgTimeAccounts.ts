@@ -6,6 +6,7 @@ import { TimeAccount } from '@/lib/types'
 import { useUser } from '@/lib/user-context'
 import { fetchAllPages } from '@/lib/supabase/paginate'
 import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
+import { hideInternal } from '@/lib/profiles/internal'
 
 export function useOrganizationTimeAccounts() {
   const [accounts, setAccounts] = useState<TimeAccount[]>([])
@@ -19,11 +20,14 @@ export function useOrganizationTimeAccounts() {
     if (!isSilent) setLoading(true)
 
     // 1. Fetch all employees in the organization
-    const { data: employees, error: empError } = await supabase
-      .from('profiles')
-      .select('id, full_name, role, target_hours')
-      .eq('organization_id', profile.organization_id)
-      .eq('role', 'employee')
+    const { data: employees, error: empError } = await hideInternal(
+      supabase
+        .from('profiles')
+        .select('id, full_name, role, target_hours')
+        .eq('organization_id', profile.organization_id)
+        .eq('role', 'employee'),
+      profile,
+    )
 
     if (empError) {
       console.error('[useOrgTimeAccounts] Emp fetch error:', empError)

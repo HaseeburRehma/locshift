@@ -33,6 +33,7 @@ import LocationPickerModal from './LocationPickerModal'
 import { ShiftTemplatePicker, type TemplatePayload } from './ShiftTemplatePicker'
 import { BetriebsstelleSelector } from './BetriebsstelleSelector'
 import { useOperationalLocations } from '@/hooks/useOperationalLocations'
+import { DateField } from '@/components/shared/DateField'
 
 interface PlanFormProps {
   onSuccess?: () => void
@@ -514,10 +515,10 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
                     <Label className="text-[11px] font-medium text-slate-500 tracking-wide pl-1">
                       {locale === 'de' ? 'Startdatum' : 'Start Date'}
                     </Label>
-                    <Input
-                      type="date"
+                    <DateField
+                      as={Input}
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onValueChange={setStartDate}
                       className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white transition-all text-sm"
                     />
                   </div>
@@ -536,10 +537,10 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
                     <Label className="text-[11px] font-medium text-slate-500 tracking-wide pl-1">
                       {locale === 'de' ? 'Enddatum' : 'End Date'}
                     </Label>
-                    <Input
-                      type="date"
+                    <DateField
+                      as={Input}
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onValueChange={setEndDate}
                       className="h-14 rounded-xl border border-slate-100 bg-slate-50/30 font-medium px-6 focus:bg-white transition-all text-sm"
                     />
                   </div>

@@ -13,6 +13,8 @@ import type { SpecialPaymentInput } from '@/hooks/useHolidayBonus'
 import { DISTRIBUTIONS, SPECIAL_PAYMENT_TYPES, monthsInPeriod, specialPaymentTypeLabel } from '@/lib/special-payments'
 import { formatEuro } from '@/lib/time/format'
 import { cn } from '@/lib/utils'
+import { DateField } from '@/components/shared/DateField'
+import { hideInternal } from '@/lib/profiles/internal'
 
 interface Props {
   initial?: HolidayBonus | null
@@ -49,10 +51,10 @@ export function SpecialPaymentForm({ initial, onSubmit, onCancel }: Props) {
 
   useEffect(() => {
     if (!profile?.organization_id) return
-    createClient()
-      .from('profiles')
-      .select('id, full_name, is_active')
-      .eq('organization_id', profile.organization_id)
+    hideInternal(
+      createClient().from('profiles').select('id, full_name, is_active').eq('organization_id', profile.organization_id),
+      profile,
+    )
       .order('full_name')
       .then(({ data }: { data: Array<{ id: string; full_name: string | null; is_active: boolean | null }> | null }) =>
         setEmployees((data ?? []).filter((p) => p.is_active !== false || p.id === initial?.employee_id)),
@@ -163,17 +165,17 @@ export function SpecialPaymentForm({ initial, onSubmit, onCancel }: Props) {
         {distribution === 'once' ? (
           <div className="space-y-1">
             <span className="text-xs font-bold text-gray-500">{L('Abrechnungsmonat', 'Billing month')}</span>
-            <input type="month" className={field} value={billingMonth} onChange={(e) => setBillingMonth(e.target.value)} />
+            <DateField type="month" className={field} value={billingMonth} onValueChange={setBillingMonth} />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <span className="text-xs font-bold text-gray-500">{L('Gültig von', 'Valid from')}</span>
-              <input type="month" className={field} value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} />
+              <DateField type="month" className={field} value={fromMonth} onValueChange={setFromMonth} />
             </div>
             <div className="space-y-1">
               <span className="text-xs font-bold text-gray-500">{L('bis', 'to')}</span>
-              <input type="month" className={field} value={toMonth} onChange={(e) => setToMonth(e.target.value)} />
+              <DateField type="month" className={field} value={toMonth} onValueChange={setToMonth} />
             </div>
           </div>
         )}

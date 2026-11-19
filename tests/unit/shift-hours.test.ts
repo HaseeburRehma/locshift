@@ -4,6 +4,7 @@ import {
   calculateNetHours,
   calculateShiftTimes,
   endDayOffset,
+  entryNetHours,
   hoursBetween,
   isValidDate,
   isValidTime,
@@ -122,5 +123,50 @@ describe('shiftIssues', () => {
   })
   it('ignores planned entries', () => {
     expect(shiftIssues({ start_time: at('2026-10-20', '08:00'), end_time: null, is_planned: true })).toEqual([])
+  })
+})
+
+describe('half-typed dates never break anything (QA P0-1)', () => {
+  // What a date input reports while the year is typed digit by digit.
+  const typing = ['0002-10-14', '0020-10-14', '0202-10-14', '', '2026-02-30', '2026-13-01', '1999-12-31', '2101-01-01', '275760-09-13', '+002026-10-14']
+
+  it.each(typing)('%s is not a valid date', (v) => {
+    expect(isValidDate(v)).toBe(false)
+  })
+  it.each(['2026-10-14', '2000-01-01', '2100-12-31', '2028-02-29'])('%s is valid', (v) => {
+    expect(isValidDate(v)).toBe(true)
+  })
+  it('addDays keeps 4-digit years and never yields an unparsable string', () => {
+    expect(addDays('0202-10-14', -1)).toBe('0202-10-13')
+    expect(addDays('0002-01-01', -1)).toBe('0001-12-31')
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28')
+    expect(addDays('2028-02-28', 1)).toBe('2028-02-29')
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01')
+    expect(addDays('', 1)).toBe('')
+  })
+  it.each(typing)('calculateShiftTimes(%s) returns finite instants', (v) => {
+    const s = calculateShiftTimes(v, '08:00', '16:00', 0)
+    expect(() => new Date(s.startISO).toISOString()).not.toThrow()
+    expect(s.netHours).toBe(0)
+  })
+})
+
+describe('isValidMonth', () => {
+  it('accepts only complete months in range', async () => {
+    const { isValidMonth } = await import('@/components/shared/DateField')
+    expect(isValidMonth('2026-10')).toBe(true)
+    for (const v of ['0202-10', '2026-13', '', '2026-1', '1999-12']) expect(isValidMonth(v)).toBe(false)
+  })
+})
+
+describe('one rounding rule (QA P2-6)', () => {
+  it('a clock-in and clock-out within the same minute is 0,00 h everywhere', () => {
+    const e = { start_time: '2026-11-19T13:49:06.536Z', end_time: '2026-11-19T13:49:24.365Z', break_minutes: 0 }
+    expect(entryNetHours(e)).toBe(0)
+    expect(calculateShiftTimes('2026-11-19', '14:49', '14:49', 0).netHours).toBe(0)
+  })
+  it('counts whole minutes like the HH:MM review', () => {
+    expect(hoursBetween('2026-11-19T08:00:59Z', '2026-11-19T16:00:01Z', 0)).toBe(8)
+    expect(hoursBetween('2026-11-19T08:00:00Z', '2026-11-19T16:30:00Z', 30)).toBe(8)
   })
 })

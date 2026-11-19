@@ -31,6 +31,8 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
 import type { Customer, Profile } from '@/lib/types'
+import { DateField } from '@/components/shared/DateField'
+import { hideInternal } from '@/lib/profiles/internal'
 
 export default function BulkPlansPage() {
   const router = useRouter()
@@ -55,7 +57,7 @@ export default function BulkPlansPage() {
     if (!profile?.organization_id) return
     const supabase = createClient()
     Promise.all([
-      supabase.from('profiles').select('*').eq('organization_id', profile.organization_id).eq('role', 'employee').eq('is_active', true),
+      hideInternal(supabase.from('profiles').select('*').eq('organization_id', profile.organization_id).eq('role', 'employee').eq('is_active', true), profile),
       supabase.from('customers').select('*').eq('organization_id', profile.organization_id).eq('is_active', true),
     ]).then(([emp, cust]) => {
       if (emp.data) setEmployees(emp.data as Profile[])
@@ -160,11 +162,11 @@ export default function BulkPlansPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label className="text-xs font-bold text-gray-500">{L('Von', 'From')}</Label>
-          <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+          <DateField as={Input} value={fromDate} onValueChange={setFromDate} />
         </div>
         <div className="space-y-2">
           <Label className="text-xs font-bold text-gray-500">{L('Bis', 'To')}</Label>
-          <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
+          <DateField as={Input} value={toDate} onValueChange={setToDate} />
         </div>
       </div>
 

@@ -28,6 +28,7 @@ import { absenceOn, hasStarted, isoWeek, planEndDay, planStartDay, weekDays, wee
 import { addDays, localDateKey } from '@/lib/time/shift-hours'
 import { formatDateDE, formatTimeOfDay, weekdayName } from '@/lib/time/format'
 import { publicHolidayName } from '@/lib/time/zuschlag'
+import { DateField } from '@/components/shared/DateField'
 
 const UNASSIGNED_ROW = '__unassigned__'
 
@@ -207,10 +208,9 @@ function WeekPlanning() {
           </Button>
           <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 h-10">
             <CalendarDays className="w-4 h-4 text-slate-400" />
-            <input
-              type="date"
+            <DateField
               value={weekStart}
-              onChange={(e) => e.target.value && setWeekStart(weekStartOf(e.target.value))}
+              onValueChange={(v) => setWeekStart(weekStartOf(v))}
               className="bg-transparent text-sm font-bold text-slate-700 outline-none"
               aria-label={L('Woche wählen', 'Pick week')}
             />

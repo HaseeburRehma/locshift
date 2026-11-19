@@ -25,6 +25,8 @@ import { buildMonthOverview, buildMultiMonthReport, type OverviewRow, type Overv
 import { formatHours, formatSignedHours, monthShort } from '@/lib/time/format'
 import { buildMonthOverviewPdf, buildMultiMonthPdf } from '@/lib/pdf/overview-reports'
 import { downloadMonthOverviewXlsx, downloadMultiMonthXlsx } from '@/lib/excel/monatsnachweis'
+import { DateField } from '@/components/shared/DateField'
+import { hideInternal } from '@/lib/profiles/internal'
 
 function currentMonth(offset = 0): string {
   const d = new Date()
@@ -63,10 +65,10 @@ function OverviewReports() {
 
   useEffect(() => {
     if (!profile?.organization_id) return
-    supabase
-      .from('profiles')
-      .select('id, full_name, role, is_active')
-      .eq('organization_id', profile.organization_id)
+    hideInternal(
+      supabase.from('profiles').select('id, full_name, role, is_active').eq('organization_id', profile.organization_id),
+      profile,
+    )
       .order('full_name')
       .then(({ data }: { data: Array<{ id: string; full_name: string | null; role: string | null; is_active: boolean | null }> | null }) => {
         const list = (data ?? [])
@@ -89,12 +91,13 @@ function OverviewReports() {
     try {
       const s =
         tab === 'month'
-          ? await loadReportSources(supabase, { organizationId: profile.organization_id, fromMonth: month })
+          ? await loadReportSources(supabase, { organizationId: profile.organization_id, fromMonth: month, includeInternal: !!profile.is_internal })
           : await loadReportSources(supabase, {
               organizationId: profile.organization_id,
               fromMonth: from <= to ? from : to,
               toMonth: from <= to ? to : from,
               employeeIds: employeeId ? [employeeId] : undefined,
+              includeInternal: !!profile.is_internal,
             })
       setSources(s)
     } catch (e) {
@@ -109,9 +112,14 @@ function OverviewReports() {
     load()
   }, [load])
 
-  const employees = useMemo(
-    () => (sources?.employees ?? []).filter((e) => e.isActive && (includeAll || DRIVER_ROLES.includes(e.role))),
-    [sources, includeAll],
+  // Drivers by default; anyone else as soon as they recorded time in the
+  // period (an admin who also drives must never drop out of the totals).
+  const employees = useMemo(() => {
+    const withTime = new Set((sources?.entries ?? []).filter((e) => !e.is_planned).map((e) => e.employee_id))
+    return (sources?.employees ?? []).filter(
+      (e) => (e.isActive || withTime.has(e.id)) && (includeAll || DRIVER_ROLES.includes(e.role) || withTime.has(e.id)),
+    )
+  }, [sources, includeAll],
   )
 
   const monthOverview = useMemo(() => {
@@ -123,6 +131,7 @@ function OverviewReports() {
       absences: sources.absences,
       specialPayments: sources.specialPayments,
       perDiemClaims: sources.perDiemClaims,
+      plans: sources.plans,
       rules: surchargeRules,
       spesenRates,
       locale,
@@ -141,6 +150,7 @@ function OverviewReports() {
       absences: sources.absences,
       specialPayments: sources.specialPayments,
       perDiemClaims: sources.perDiemClaims,
+      plans: sources.plans,
       rules: surchargeRules,
       spesenRates,
       locale,
@@ -194,7 +204,7 @@ function OverviewReports() {
 
         {tab === 'month' ? (
           <>
-            <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold" aria-label={L('Monat', 'Month')} />
+            <DateField type="month" value={month} onValueChange={setMonth} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold" aria-label={L('Monat', 'Month')} />
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 px-2">
               <input type="checkbox" checked={includeAll} onChange={(e) => setIncludeAll(e.target.checked)} />
               {L('auch Admin/Disposition', 'include admin/dispatch')}
@@ -213,9 +223,9 @@ function OverviewReports() {
               </SelectContent>
             </Select>
             <span className="text-sm font-bold text-slate-400">{L('von', 'from')}</span>
-            <input type="month" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold" />
+            <DateField type="month" value={from} onValueChange={setFrom} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold" />
             <span className="text-sm font-bold text-slate-400">{L('bis', 'to')}</span>
-            <input type="month" value={to} onChange={(e) => e.target.value && setTo(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold" />
+            <DateField type="month" value={to} onValueChange={setTo} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold" />
           </>
         )}
 
@@ -312,7 +322,7 @@ function OverviewTable({
   const h = (n: number | null) => (n == null ? '–' : formatHours(n, locale))
   const heads = [
     firstCol, L('Soll', 'Target'), L('Arbeitszeit', 'Working time'), 'Gastfahrt', L('Ist', 'Actual'), L('Differenz', 'Difference'),
-    L('Urlaub (Tage)', 'Vacation (days)'), L('Krank (Tage)', 'Sick (days)'), L('Arbeitstage', 'Working days'), L('Offen', 'Open'), L('Fehler', 'Issues'),
+    L('Urlaub (Tage)', 'Vacation (days)'), L('Krank (Tage)', 'Sick (days)'), L('Arbeitstage', 'Working days'), L('Offen', 'Open'), L('Fehler', 'Issues'), L('Fehlend', 'Missing'),
   ]
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -337,6 +347,7 @@ function OverviewTable({
                 <td className="px-4 py-2.5 text-right tabular-nums">{r.workingDays}</td>
                 <td className={cn('px-4 py-2.5 text-right tabular-nums', r.openEntries ? 'font-black text-amber-700' : 'text-slate-400')}>{r.openEntries}</td>
                 <td className={cn('px-4 py-2.5 text-right tabular-nums', r.issueCount ? 'font-black text-red-700' : 'text-slate-400')}>{r.issueCount}</td>
+                <td className={cn('px-4 py-2.5 text-right tabular-nums', r.missingShifts ? 'font-black text-orange-700' : 'text-slate-400')} title={L('Geplante Schichten ohne erfasste Zeit', 'Planned shifts without recorded time')}>{r.missingShifts}</td>
               </tr>
             ))}
           </tbody>
@@ -353,6 +364,7 @@ function OverviewTable({
               <td className="px-4 py-3 text-right tabular-nums">{totals.workingDays}</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.openEntries}</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.issueCount}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{totals.missingShifts}</td>
             </tr>
           </tfoot>
         </table>

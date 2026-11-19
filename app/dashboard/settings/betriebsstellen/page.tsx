@@ -32,6 +32,7 @@ import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 import type { OperationalLocation, OperationalLocationType } from '@/lib/types'
 import { LocationImportDialog } from '@/components/locations/LocationImportDialog'
 import { searchLocations } from '@/lib/operational-locations/parse'
+import { useConfirm } from '@/components/shared/ConfirmDialog'
 
 const TYPE_OPTIONS: { value: OperationalLocationType; label: string }[] = [
   { value: 'depot',    label: 'Depot' },
@@ -61,6 +62,7 @@ const EMPTY_FORM: FormState = {
 }
 
 export default function BetriebsstellenPage() {
+  const confirm = useConfirm()
   const { isAdmin, isDispatcher, isLoading: userLoading } = useUser()
   const {
     locations, loading, createLocation, updateLocation, toggleActive, deleteLocation, importLocations,
@@ -132,9 +134,14 @@ export default function BetriebsstellenPage() {
   }
 
   const handleDelete = async (loc: OperationalLocation) => {
-    const confirmed = window.confirm(
-      `Betriebsstelle „${loc.name}" wirklich löschen? Bestehende Einsätze verlieren die Verknüpfung, bleiben aber erhalten.`,
-    )
+    const confirmed = await confirm({
+      title: 'Betriebsstelle löschen?',
+      details: [loc.short_code ? `${loc.name} (${loc.short_code})` : loc.name],
+      note: 'Bestehende Einsätze verlieren die Verknüpfung, bleiben aber erhalten.',
+      confirmLabel: 'Löschen',
+      cancelLabel: 'Abbrechen',
+      destructive: true,
+    })
     if (!confirmed) return
     await deleteLocation(loc.id)
   }

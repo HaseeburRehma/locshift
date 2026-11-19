@@ -5,19 +5,24 @@
  * employees and for admin/dispatch, each step linked to the screen.
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronDown, FileDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUser } from '@/lib/user-context'
+
+/** A step, optionally with a screenshot from public/help (QA P2-7). */
+type Step = string | { text: string; image: string; alt?: string }
 
 interface Guide {
   title: string
   summary: string
-  steps: string[]
+  steps: Step[]
   href?: string
   linkLabel?: string
 }
+
+const stepText = (s: Step) => (typeof s === 'string' ? s : s.text)
 
 const EMPLOYEE: Guide[] = [
   {
@@ -36,7 +41,7 @@ const EMPLOYEE: Guide[] = [
     title: 'Schicht starten, Pause und beenden',
     summary: 'Zeiterfassung direkt auf der Übersicht.',
     steps: [
-      'Auf der Übersicht „Schicht starten“ tippen. Die geplante Schicht wird automatisch zugeordnet.',
+      { text: 'Auf der Übersicht „Schicht starten“ tippen. Die geplante Schicht wird automatisch zugeordnet.', image: '/help/mitarbeiter-uebersicht.jpg', alt: 'Übersicht mit Schicht starten' },
       'Für eine Pause „Pause machen“, danach „Fortsetzen“ tippen. Ohne Pause bleibt die Pause bei 0 Minuten – das ist erlaubt.',
       'Am Ende „Beenden“ tippen. Die Zeit stoppt, und die Abschlussansicht öffnet sich.',
     ],
@@ -47,7 +52,7 @@ const EMPLOYEE: Guide[] = [
     title: 'Abschlussansicht: Zeiten prüfen und absenden',
     summary: 'Geplant, erfasst und abzusendende Werte nebeneinander.',
     steps: [
-      'Prüfen Sie Beginn, Ende und Pause. Die Arbeitszeit wird sofort berechnet (z. B. 22:00–08:00 = 10,00 Std.; Ende am Folgetag wird erkannt).',
+      { text: 'Prüfen Sie Beginn, Ende und Pause. Die Arbeitszeit wird sofort berechnet (z. B. 22:00–08:00 = 10,00 Std.; Ende am Folgetag wird erkannt).', image: '/help/abschlussansicht.jpg', alt: 'Abschlussansicht mit Geplant, Erfasst und Absenden' },
       '„Planzeit übernehmen“ setzt Beginn und Ende auf die geplanten Zeiten.',
       'Haben Sie länger gearbeitet, tragen Sie die tatsächlichen Zeiten ein.',
       '„Übernachtung“ einschalten, falls zutreffend – die Spesen werden angepasst.',
@@ -104,7 +109,7 @@ const MANAGER: Guide[] = [
     title: 'Schichten anlegen und zuweisen',
     summary: 'Einzeln, für mehrere Tage/Mitarbeiter oder direkt aus der Wochenplanung.',
     steps: [
-      '„Wochenplanung“ öffnen und in der Zeile des Mitarbeiters auf das „+“ des Tages klicken – Datum und Mitarbeiter sind vorausgefüllt.',
+      { text: '„Wochenplanung“ öffnen und in der Zeile des Mitarbeiters auf das „+“ des Tages klicken – Datum und Mitarbeiter sind vorausgefüllt.', image: '/help/wochenplanung.jpg', alt: 'Wochenplanung mit Schichtkarten' },
       'Schichtbezeichnung, Zeiten, Kunde sowie Start- und Zielbetriebsstelle (Suche nach Name oder Kürzel) eintragen.',
       'Endet die Schicht nach Mitternacht, wird sie automatisch dem Folgetag zugeordnet.',
       '„Unbesetzt“ wählen, wenn noch niemand feststeht. Der Mitarbeiter wird per App und E-Mail informiert.',
@@ -128,7 +133,7 @@ const MANAGER: Guide[] = [
     title: 'Freigaben und Korrekturanträge',
     summary: 'Alles, was geprüft werden muss, an einer Stelle.',
     steps: [
-      '„Freigaben“ öffnen.',
+      { text: '„Freigaben“ öffnen.', image: '/help/freigaben.jpg', alt: 'Freigaben mit fehlenden Schichten' },
       'Korrekturanträge: bisherige und beantragte Werte vergleichen, optional Hinweis eingeben, dann „Genehmigen & übernehmen“ oder „Ablehnen“.',
       'Abgesendete Zeiten einzeln oder gesammelt freigeben. Einträge mit Fehlern (z. B. 0 Stunden) können erst nach Korrektur freigegeben werden.',
       'Nicht abgesendete oder noch laufende Schichten: „Erinnern“ sendet dem Mitarbeiter eine Nachricht.',
@@ -141,7 +146,7 @@ const MANAGER: Guide[] = [
     title: 'Stunden stellvertretend erfassen',
     summary: 'Zeiten für einen Lokführer eintragen.',
     steps: [
-      '„Zeiterfassung“ → „Eintrag hinzufügen“.',
+      { text: '„Zeiterfassung“ → „Eintrag hinzufügen“.', image: '/help/zeiterfassung.jpg', alt: 'Zeiterfassung mit Eintrag hinzufügen' },
       'Mitarbeiter und Datum wählen; unter „Geplante Schicht übernehmen“ eine Schicht auswählen – Zeiten und Details werden vorausgefüllt.',
       'Pause eintragen (0 ist erlaubt) und speichern, optional „Direkt freigeben“.',
       'Bei möglicher Doppelerfassung erscheint eine Warnung. Der Mitarbeiter sieht den Eintrag als „stellvertretend erfasst“.',
@@ -153,7 +158,7 @@ const MANAGER: Guide[] = [
     title: 'Monatsnachweis, Spesen und Sonderzahlungen',
     summary: 'Ein Nachweis pro Mitarbeiter und Monat – identisch in App, PDF und Excel.',
     steps: [
-      '„Monatsnachweis“ öffnen, Mitarbeiter und Monat wählen.',
+      { text: '„Monatsnachweis“ öffnen, Mitarbeiter und Monat wählen.', image: '/help/monatsnachweis.jpg', alt: 'Monatsnachweis' },
       'Kopf: Soll-Stunden, Erstellungsdatum und Freigabestatus. Tageszeilen mit Zuschlägen 25 %/40 %, Sonn-/Feiertag, Gastfahrt und Spesen.',
       'Sonderzahlungen unter „Sonderzahlungen“ anlegen (einmalig, monatlich oder anteilig) – sie erscheinen automatisch im passenden Monat.',
       'PDF (Querformat, Kopfzeile auf jeder Seite) oder Excel exportieren.',
@@ -203,7 +208,40 @@ export default function HelpPage() {
   const isManager = isAdmin || isDispatcher
   const [tab, setTab] = useState<'employee' | 'manager'>(isManager ? 'manager' : 'employee')
   const [open, setOpen] = useState<number | null>(0)
+  const [printing, setPrinting] = useState(false)
   const guides = tab === 'manager' ? MANAGER : EMPLOYEE
+
+  // PDF for the client: every guide of both roles expanded, via the
+  // browser's "Als PDF speichern".
+  useEffect(() => {
+    if (!printing) return
+    const done = () => setPrinting(false)
+    window.addEventListener('afterprint', done)
+    const t = window.setTimeout(() => window.print(), 300)
+    return () => {
+      window.clearTimeout(t)
+      window.removeEventListener('afterprint', done)
+    }
+  }, [printing])
+
+  if (printing) {
+    return (
+      <div className="help-print max-w-3xl mx-auto px-6 py-6 space-y-8 bg-white">
+        <h1 className="text-2xl font-bold text-[#0064E0]">LokShift – Anleitung</h1>
+        {([['Mitarbeiter', EMPLOYEE], ['Admin & Disposition', MANAGER]] as const).map(([label, list]) => (
+          <section key={label} className="space-y-6">
+            <h2 className="text-xl font-black text-slate-900 border-b border-slate-200 pb-1">{label}</h2>
+            {list.map((g, i) => (
+              <GuideBody key={g.title} guide={g} index={i} printing />
+            ))}
+          </section>
+        ))}
+        <p className="text-xs text-slate-400 print:hidden">
+          <button className="underline" onClick={() => setPrinting(false)}>Zurück zur Anleitung</button>
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
@@ -212,6 +250,13 @@ export default function HelpPage() {
           <BookOpen className="w-7 h-7" /> Anleitung
         </h1>
         <p className="text-sm text-slate-400 font-medium">Kurzanleitungen zu den wichtigsten Abläufen in LokShift.</p>
+        <button
+          type="button"
+          onClick={() => setPrinting(true)}
+          className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 h-10 text-sm font-bold text-slate-700 hover:bg-slate-50"
+        >
+          <FileDown className="w-4 h-4" /> Als PDF speichern
+        </button>
       </div>
 
       {isManager && (
@@ -244,14 +289,7 @@ export default function HelpPage() {
             </button>
             {open === i && (
               <div className="border-t border-slate-100 px-5 py-4 space-y-3">
-                <ol className="space-y-2">
-                  {g.steps.map((s, n) => (
-                    <li key={n} className="flex gap-3 text-sm text-slate-700">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-black text-slate-600">{n + 1}</span>
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ol>
+                <StepList steps={g.steps} />
                 {g.href && (
                   <Link href={g.href} className="inline-flex items-center gap-1 text-sm font-bold text-[#0064E0] hover:underline">
                     {g.linkLabel} <ArrowRight className="w-4 h-4" />
@@ -263,5 +301,36 @@ export default function HelpPage() {
         ))}
       </div>
     </div>
+  )
+}
+
+function StepList({ steps }: { steps: Step[] }) {
+  return (
+    <ol className="space-y-3">
+      {steps.map((s, n) => (
+        <li key={n} className="flex gap-3 text-sm text-slate-700 break-inside-avoid">
+          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-black text-slate-600">{n + 1}</span>
+          <span className="flex-1 min-w-0 space-y-2">
+            <span className="block">{stepText(s)}</span>
+            {typeof s !== 'string' && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={s.image} alt={s.alt ?? stepText(s)} loading="lazy" className="w-full max-w-xl rounded-xl border border-slate-200 shadow-sm" />
+            )}
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function GuideBody({ guide, index }: { guide: Guide; index: number; printing?: boolean }) {
+  return (
+    <article className="space-y-3 break-inside-avoid-page">
+      <h3 className="text-base font-black text-slate-900">
+        {index + 1}. {guide.title}
+      </h3>
+      <p className="text-sm text-slate-500">{guide.summary}</p>
+      <StepList steps={guide.steps} />
+    </article>
   )
 }

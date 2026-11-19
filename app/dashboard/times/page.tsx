@@ -16,12 +16,14 @@ import { createClient } from '@/lib/supabase/client'
 import type { TimeEntry, TimeEntryFormData } from '@/lib/types'
 import { useProfiles } from '@/hooks/useProfiles'
 import { calculateSpesen } from '@/lib/spesen'
-import { calculateShiftTimes, localDateKey } from '@/lib/time/shift-hours'
+import { calculateShiftTimes, entryNetHours, localDateKey } from '@/lib/time/shift-hours'
 import { formatDateDE, formatHours, formatShiftRange } from '@/lib/time/format'
 import { TIME_ENTRY_SELECT, dbErrorMessage, entryStatus } from '@/lib/times/entry-status'
 import { sendNotification } from '@/lib/notifications/service'
 import { exportWorkingTimePdf, slugify } from '@/lib/pdf/exportPdf'
 import { useTranslation } from '@/lib/i18n'
+import { useConfirm } from '@/components/shared/ConfirmDialog'
+import { notifyTimesChanged, onTimesChanged } from '@/lib/times/events'
 
 export default function TimesPage() {
   return (
@@ -54,6 +56,7 @@ function TimesPageInner() {
   const { corrections: pendingCorrections, requestCorrection } = useCorrections({ pendingOnly: true })
   const supabase = createClient()
   const { locale } = useTranslation()
+  const confirm = useConfirm()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
 
   const isManager = isAdmin || isDispatcher
@@ -85,6 +88,7 @@ function TimesPageInner() {
 
   useEffect(() => {
     fetchData()
+    return onTimesChanged(() => fetchData())
   }, [fetchData])
 
   // Deep link: /dashboard/times?entry=<id>
@@ -125,17 +129,22 @@ function TimesPageInner() {
         skipEmail: true,
       })
     }
-    fetchData()
+    notifyTimesChanged()
   }
 
   const handleDelete = async (entry: TimeEntry) => {
     const employeeLabel = entry.employee?.full_name ?? L('Mitarbeiter', 'Employee')
-    const confirmed = window.confirm(
-      L(
-        `Diesen Zeiteintrag wirklich löschen?\n\n${formatDateDE(entry.date)} · ${employeeLabel} · ${formatHours(entry.net_hours, 'de')} Std.\n\nDer Vorgang wird im Änderungsprotokoll festgehalten.`,
-        `Really delete this time entry?\n\n${entry.date} · ${employeeLabel} · ${formatHours(entry.net_hours, 'en')} h`,
-      ),
-    )
+    const confirmed = await confirm({
+      title: L('Zeiteintrag löschen?', 'Delete time entry?'),
+      details: [
+        `${formatDateDE(entry.date)} · ${formatShiftRange(entry.start_time, entry.end_time, locale)}`,
+        `${employeeLabel} · ${formatHours(entryNetHours(entry), locale)} ${L('Std.', 'h')}`,
+      ],
+      note: L('Der Vorgang wird im Änderungsprotokoll festgehalten und kann nicht rückgängig gemacht werden.', 'This is recorded in the audit log and cannot be undone.'),
+      confirmLabel: L('Löschen', 'Delete'),
+      cancelLabel: L('Abbrechen', 'Cancel'),
+      destructive: true,
+    })
     if (!confirmed) return
     const previous = entries
     setEntries((prev) => prev.filter((e) => e.id !== entry.id))
@@ -146,6 +155,7 @@ function TimesPageInner() {
       return
     }
     toast.success(L('Zeiteintrag gelöscht', 'Time entry deleted'))
+    notifyTimesChanged()
     if (view !== 'list') setView('list')
   }
 
@@ -235,7 +245,7 @@ function TimesPageInner() {
 
     toast.success(data.isPlanned ? L('Geplante Zeit gespeichert', 'Planned time saved') : L('Zeiteintrag gespeichert', 'Time entry saved'))
     setView('list')
-    fetchData()
+    notifyTimesChanged()
   }
 
   const selectedEntry = entries.find((e) => e.id === selectedEntryId)
@@ -282,18 +292,18 @@ function TimesPageInner() {
 
     toast.success(L('Zeiteintrag aktualisiert', 'Time entry updated'))
     setView('details')
-    fetchData()
+    notifyTimesChanged()
   }
 
   const handleSubmitDraft = async (...args: Parameters<typeof submitEntry>) => {
     const ok = await submitEntry(...args)
-    if (ok) fetchData()
+    if (ok) notifyTimesChanged()
     return ok
   }
 
   const handleRequestCorrection: typeof requestCorrection = async (...args) => {
     const ok = await requestCorrection(...args)
-    if (ok) fetchData()
+    if (ok) notifyTimesChanged()
     return ok
   }
 
@@ -399,6 +409,7 @@ function TimesPageInner() {
               onApprove={isManager && selectedEntry.end_time && !selectedEntry.is_verified && !selectedEntry.is_planned ? () => setApproved(selectedEntry, true) : undefined}
               onUnapprove={isManager && selectedEntry.is_verified ? () => setApproved(selectedEntry, false) : undefined}
               onDelete={isManager ? () => handleDelete(selectedEntry) : undefined}
+              onChanged={fetchData}
             />
           </div>
         )}

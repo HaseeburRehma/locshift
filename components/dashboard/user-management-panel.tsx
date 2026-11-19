@@ -11,18 +11,26 @@ import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n'
 import { CreateUserModal } from './CreateUserModal'
 import { Plus } from 'lucide-react'
+import { useConfirm } from '@/components/shared/ConfirmDialog'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 export function UserManagementPanel() {
   const { locale } = useTranslation()
+  const confirm = useConfirm()
   const [updating, setUpdating] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const { data: users, error, mutate } = useSWR('/api/users', fetcher)
 
   const deleteUser = async (userId: string) => {
-    if (!confirm(locale === 'en' ? 'Are you sure you want to delete this user?' : 'Möchten Sie diesen Benutzer wirklich löschen?')) return
+    if (!(await confirm({
+      title: locale === 'en' ? 'Delete user?' : 'Benutzer löschen?',
+      note: locale === 'en' ? 'This cannot be undone.' : 'Das kann nicht rückgängig gemacht werden.',
+      confirmLabel: locale === 'en' ? 'Delete' : 'Löschen',
+      cancelLabel: locale === 'en' ? 'Cancel' : 'Abbrechen',
+      destructive: true,
+    }))) return
     
     setUpdating(userId)
     try {
@@ -69,9 +77,15 @@ export function UserManagementPanel() {
       toast.error(locale === 'en' ? 'User has no email on file' : 'Keine E-Mail hinterlegt')
       return
     }
-    if (!confirm(locale === 'en'
-      ? `Send a password reset email to ${email}? The user will be forced to set a new password on next login.`
-      : `Passwort-Reset an ${email} senden? Der Benutzer muss beim nächsten Login ein neues Passwort setzen.`)) return
+    if (!(await confirm({
+      title: locale === 'en' ? 'Reset password?' : 'Passwort zurücksetzen?',
+      details: [email],
+      note: locale === 'en'
+        ? 'A reset email is sent. The user must set a new password on next login.'
+        : 'Eine Reset-E-Mail wird gesendet. Beim nächsten Login muss ein neues Passwort gesetzt werden.',
+      confirmLabel: locale === 'en' ? 'Send' : 'Senden',
+      cancelLabel: locale === 'en' ? 'Cancel' : 'Abbrechen',
+    }))) return
 
     setUpdating(userId)
     try {

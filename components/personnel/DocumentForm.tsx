@@ -11,6 +11,7 @@ import { useTranslation } from '@/lib/i18n'
 import { useUser } from '@/lib/user-context'
 import { DEFAULT_REMINDER_DAYS, DOC_TYPES, docTypeLabel, reminderLabel, type DocType, type PersonnelDocument } from '@/lib/personnel/documents'
 import type { DocumentInput } from '@/hooks/personnel/usePersonnelDocuments'
+import { DateField } from '@/components/shared/DateField'
 
 const REMINDER_OPTIONS = [56, 28, 14, 7, 0]
 const MAX_BYTES = 20 * 1024 * 1024
@@ -128,11 +129,11 @@ export function DocumentForm({ employees, initial, renewOf, defaultEmployeeId, o
         </label>
         <label className="space-y-1">
           <span className={label}>{L('Ausstellungsdatum', 'Issue date')}</span>
-          <input type="date" className={field} value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} />
+          <DateField allowEmpty className={field} value={issuedAt} onValueChange={setIssuedAt} />
         </label>
         <label className="space-y-1">
           <span className={label}>{L('Gültig bis (Ablaufdatum)', 'Valid until (expiry)')}{renewOf ? ' *' : ''}</span>
-          <input type="date" className={field} value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+          <DateField allowEmpty className={field} value={expiresAt} onValueChange={setExpiresAt} />
         </label>
       </div>
 

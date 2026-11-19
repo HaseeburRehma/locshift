@@ -22,6 +22,8 @@ import { formatDateDE, formatEuro, formatHours, formatHoursLong, formatSignedHou
 import { localDateKey, shiftIssueLabel } from '@/lib/time/shift-hours'
 import { downloadMonatsnachweisPdf, monatsnachweisFilename } from '@/lib/pdf/monatsnachweis'
 import { downloadMonatsnachweisXlsx } from '@/lib/excel/monatsnachweis'
+import { DateField } from '@/components/shared/DateField'
+import { hideInternal } from '@/lib/profiles/internal'
 
 function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number)
@@ -62,10 +64,10 @@ function MonthlyStatement() {
 
   useEffect(() => {
     if (!isManager || !profile?.organization_id) return
-    supabase
-      .from('profiles')
-      .select('id, full_name, target_hours, is_active')
-      .eq('organization_id', profile.organization_id)
+    hideInternal(
+      supabase.from('profiles').select('id, full_name, target_hours, is_active').eq('organization_id', profile.organization_id),
+      profile,
+    )
       .order('full_name')
       .then(({ data }: { data: Array<{ id: string; full_name: string | null; target_hours: number | null; is_active: boolean | null }> | null }) => {
         const list = (data ?? [])
@@ -81,7 +83,7 @@ function MonthlyStatement() {
     if (!profile?.organization_id || !targetId) return
     setLoading(true)
     try {
-      const s = await loadReportSources(supabase, { organizationId: profile.organization_id, fromMonth: month, employeeIds: [targetId] })
+      const s = await loadReportSources(supabase, { organizationId: profile.organization_id, fromMonth: month, employeeIds: [targetId], includeInternal: true })
       setSources(s)
     } catch (e) {
       console.error('[monthly]', e)
@@ -111,6 +113,7 @@ function MonthlyStatement() {
       absences: sources.absences,
       specialPayments: sources.specialPayments,
       perDiemClaims: sources.perDiemClaims,
+      plans: sources.plans,
       weeklyTargetHours: emp?.weeklyTargetHours ?? null,
       rules: surchargeRules,
       spesenRates,
@@ -174,10 +177,10 @@ function MonthlyStatement() {
             <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label={L('Vormonat', 'Previous month')}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <input
+            <DateField
               type="month"
               value={month}
-              onChange={(e) => e.target.value && setMonth(e.target.value)}
+              onValueChange={setMonth}
               className="h-10 bg-transparent text-sm font-bold text-slate-700 outline-none px-1"
               aria-label={L('Monat', 'Month')}
             />
@@ -230,8 +233,14 @@ function MonthlyStatement() {
             <Kpi label={L('Sonderzahlungen', 'Special payments')} value={formatEuro(t.specialPaymentsTotal, locale)} />
           </div>
 
-          {(t.openEntries > 0 || t.issueCount > 0 || report.warnings.length > 0) && (
+          {(t.openEntries > 0 || t.issueCount > 0 || t.missingShifts > 0 || report.warnings.length > 0) && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-1">
+              {t.missingShifts > 0 && (
+                <p className="flex items-center gap-2 text-sm font-bold text-orange-700">
+                  <AlertTriangle className="w-4 h-4" />
+                  {L(`${t.missingShifts} geplante Schicht(en) ohne erfasste Zeit – im Nachweis markiert`, `${t.missingShifts} planned shift(s) without recorded time – marked below`)}
+                </p>
+              )}
               {t.issueCount > 0 && (
                 <p className="flex items-center gap-2 text-sm font-bold text-red-700">
                   <AlertTriangle className="w-4 h-4" />
@@ -266,8 +275,29 @@ function MonthlyStatement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {report.days.map((d) =>
-                    d.rows.length === 0 ? (
+                  {report.days.map((d) => (
+                    <React.Fragment key={d.date}>
+                    {d.missing.map((m) => (
+                      <tr key={m.planId} className="border-t border-slate-100 bg-orange-50 text-orange-900">
+                        <td className="px-3 py-2 font-semibold tabular-nums">{formatDateDE(d.date)}</td>
+                        <td className="px-3 py-2">{d.weekdayShort}</td>
+                        <td className="px-3 py-2 tabular-nums">{m.start}</td>
+                        <td className="px-3 py-2 tabular-nums whitespace-nowrap">
+                          {m.end}
+                          {m.endDayOffset > 0 && <span className="ml-1 px-1 rounded bg-indigo-50 text-indigo-700 text-[10px] font-black">+{m.endDayOffset}</span>}
+                        </td>
+                        <td colSpan={9} />
+                        <td className="px-3 py-2 text-xs">
+                          <span className="mr-1 font-black text-orange-700">{L('Geplant – keine Zeit erfasst', 'Planned – no time recorded')}</span>
+                          {m.label && <span className="mr-1">{m.label}</span>}
+                          {m.isGastfahrt && <span className="mr-1">· Gastfahrt</span>}
+                          {m.customer && <span className="mr-1">· {m.customer}</span>}
+                          {m.route && <span className="mr-1 text-orange-800/70">· {m.route}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                    {d.rows.length === 0 ? (
+                      d.missing.length > 0 ? null : (
                       <tr
                         key={d.date}
                         className={cn(
@@ -280,6 +310,7 @@ function MonthlyStatement() {
                         <td colSpan={11} />
                         <td className="px-3 py-1.5 italic">{d.absence?.label ?? d.holidayName ?? L('kein Einsatz', 'no shift')}</td>
                       </tr>
+                      )
                     ) : (
                       d.rows.map((r, idx) => (
                         <tr
@@ -318,8 +349,9 @@ function MonthlyStatement() {
                           </td>
                         </tr>
                       ))
-                    ),
-                  )}
+                    )}
+                    </React.Fragment>
+                  ))}
                 </tbody>
                 <tfoot className="bg-slate-100 font-black text-slate-900">
                   <tr>

@@ -149,8 +149,12 @@ function MyWeek() {
 
                 {dayPlans.map((p) => {
                   const status = PLAN_STATUS[p.status] ?? PLAN_STATUS.assigned
-                  const from = p.start_location ? `${p.start_location.name}${p.start_location.short_code ? ` (${p.start_location.short_code})` : ''}` : null
-                  const to = p.destination_location ? `${p.destination_location.name}${p.destination_location.short_code ? ` (${p.destination_location.short_code})` : ''}` : null
+                  // Kürzel first, like the Wochenplanung card ("KAW → HOME").
+                  const from = p.start_location?.short_code || p.start_location?.name || null
+                  const to = p.destination_location?.short_code || p.destination_location?.name || null
+                  const names = [p.start_location, p.destination_location].some((l) => l?.short_code)
+                    ? `${p.start_location?.name ?? '—'} → ${p.destination_location?.name ?? '—'}`
+                    : null
                   const isToday = d === today || (planStartDay(p) <= today && planEndDay(p) >= today)
                   return (
                     <div key={p.id} className="mt-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
@@ -165,9 +169,10 @@ function MyWeek() {
                           {p.customer?.name && <p className="text-sm font-semibold text-slate-600">{p.customer.name}</p>}
                           {(from || to) && (
                             <p className="flex items-center gap-1 text-sm text-slate-600">
-                              <MapPin className="w-3.5 h-3.5" /> {from ?? '—'} → {to ?? '—'}
+                              <MapPin className="w-3.5 h-3.5" /> <span className="font-black">{from ?? '—'} → {to ?? '—'}</span>
                             </p>
                           )}
+                          {names && <p className="text-xs text-slate-400 pl-[18px]">{names}</p>}
                           {p.notes && (
                             <p className="mt-1 flex items-start gap-1 text-sm font-semibold text-amber-800">
                               <StickyNote className="w-3.5 h-3.5 mt-0.5 shrink-0" /> {p.notes}

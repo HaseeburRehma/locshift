@@ -10,8 +10,10 @@ import type {
   ReportAbsence,
   ReportEntry,
   ReportPerDiemClaim,
+  ReportPlan,
   ReportSpecialPayment,
 } from './monthly-report'
+import { berlinToInstant } from '@/lib/time/berlin'
 
 export interface ReportEmployee {
   id: string
@@ -26,6 +28,8 @@ export interface ReportSources {
   absences: ReportAbsence[]
   specialPayments: ReportSpecialPayment[]
   perDiemClaims: ReportPerDiemClaim[]
+  /** Planned shifts — to show planned-but-not-recorded shifts (QA P1-1). */
+  plans: ReportPlan[]
   employees: ReportEmployee[]
 }
 
@@ -38,7 +42,14 @@ export function monthRange(from: string, to: string = from): { start: string; en
 
 export async function loadReportSources(
   supabase: SupabaseClient,
-  opts: { organizationId: string; fromMonth: string; toMonth?: string; employeeIds?: string[] },
+  opts: {
+    organizationId: string
+    fromMonth: string
+    toMonth?: string
+    employeeIds?: string[]
+    /** Internal staff also see internal test accounts (QA cleanup). */
+    includeInternal?: boolean
+  },
 ): Promise<ReportSources> {
   const { start, end } = monthRange(opts.fromMonth, opts.toMonth ?? opts.fromMonth)
   const rangeStart = new Date(`${start}T00:00:00`).toISOString()
@@ -63,7 +74,7 @@ export async function loadReportSources(
     let q = supabase
       .from('time_entries')
       .select(
-        'id, employee_id, entered_by, date, start_time, end_time, break_minutes, net_hours, meal_allowance, overnight_stay, is_gastfahrt, is_planned, is_verified, submitted_at, corrected_at, notes, customer:customers(name), start_location:operational_locations!start_location_id(name, short_code), destination_location:operational_locations!destination_location_id(name, short_code)',
+        'id, employee_id, entered_by, plan_id, date, start_time, end_time, break_minutes, net_hours, meal_allowance, overnight_stay, is_gastfahrt, is_planned, is_verified, submitted_at, corrected_at, notes, customer:customers(name), start_location:operational_locations!start_location_id(name, short_code), destination_location:operational_locations!destination_location_id(name, short_code)',
       )
       .eq('organization_id', opts.organizationId)
       .gte('date', start)
@@ -126,20 +137,41 @@ export async function loadReportSources(
     return q
   }
 
+  const plansQ = () => {
+    let q = supabase
+      .from('plans')
+      .select(
+        'id, employee_id, start_time, end_time, status, shift_name, route, is_gastfahrt, customer:customers(name), start_location:operational_locations!start_location_id(name, short_code), destination_location:operational_locations!destination_location_id(name, short_code)',
+      )
+      .eq('organization_id', opts.organizationId)
+      .not('employee_id', 'is', null)
+      .not('status', 'in', '(cancelled,rejected)')
+      .gte('start_time', berlinToInstant(start).toISOString())
+      .lt('start_time', berlinToInstant(end, '23:59').toISOString())
+      .order('start_time')
+      .order('id')
+    if (ids) q = q.in('employee_id', ids)
+    return q
+  }
+
   const empQ = () => {
     let q = supabase
       .from('profiles')
       .select('id, full_name, role, is_active, target_hours')
       .eq('organization_id', opts.organizationId)
+    if (!opts.includeInternal) q = q.eq('is_internal', false)
+    q = q
       .order('full_name')
       .order('id')
     if (ids) q = q.in('id', ids)
     return q
   }
 
-  const [entriesRes, absRes, legacyRes, payRes, perDiemRes, empRes] = await Promise.all([
-    allPages(entriesQ), allPages(absQ), allPages(legacyAbsQ), allPages(payQ), allPages(perDiemQ), allPages(empQ),
+  const [entriesRes, absRes, legacyRes, payRes, perDiemRes, empRes, plansRes] = await Promise.all([
+    allPages(entriesQ), allPages(absQ), allPages(legacyAbsQ), allPages(payQ), allPages(perDiemQ), allPages(empQ), allPages(plansQ),
   ])
+  // Plans only add the "missing" markers; a failure never blocks a report.
+  if (plansRes.error) console.warn('[load-sources] plans skipped:', plansRes.error.message)
 
   // The legacy `absences` table may not exist in every installation.
   if (legacyRes.error) console.warn('[load-sources] legacy absences skipped:', legacyRes.error.message)
@@ -203,6 +235,7 @@ export async function loadReportSources(
     absences,
     specialPayments,
     perDiemClaims,
+    plans: plansRes.error ? [] : ((plansRes.data ?? []) as unknown as ReportPlan[]),
     employees,
   }
 }

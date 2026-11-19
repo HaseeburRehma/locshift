@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   AlertTriangle, ArrowLeft, Calendar, CheckCircle2, Clock, Edit2, FileText, History, Loader2, MapPin,
   Moon, RotateCcw, Send, ShieldCheck, Trash2, User, UserCheck, Wallet, XCircle,
@@ -29,6 +29,8 @@ interface TimeEntryDetailsProps {
   onApprove?: () => void
   onUnapprove?: () => void
   onDelete?: () => void
+  /** The entry changed here (correction decided) — reload it. */
+  onChanged?: () => void
 }
 
 function dateTime(iso: string | null | undefined, locale: 'de' | 'en') {
@@ -39,7 +41,7 @@ function dateTime(iso: string | null | undefined, locale: 'de' | 'en') {
 }
 
 export function TimeEntryDetails({
-  entry, onBack, onEdit, onSubmitDraft, onRequestCorrection, onApprove, onUnapprove, onDelete,
+  entry, onBack, onEdit, onSubmitDraft, onRequestCorrection, onApprove, onUnapprove, onDelete, onChanged,
 }: TimeEntryDetailsProps) {
   const { locale } = useTranslation()
   const L = (deStr: string, en: string) => (locale === 'de' ? deStr : en)
@@ -58,8 +60,22 @@ export function TimeEntryDetails({
 
   const { corrections, reviewCorrection, cancelCorrection } = useCorrections({ entryId: entry.id })
   const pending = corrections.find((c) => c.status === 'pending') ?? null
-  const decided = corrections.filter((c) => c.status !== 'pending')
-  const { rows: history, loading: historyLoading } = useEntryHistory(entry.id)
+  const historyVersion = [
+    entry.start_time, entry.end_time, entry.break_minutes, entry.submitted_at, entry.verified_at, entry.corrected_at,
+    corrections.map((c) => `${c.id}:${c.status}`).join(','),
+  ].join('|')
+  const { rows: history, loading: historyLoading, failed: historyFailed, refetch: refetchHistory } = useEntryHistory(entry.id, historyVersion)
+  const timeline = useMemo(() => buildTimeline(history, corrections, locale), [history, corrections, locale])
+  // Approver: the stored verifier; for approvals via correction the reviewer.
+  const approvedCorrection = corrections.find((c) => c.status === 'approved' && c.reviewer?.full_name)
+  const approverName = entry.verifier?.full_name ?? approvedCorrection?.reviewer?.full_name ?? null
+
+  const decide = async (approve: boolean, note: string) => {
+    if (!pending) return false
+    const ok = await reviewCorrection(pending, approve, note)
+    if (ok) onChanged?.()
+    return ok
+  }
 
   return (
     <div className="flex flex-col h-full bg-white animate-in slide-in-from-right duration-300">
@@ -129,9 +145,13 @@ export function TimeEntryDetails({
             <PendingCorrection
               correction={pending}
               isManager={isManager}
-              onApprove={(note) => reviewCorrection(pending, true, note)}
-              onReject={(note) => reviewCorrection(pending, false, note)}
-              onCancel={() => cancelCorrection(pending.id)}
+              onApprove={(note) => decide(true, note)}
+              onReject={(note) => decide(false, note)}
+              onCancel={async () => {
+                const ok = await cancelCorrection(pending.id)
+                if (ok) onChanged?.()
+                return ok
+              }}
             />
           )}
 
@@ -232,7 +252,7 @@ export function TimeEntryDetails({
               <DetailItem
                 icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
                 label={L('Freigegeben', 'Approved')}
-                value={`${entry.verifier?.full_name ?? '—'}${entry.verified_at ? ` · ${dateTime(entry.verified_at, locale)}` : ''}`}
+                value={`${approverName ?? '—'}${entry.verified_at ? ` · ${dateTime(entry.verified_at, locale)}` : ''}`}
               />
             )}
           </div>
@@ -246,39 +266,22 @@ export function TimeEntryDetails({
             </div>
           )}
 
-          {decided.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{L('Korrekturanträge', 'Correction requests')}</h3>
-              {decided.map((c) => (
-                <div key={c.id} className="rounded-2xl border border-slate-100 p-4 text-sm">
-                  <p className="font-bold text-slate-800">
-                    {c.status === 'approved' ? L('Genehmigt', 'Approved') : c.status === 'rejected' ? L('Abgelehnt', 'Rejected') : L('Zurückgezogen', 'Withdrawn')}
-                    {' · '}
-                    {formatShiftRange(c.proposed.start_time, c.proposed.end_time, locale)}
-                  </p>
-                  <p className="text-slate-500">{L('Begründung', 'Reason')}: {c.reason}</p>
-                  {c.review_note && <p className="text-slate-500">{L('Hinweis', 'Note')}: {c.review_note}</p>}
-                  <p className="text-xs text-slate-400 mt-1">
-                    {c.reviewer?.full_name ? `${c.reviewer.full_name} · ` : ''}
-                    {c.reviewed_at ? dateTime(c.reviewed_at, locale) : dateTime(c.requested_at, locale)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
           <div className="space-y-3">
             <h3 className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
               <History className="w-4 h-4" /> {L('Verlauf', 'History')}
             </h3>
-            {historyLoading ? (
+            {historyLoading && timeline.length === 0 ? (
               <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
-            ) : history.length === 0 ? (
+            ) : historyFailed && timeline.length === 0 ? (
+              <button type="button" onClick={() => refetchHistory()} className="text-sm font-bold text-blue-600 underline">
+                {L('Verlauf konnte nicht geladen werden – erneut versuchen', 'Could not load the history – try again')}
+              </button>
+            ) : timeline.length === 0 ? (
               <p className="text-sm text-slate-400">{L('Noch keine protokollierten Änderungen.', 'No logged changes yet.')}</p>
             ) : (
               <ol className="relative border-l border-slate-200 ml-2 space-y-4">
-                {history.map((h) => (
-                  <HistoryItem key={h.id} row={h} locale={locale} />
+                {timeline.map((t) => (
+                  <TimelineItem key={t.key} item={t} locale={locale} />
                 ))}
               </ol>
             )}
@@ -399,29 +402,133 @@ function fmtValue(key: string, v: unknown, locale: 'de' | 'en'): string {
   return String(v)
 }
 
-function HistoryItem({ row, locale }: { row: TimeEntryAuditRow; locale: 'de' | 'en' }) {
-  const [label] = ACTION_LABELS[row.action] ?? ['Änderung', 'Change']
-  const keys = row.action === 'created' || row.action === 'clocked_in' || row.action === 'deleted'
-    ? []
-    : Object.keys(row.new_values ?? {}).filter((k) => k !== 'is_verified' && k !== 'submitted_at')
+interface TimelineEntry {
+  key: string
+  at: string
+  title: string
+  who: string | null
+  lines: string[]
+  note?: string | null
+  tone: 'default' | 'success' | 'danger'
+}
+
+/** "HH:MM–HH:MM" from start/end instants (either may be missing). */
+function rangeOf(start: unknown, end: unknown): string | null {
+  if (!start && !end) return null
+  const t = (v: unknown) => (v ? formatTimeOfDay(String(v)) : '—')
+  return `${t(start)}–${t(end)}`
+}
+
+function diffLines(
+  oldV: Record<string, unknown> | null,
+  newV: Record<string, unknown> | null,
+  locale: 'de' | 'en',
+  known: { start_time?: unknown; end_time?: unknown } = {},
+): string[] {
+  // Unchanged start/end are not stored in the row; take them from the
+  // state before this change.
+  const o: Record<string, unknown> = { ...known, ...(oldV ?? {}) }
+  const n = newV ?? {}
+  const lines: string[] = []
+  const keys = Object.keys(n).filter((k) => !['is_verified', 'submitted_at', 'net_hours', 'meal_allowance'].includes(k))
+  // Start and end together read as one time range: 14:49–14:49 → 10:00–18:00.
+  if (keys.includes('start_time') || keys.includes('end_time')) {
+    const before = rangeOf(o.start_time ?? n.start_time, o.end_time ?? n.end_time)
+    const after = rangeOf(n.start_time ?? o.start_time, n.end_time ?? o.end_time)
+    if (before !== after) lines.push(`${locale === 'de' ? 'Zeit' : 'Time'}: ${before} → ${after}`)
+  }
+  for (const k of keys) {
+    if (k === 'start_time' || k === 'end_time') continue
+    if (fmtValue(k, o[k], locale) === fmtValue(k, n[k], locale)) continue
+    lines.push(`${(FIELD_LABELS[k] ?? [k, k])[locale === 'de' ? 0 : 1]}: ${fmtValue(k, o[k], locale)} → ${fmtValue(k, n[k], locale)}`)
+  }
+  if ('net_hours' in n && 'net_hours' in o && o.net_hours !== n.net_hours) {
+    lines.push(`${locale === 'de' ? 'Stunden' : 'Hours'}: ${fmtValue('net_hours', o.net_hours, locale)} → ${fmtValue('net_hours', n.net_hours, locale)}`)
+  }
+  return lines
+}
+
+/**
+ * One timeline from the audit log and the correction requests (QA P1-2):
+ * recording, submit with deviation, correction requested, approved or
+ * rejected, admin edits, approval withdrawn — old → new, who, when, reason.
+ */
+function buildTimeline(rows: TimeEntryAuditRow[], corrections: TimeEntryCorrection[], locale: 'de' | 'en'): TimelineEntry[] {
+  const de = locale === 'de'
+  const items: TimelineEntry[] = []
+  const state: { start_time?: unknown; end_time?: unknown } = {}
+  for (const row of rows) {
+    const known = { ...state }
+    if (row.new_values?.start_time !== undefined) state.start_time = row.new_values.start_time
+    if (row.new_values?.end_time !== undefined) state.end_time = row.new_values.end_time
+    const [labelDe, labelEn] = ACTION_LABELS[row.action] ?? ['Änderung', 'Change']
+    const lines = row.action === 'created' || row.action === 'clocked_in' || row.action === 'deleted'
+      ? []
+      : row.action === 'clocked_out'
+        ? [`${de ? 'Erfasst' : 'Recorded'}: ${rangeOf(state.start_time, state.end_time)}`]
+        : diffLines(row.old_values, row.new_values, locale, known)
+    if (row.action === 'clocked_in' && row.new_values?.start_time) {
+      lines.push(`${de ? 'Beginn' : 'Start'}: ${formatTimeOfDay(String(row.new_values.start_time))}`)
+    }
+    // Correction reasons are shown with the request itself.
+    const reason = row.action === 'correction_applied' ? null : row.reason
+    items.push({
+      key: `a-${row.id}`,
+      at: row.changed_at,
+      title: de ? labelDe : labelEn,
+      who: row.changer?.full_name ?? (de ? 'System' : 'System'),
+      lines,
+      note: reason,
+      tone: row.action === 'approved' || row.action === 'correction_applied' ? 'success' : row.action === 'deleted' || row.action === 'unapproved' ? 'danger' : 'default',
+    })
+  }
+  for (const c of corrections) {
+    items.push({
+      key: `c-${c.id}`,
+      at: c.requested_at,
+      title: de ? 'Korrektur beantragt' : 'Correction requested',
+      who: c.employee?.full_name ?? null,
+      lines: diffLines(c.original as Record<string, unknown>, c.proposed as Record<string, unknown>, locale),
+      note: `${de ? 'Begründung' : 'Reason'}: ${c.reason}`,
+      tone: 'default',
+    })
+    if (c.status !== 'pending' && c.reviewed_at) {
+      const title = c.status === 'approved'
+        ? (de ? 'Korrektur genehmigt' : 'Correction approved')
+        : c.status === 'rejected'
+          ? (de ? 'Korrektur abgelehnt – bisherige Werte gelten' : 'Correction rejected – previous values stay')
+          : (de ? 'Korrekturantrag zurückgezogen' : 'Correction request withdrawn')
+      items.push({
+        key: `r-${c.id}`,
+        at: c.reviewed_at,
+        title,
+        who: c.reviewer?.full_name ?? c.employee?.full_name ?? null,
+        lines: [],
+        note: c.review_note ? `${de ? 'Hinweis' : 'Note'}: ${c.review_note}` : null,
+        tone: c.status === 'approved' ? 'success' : c.status === 'rejected' ? 'danger' : 'default',
+      })
+    }
+  }
+  return items.sort((a, b) => a.at.localeCompare(b.at))
+}
+
+function TimelineItem({ item, locale }: { item: TimelineEntry; locale: 'de' | 'en' }) {
+  const dot = item.tone === 'success' ? 'bg-emerald-600' : item.tone === 'danger' ? 'bg-red-600' : 'bg-blue-600'
   return (
     <li className="relative ml-4">
-      <span className="absolute -left-[23px] top-1.5 w-3 h-3 rounded-full bg-blue-600 border-2 border-white" />
+      <span className={cn('absolute -left-[23px] top-1.5 w-3 h-3 rounded-full border-2 border-white', dot)} />
       <p className="text-sm font-bold text-slate-800">
-        {locale === 'de' ? label : ACTION_LABELS[row.action]?.[1] ?? 'Change'}
-        <span className="font-medium text-slate-400"> · {row.changer?.full_name ?? 'System'} · {dateTime(row.changed_at, locale)}</span>
+        {item.title}
+        <span className="font-medium text-slate-400"> · {item.who ?? '—'} · {dateTime(item.at, locale)}</span>
       </p>
-      {keys.length > 0 && (
+      {item.lines.length > 0 && (
         <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
-          {keys.map((k) => (
-            <li key={k}>
-              <span className="font-bold">{(FIELD_LABELS[k] ?? [k, k])[locale === 'de' ? 0 : 1]}:</span>{' '}
-              {fmtValue(k, row.old_values?.[k], locale)} → {fmtValue(k, row.new_values?.[k], locale)}
-            </li>
+          {item.lines.map((l) => (
+            <li key={l}>{l}</li>
           ))}
         </ul>
       )}
-      {row.reason && <p className="mt-1 text-xs italic text-slate-500">{row.reason}</p>}
+      {item.note && <p className="mt-1 text-xs italic text-slate-500 break-words">{item.note}</p>}
     </li>
   )
 }

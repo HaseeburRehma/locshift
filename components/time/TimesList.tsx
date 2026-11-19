@@ -158,6 +158,149 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
     setCurrentPage(1)
   }
 
+  const timeRange = (entry: TimeEntry) => {
+    if (!entry.end_time) return `${formatTimeOfDay(entry.start_time)} – ${L('läuft', 'running')}`
+    const off = endDayOffset(entry.start_time, entry.end_time)
+    return `${formatTimeOfDay(entry.start_time)}–${formatTimeOfDay(entry.end_time)}${off > 0 ? ` (+${off})` : ''}`
+  }
+  const customerOf = (entry: TimeEntry) => entry.customer?.name || entry.plan?.customer?.name || null
+  // Betriebsstellen as Kürzel where available (fits the column), else name.
+  const placeOf = (entry: TimeEntry) => {
+    const a = entry.start_location?.short_code || entry.start_location?.name
+    const b = entry.destination_location?.short_code || entry.destination_location?.name
+    if (a || b) return `${a ?? '—'} → ${b ?? '—'}`
+    return entry.location || entry.plan?.location || null
+  }
+
+  const renderBadges = (entry: TimeEntry) => (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className={cn(
+          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border",
+          ENTRY_STATUS_STYLE[entryStatus(entry)]
+        )}>
+          {entry.is_planned && <CalendarClock className="w-3 h-3" />}
+          {entryStatusLabel(entryStatus(entry), locale)}
+        </span>
+        {shiftIssues(entry).length > 0 && (
+          <span
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200"
+            title={shiftIssues(entry).map((i) => shiftIssueLabel(i, locale)).join(' · ')}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            {L('Prüfen', 'Check')}
+          </span>
+        )}
+        {pendingCorrectionIds?.has(entry.id) && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+            <FilePen className="w-3 h-3" />
+            {L('Korrektur offen', 'Correction open')}
+          </span>
+        )}
+        {entry.entered_by && entry.entered_by !== entry.employee_id && (
+          <span
+            className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600"
+            title={L(`Stellvertretend erfasst von ${entry.enterer?.full_name ?? ''}`, `Entered on behalf by ${entry.enterer?.full_name ?? ''}`)}
+          >
+            {L('Stellv.', 'On behalf')}
+          </span>
+        )}
+        {/* Phase 3 #10 — Gastfahrt badge (informational) */}
+        {entry.is_gastfahrt && (
+          <span
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-violet-100/70 text-violet-700"
+            title="Gastfahrt (Beifahrer)"
+          >
+            <UserCheck className="w-3 h-3" />
+            Gast
+          </span>
+        )}
+      </div>
+  )
+
+  const renderActions = (entry: TimeEntry) => (
+      <div className="flex flex-wrap items-center justify-end gap-1">
+        {/* Phase 2 #3 — convert planned → actual */}
+        {entry.is_planned && onConvertPlanned && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100"
+            title={L('Als tatsächlich markieren', 'Mark as actual')}
+            onClick={(e) => {
+              e.stopPropagation()
+              onConvertPlanned(entry.id)
+            }}
+          >
+            <Play className="w-4 h-4" />
+          </Button>
+        )}
+        {onReviewDraft && entryStatus(entry) === 'draft' && entry.employee_id === currentUserId && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
+            title={L('Prüfen & absenden', 'Review & submit')}
+            onClick={(e) => {
+              e.stopPropagation()
+              onReviewDraft(entry)
+            }}
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        )}
+        {!entry.is_planned && entry.end_time && onToggleStatus && canAdd && (
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={!entry.is_verified && shiftIssues(entry).length > 0}
+            className={cn(
+              "h-8 w-8 rounded-lg",
+              entry.is_verified
+                ? "bg-orange-50 text-orange-500 hover:bg-orange-100 hover:text-orange-600"
+                : "bg-emerald-50 text-emerald-500 hover:bg-emerald-100 hover:text-emerald-600"
+            )}
+            title={
+              !entry.is_verified && shiftIssues(entry).length > 0
+                ? L('Erst Fehler korrigieren', 'Fix issues first')
+                : entry.is_verified ? L('Freigabe zurücknehmen', 'Revoke approval') : L('Freigeben', 'Approve')
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleStatus(entry.id, entry.is_verified);
+            }}
+          >
+            {entry.is_verified ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg"
+          onClick={() => onEntryClick(entry.id)}
+          title={L('Anzeigen', 'View')}
+        >
+          <Eye className="w-4 h-4" />
+        </Button>
+        {/* Phase 6 #4 — admin/dispatcher delete (the parent
+            only passes onDelete for those roles, so it is
+            naturally hidden for employees). */}
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 rounded-lg"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(entry)
+            }}
+            title={L('Löschen', 'Delete')}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+  )
+
   return (
     <div className="flex flex-col h-full bg-slate-50/40 md:bg-transparent animate-in fade-in duration-300">
       {/* Title */}
@@ -172,13 +315,13 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
 
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200">
         {/* Header Toolbar */}
-        <div className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="p-4 md:p-6 flex flex-col 2xl:flex-row items-start 2xl:items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-black text-slate-900 tracking-tight">
               {L('Filter & Suche', 'Filter & Search')}
             </h2>
           </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full 2xl:w-auto 2xl:justify-end">
             {/* Phase 5 #4/#5/#6 — PDF export button, always visible.
                For employees, the parent page pre-filters entries by user.id,
                so this button naturally becomes their "own data" export (#5).
@@ -194,7 +337,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                 }}
                 variant="outline"
                 disabled={filteredEntries.length === 0}
-                className="font-bold rounded-xl shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 min-w-[140px] px-6 disabled:opacity-50"
+                className="font-bold rounded-xl shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 px-4 disabled:opacity-50"
                 title={
                   filteredEntries.length === 0
                     ? L('Keine Einträge zum Exportieren', 'No entries to export')
@@ -249,7 +392,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
               <Button
                 onClick={() => onOpenMonthlyReport(isAdminView && employeeFilter !== 'all' ? employeeFilter : null)}
                 variant="outline"
-                className="font-bold rounded-xl shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50 px-5"
+                className="font-bold rounded-xl shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50 px-4"
               >
                 <FileSpreadsheet className="w-4 h-4 mr-2" />
                 {L('Monatsnachweis', 'Monthly statement')}
@@ -259,7 +402,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
               <Button
                 onClick={onOpenApprovals}
                 variant="outline"
-                className="font-bold rounded-xl shadow-sm border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-5"
+                className="font-bold rounded-xl shadow-sm border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-4"
               >
                 <ShieldCheck className="w-4 h-4 mr-2" />
                 {L('Freigaben', 'Approvals')}
@@ -273,7 +416,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
             {canAdd && (
               <Button
                 onClick={onAddClick}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md min-w-[140px] px-6"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md px-4"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 {L('Eintrag hinzufügen', 'Add Time Entry')}
@@ -325,234 +468,112 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
           )}
         </div>
 
-        {/* Table Area */}
-        <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse">
+        {/* Table from 1280 px (all columns visible), cards below (QA P2-1). */}
+        <div className="hidden xl:block w-full">
+          <table className="w-full table-fixed text-left border-collapse">
+            <colgroup>
+              <col className="w-[88px]" />
+              {isAdminView && <col className="w-[120px]" />}
+              <col className="w-[112px]" />
+              <col className="w-[80px]" />
+              <col />
+              <col className="w-[136px]" />
+              <col className="w-[132px]" />
+            </colgroup>
             <thead>
               <tr className="bg-slate-50/50 text-slate-800 text-[11px] uppercase tracking-wider border-y border-slate-100">
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Datum', 'Date')}</th>
-                {isAdminView && <th className="px-6 py-4 font-black whitespace-nowrap">{L('Mitarbeiter', 'Employee')}</th>}
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Beginn', 'Start')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Ende', 'End')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Pause', 'Break')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Arbeitszeit', 'Hours')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Kunde', 'Customer')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Standort', 'Location')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap">{L('Status', 'Status')}</th>
-                <th className="px-6 py-4 font-black whitespace-nowrap text-right">{L('Aktionen', 'Actions')}</th>
+                <th className="px-3 py-3 font-black">{L('Datum', 'Date')}</th>
+                {isAdminView && <th className="px-3 py-3 font-black">{L('Mitarbeiter', 'Employee')}</th>}
+                <th className="px-3 py-3 font-black">{L('Zeit / Pause', 'Time / break')}</th>
+                <th className="px-3 py-3 font-black">{L('Stunden', 'Hours')}</th>
+                <th className="px-3 py-3 font-black">{L('Kunde / Standort', 'Customer / location')}</th>
+                <th className="px-3 py-3 font-black">{L('Status', 'Status')}</th>
+                <th className="px-3 py-3 font-black text-right">{L('Aktionen', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {paginatedEntries.length > 0 ? (
                 paginatedEntries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-600 whitespace-nowrap">
+                  <tr key={entry.id} className="hover:bg-slate-50 transition-colors group align-top">
+                    <td className="px-3 py-3 text-sm font-semibold text-slate-600 whitespace-nowrap">
                       {format(parseISO(entry.date), locale === 'de' ? 'dd.MM.yyyy' : 'MMM dd, yyyy', { locale: dateLocale })}
                     </td>
                     {isAdminView && (
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={entry.employee?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.employee?.full_name || 'U')}&background=0064E0&color=fff&size=32`}
-                            alt=""
-                            className="w-7 h-7 rounded-lg object-cover border border-slate-100"
-                          />
-                          <span className="text-sm font-bold text-slate-800 truncate max-w-[120px]">
-                            {entry.employee?.full_name || L('Unbekannt', 'Unknown')}
-                          </span>
-                        </div>
+                      <td className="px-3 py-3">
+                        <span className="block text-sm font-bold text-slate-800 truncate" title={entry.employee?.full_name ?? undefined}>
+                          {entry.employee?.full_name || L('Gelöschtes Konto', 'Deleted account')}
+                        </span>
                       </td>
                     )}
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium tabular-nums">
-                      {formatTimeOfDay(entry.start_time)}
+                    <td className="px-3 py-3 text-sm text-slate-600 font-medium tabular-nums">
+                      <span className="whitespace-nowrap">{timeRange(entry)}</span>
+                      <span className="block text-xs text-slate-400">{entry.break_minutes ?? 0} Min. {L('Pause', 'break')}</span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium tabular-nums">
-                      {entry.end_time ? (
-                        <>
-                          {formatTimeOfDay(entry.end_time)}
-                          {endDayOffset(entry.start_time, entry.end_time) > 0 && (
-                            <span
-                              className="ml-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black"
-                              title={L('Ende am Folgetag', 'Ends next day')}
-                            >
-                              +{endDayOffset(entry.start_time, entry.end_time)}
-                            </span>
-                          )}
-                        </>
-                      ) : L('Läuft', 'Running')}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
-                      {entry.break_minutes ?? 0} Min.
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-900 font-bold whitespace-nowrap tabular-nums">
+                    <td className="px-3 py-3 text-sm text-slate-900 font-bold whitespace-nowrap tabular-nums">
                       {formatHours(entryNetHours(entry), locale)} {L('Std.', 'h')}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
-                      {entry.customer?.name || entry.plan?.customer?.name || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap font-medium">
-                      <div className="flex flex-col">
-                        {/* Phase 3 #1 — prefer Betriebsstelle names if set, fall back to free-text location */}
-                        {(entry.start_location?.name || entry.destination_location?.name) ? (
-                          <span className="text-slate-800 font-semibold">
-                            {entry.start_location?.name ?? '—'}
-                            <span className="mx-1 text-slate-300">→</span>
-                            {entry.destination_location?.name ?? '—'}
-                          </span>
-                        ) : (
-                          <span>{entry.location || entry.plan?.location || '-'}</span>
-                        )}
-                        {entry.latitude && entry.longitude && (
-                          <a
-                            href={`https://www.google.com/maps?q=${entry.latitude},${entry.longitude}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-1 font-bold"
-                            onClick={e => e.stopPropagation()}
-                          >
-                            <MapPin className="w-3 h-3" /> {L('Einsatzkoordinaten', 'Mission Coordinates')}
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={cn(
-                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border",
-                          ENTRY_STATUS_STYLE[entryStatus(entry)]
-                        )}>
-                          {entry.is_planned && <CalendarClock className="w-3 h-3" />}
-                          {entryStatusLabel(entryStatus(entry), locale)}
-                        </span>
-                        {shiftIssues(entry).length > 0 && (
-                          <span
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200"
-                            title={shiftIssues(entry).map((i) => shiftIssueLabel(i, locale)).join(' · ')}
-                          >
-                            <AlertTriangle className="w-3 h-3" />
-                            {L('Prüfen', 'Check')}
-                          </span>
-                        )}
-                        {pendingCorrectionIds?.has(entry.id) && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                            <FilePen className="w-3 h-3" />
-                            {L('Korrektur offen', 'Correction open')}
-                          </span>
-                        )}
-                        {entry.entered_by && entry.entered_by !== entry.employee_id && (
-                          <span
-                            className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600"
-                            title={L(`Stellvertretend erfasst von ${entry.enterer?.full_name ?? ''}`, `Entered on behalf by ${entry.enterer?.full_name ?? ''}`)}
-                          >
-                            {L('Stellv.', 'On behalf')}
-                          </span>
-                        )}
-                        {/* Phase 3 #10 — Gastfahrt badge (informational) */}
-                        {entry.is_gastfahrt && (
-                          <span
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-violet-100/70 text-violet-700"
-                            title="Gastfahrt (Beifahrer)"
-                          >
-                            <UserCheck className="w-3 h-3" />
-                            Gast
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* Phase 2 #3 — convert planned → actual */}
-                        {entry.is_planned && onConvertPlanned && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-100"
-                            title={L('Als tatsächlich markieren', 'Mark as actual')}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onConvertPlanned(entry.id)
-                            }}
-                          >
-                            <Play className="w-4 h-4" />
-                          </Button>
-                        )}
-                        {onReviewDraft && entryStatus(entry) === 'draft' && entry.employee_id === currentUserId && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
-                            title={L('Prüfen & absenden', 'Review & submit')}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onReviewDraft(entry)
-                            }}
-                          >
-                            <Send className="w-4 h-4" />
-                          </Button>
-                        )}
-                        {!entry.is_planned && entry.end_time && onToggleStatus && canAdd && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled={!entry.is_verified && shiftIssues(entry).length > 0}
-                            className={cn(
-                              "h-8 w-8 rounded-lg",
-                              entry.is_verified
-                                ? "bg-orange-50 text-orange-500 hover:bg-orange-100 hover:text-orange-600"
-                                : "bg-emerald-50 text-emerald-500 hover:bg-emerald-100 hover:text-emerald-600"
-                            )}
-                            title={
-                              !entry.is_verified && shiftIssues(entry).length > 0
-                                ? L('Erst Fehler korrigieren', 'Fix issues first')
-                                : entry.is_verified ? L('Freigabe zurücknehmen', 'Revoke approval') : L('Freigeben', 'Approve')
-                            }
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onToggleStatus(entry.id, entry.is_verified);
-                            }}
-                          >
-                            {entry.is_verified ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg"
-                          onClick={() => onEntryClick(entry.id)}
-                          title={L('Anzeigen', 'View')}
+                    <td className="px-3 py-3 text-sm text-slate-600 font-medium min-w-0">
+                      <span className="block truncate text-slate-800 font-semibold" title={customerOf(entry) ?? undefined}>{customerOf(entry) ?? '–'}</span>
+                      <span className="block truncate text-xs" title={placeOf(entry) ?? undefined}>{placeOf(entry) ?? '–'}</span>
+                      {entry.latitude && entry.longitude && (
+                        <a
+                          href={`https://www.google.com/maps?q=${entry.latitude},${entry.longitude}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-0.5 font-bold"
+                          onClick={e => e.stopPropagation()}
                         >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        {/* Phase 6 #4 — admin/dispatcher delete (the parent
-                            only passes onDelete for those roles, so it is
-                            naturally hidden for employees). */}
-                        {onDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 rounded-lg"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onDelete(entry)
-                            }}
-                            title={L('Löschen', 'Delete')}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                          <MapPin className="w-3 h-3" /> {L('Koordinaten', 'Coordinates')}
+                        </a>
+                      )}
                     </td>
+                    <td className="px-3 py-3">{renderBadges(entry)}</td>
+                    <td className="px-3 py-3 text-right">{renderActions(entry)}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={isAdminView ? 10 : 9} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">
+                  <td colSpan={isAdminView ? 7 : 6} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">
                     {L('Keine Zeiteinträge gefunden', 'No time entries found')}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="xl:hidden divide-y divide-slate-100 border-t border-slate-100">
+          {paginatedEntries.length > 0 ? (
+            paginatedEntries.map((entry) => (
+              <div key={entry.id} className="px-4 py-4 space-y-2">
+                <button type="button" onClick={() => onEntryClick(entry.id)} className="w-full text-left">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate">
+                        {format(parseISO(entry.date), locale === 'de' ? 'EEE, dd.MM.yyyy' : 'EEE, MMM dd', { locale: dateLocale })}
+                        {isAdminView && <span className="font-bold text-slate-600"> · {entry.employee?.full_name || L('Gelöschtes Konto', 'Deleted account')}</span>}
+                      </p>
+                      <p className="text-sm text-slate-600 tabular-nums">
+                        {timeRange(entry)} · {entry.break_minutes ?? 0} Min. {L('Pause', 'break')}
+                      </p>
+                      {(customerOf(entry) || placeOf(entry)) && (
+                        <p className="text-xs text-slate-500 truncate">{[customerOf(entry), placeOf(entry)].filter(Boolean).join(' · ')}</p>
+                      )}
+                    </div>
+                    <span className="text-lg font-black text-slate-900 tabular-nums whitespace-nowrap">
+                      {formatHours(entryNetHours(entry), locale)} <span className="text-xs text-slate-400">{L('Std.', 'h')}</span>
+                    </span>
+                  </div>
+                </button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {renderBadges(entry)}
+                  {renderActions(entry)}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="px-6 py-12 text-center text-slate-400 text-sm font-medium">{L('Keine Zeiteinträge gefunden', 'No time entries found')}</p>
+          )}
         </div>
 
         {/* Pagination */}

@@ -182,7 +182,7 @@ export function LocationImportDialog({ open, onOpenChange, existing, onImport }:
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o) }}>
-      <DialogContent className="max-w-5xl rounded-[2rem] p-6 md:p-8 max-h-[94vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl rounded-[2rem] p-6 md:p-8 max-h-[94vh] overflow-y-auto">
         <DialogHeader className="text-left space-y-1">
           <DialogTitle className="text-2xl font-black tracking-tight">{L('Betriebsstellen importieren', 'Import operational locations')}</DialogTitle>
           <DialogDescription>

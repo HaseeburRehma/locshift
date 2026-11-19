@@ -33,9 +33,12 @@ type StatusFilter = 'all' | 'submitted' | 'approved' | 'rejected'
 
 const ITEMS_PER_PAGE = 10
 
-/** Employee name: joined row first, then the org profile list. */
+/**
+ * Employee name: joined row first, then the org profile list. A claim whose
+ * account was deleted says so instead of "Unbekannt" (QA cleanup).
+ */
 function claimEmployeeName(pd: PerDiem, profiles: Record<string, Profile>, locale: Locale): string {
-  return pd.employee?.full_name || profiles[pd.employee_id]?.full_name || (locale === 'de' ? 'Unbekannt' : 'Unknown')
+  return pd.employee?.full_name || profiles[pd.employee_id]?.full_name || (locale === 'de' ? 'Gelöschtes Konto' : 'Deleted account')
 }
 
 /** Calendar days of a claim (num_days, else its date range, else 1). */

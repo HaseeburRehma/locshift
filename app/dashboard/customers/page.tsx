@@ -35,10 +35,12 @@ import { toast } from 'sonner'
 import { CustomerForm } from '@/components/customers/CustomerForm'
 import { CustomerDetails } from '@/components/customers/CustomerDetails'
 import { cn } from '@/lib/utils'
+import { useConfirm } from '@/components/shared/ConfirmDialog'
 
 export default function CustomersPage() {
   const { isAdmin, isDispatcher } = useUser()
   const { locale } = useTranslation()
+  const confirm = useConfirm()
   
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
@@ -65,7 +67,15 @@ export default function CustomersPage() {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(locale === 'en' ? `Permanently remove ${name}?` : `${name} endgültig entfernen?`)) return
+    const ok = await confirm({
+      title: locale === 'en' ? 'Remove customer?' : 'Kunde entfernen?',
+      details: [name],
+      note: locale === 'en' ? 'This cannot be undone.' : 'Das kann nicht rückgängig gemacht werden.',
+      confirmLabel: locale === 'en' ? 'Remove' : 'Entfernen',
+      cancelLabel: locale === 'en' ? 'Cancel' : 'Abbrechen',
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await deleteCustomer(id)
       toast.success(locale === 'de' ? 'Kundenprofil entfernt' : 'Customer profile removed')

@@ -17,6 +17,7 @@ import { addDays, localDateKey } from '@/lib/time/shift-hours'
 import { weekDays, weekStartOf } from '@/lib/plans/week'
 import { formatDateDE, weekdayName } from '@/lib/time/format'
 import { fetchAllPages } from '@/lib/supabase/paginate'
+import { onTimesChanged } from '@/lib/times/events'
 
 interface Counts {
   approvals: number
@@ -33,6 +34,9 @@ export function AttentionCards() {
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const [c, setC] = useState<Counts | null>(null)
   const [week, setWeek] = useState<{ day: string; total: number; unassigned: number }[]>([])
+  const [version, setVersion] = useState(0)
+
+  useEffect(() => onTimesChanged(() => setVersion((v) => v + 1)), [])
 
   useEffect(() => {
     if (!profile?.organization_id) return
@@ -46,7 +50,7 @@ export function AttentionCards() {
     const we = addDays(ws, 7)
 
     Promise.all([
-      supabase.from('time_entries').select('id', { count: 'exact', head: true }).eq('organization_id', org).eq('is_verified', false).eq('is_planned', false).not('submitted_at', 'is', null),
+      supabase.from('time_entries').select('id', { count: 'exact', head: true }).eq('organization_id', org).eq('is_verified', false).eq('is_planned', false).not('submitted_at', 'is', null).not('end_time', 'is', null),
       supabase.from('time_entry_corrections').select('id', { count: 'exact', head: true }).eq('organization_id', org).eq('status', 'pending'),
       supabase.from('plans').select('id', { count: 'exact', head: true }).eq('organization_id', org).is('employee_id', null).neq('status', 'cancelled').gte('start_time', now).lte('start_time', in14),
       supabase.from('plans').select('id', { count: 'exact', head: true }).eq('organization_id', org).eq('status', 'rejected').gte('start_time', now),
@@ -82,7 +86,7 @@ export function AttentionCards() {
         }),
       )
     })
-  }, [profile?.organization_id])
+  }, [profile?.organization_id, version])
 
   if (!c) return <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[1, 2, 3, 4].map((i) => <div key={i} className="h-24 rounded-2xl bg-slate-50 animate-pulse" />)}</div>
 

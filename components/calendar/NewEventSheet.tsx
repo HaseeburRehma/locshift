@@ -20,11 +20,13 @@ import { Switch } from '@/components/ui/switch'
 import { useTranslation } from '@/lib/i18n'
 import { CalendarEvent, CalendarEventType, EVENT_COLORS, Profile, REMINDER_OPTIONS } from '@/lib/types'
 import { useCreateEvent } from '@/hooks/calendar/useCreateEvent'
+import { isValidDate } from '@/lib/time/shift-hours'
 import { EventTypeSelector } from './EventTypeSelector'
 import { useUser } from '@/lib/user-context'
 import { ContactPickerGrid } from '@/components/chat/ContactPickerGrid'
 import { cn } from '@/lib/utils'
 import { berlinDateKey, calendarDayKey, fromBerlinInputValue, toBerlinInputValue } from '@/lib/time/berlin'
+import { useConfirm } from '@/components/shared/ConfirmDialog'
 
 interface NewEventSheetProps {
   isOpen: boolean
@@ -35,6 +37,7 @@ interface NewEventSheetProps {
 
 export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: NewEventSheetProps) {
   const { t, locale } = useTranslation()
+  const confirm = useConfirm()
   const { user, profile } = useUser()
   const { createEvent, updateEvent, deleteEvent, isSubmitting } = useCreateEvent()
   
@@ -93,6 +96,10 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title) return
+    // Half-typed years (0202-…) never reach the database.
+    const startIso = isValidDate(startTime.split('T')[0]) ? fromBerlinInputValue(startTime) : null
+    const endIso = isValidDate(endTime.split('T')[0]) ? fromBerlinInputValue(endTime) : null
+    if (!startIso || !endIso) return
 
     const data = {
       title,
@@ -100,8 +107,8 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
       location,
       event_type: eventType,
       is_all_day: isAllDay,
-      start_time: fromBerlinInputValue(startTime) ?? new Date(startTime).toISOString(),
-      end_time: fromBerlinInputValue(endTime) ?? new Date(endTime).toISOString(),
+      start_time: startIso,
+      end_time: endIso,
       color: EVENT_COLORS[eventType],
       member_ids: selectedMembers.map(m => m.id),
       // Phase 4 #7 — pass reminder choice through; useCreateEvent handles persistence
@@ -132,7 +139,14 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
 
   const handleDelete = async () => {
     if (!eventToEdit) return
-    if (confirm(locale === 'de' ? 'Diesen Termin wirklich löschen?' : 'Are you sure you want to delete this event?')) {
+    const ok = await confirm({
+      title: locale === 'de' ? 'Termin löschen?' : 'Delete event?',
+      details: [eventToEdit.title],
+      confirmLabel: locale === 'de' ? 'Löschen' : 'Delete',
+      cancelLabel: locale === 'de' ? 'Abbrechen' : 'Cancel',
+      destructive: true,
+    })
+    if (ok) {
       const success = await deleteEvent(eventToEdit.id)
       if (success) onClose()
     }

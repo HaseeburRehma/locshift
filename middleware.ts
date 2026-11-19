@@ -33,6 +33,29 @@ const AUTH_FLOW_ROUTES = ['/forgot-password', '/auth/callback', '/auth/auth-code
 // must_change_password is TRUE — otherwise they'd loop forever.
 const PASSWORD_CHANGE_ROUTE = '/change-password'
 
+const AUTH_TIMEOUT_MS = 4000
+const TIMED_OUT = Symbol('timed out')
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<typeof TIMED_OUT>((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), ms) })
+  const settled = Promise.resolve(promise).catch((): typeof TIMED_OUT => TIMED_OUT)
+  return Promise.race<T | typeof TIMED_OUT>([settled, timeout]).finally(() => clearTimeout(timer))
+}
+
+interface ProfileFlags { role?: string | null; onboarding_completed?: boolean | null; must_change_password?: boolean | null }
+
+/** Flags the DB trigger keeps in auth app_metadata (users cannot edit it). */
+function profileFromAppMetadata(meta: Record<string, unknown> | undefined): ProfileFlags | null {
+  const m = meta?.lokshift as Record<string, unknown> | undefined
+  if (!m || typeof m.role !== 'string') return null
+  return {
+    role: m.role,
+    onboarding_completed: m.onboarding_completed === true,
+    must_change_password: m.must_change_password === true,
+  }
+}
+
 export default async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   let response = NextResponse.next({ request })
@@ -89,7 +112,20 @@ export default async function middleware(request: NextRequest) {
     return redirectResponse
   }
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // A slow Supabase must never hang the whole site (QA P0-2: Vercel ends
+  // middleware after a few seconds with 504 MIDDLEWARE_INVOCATION_TIMEOUT).
+  const auth = await withTimeout(supabase.auth.getUser(), AUTH_TIMEOUT_MS)
+  if (auth === TIMED_OUT) {
+    // Unknown session state: with a session cookie let the page load (its
+    // data is protected by RLS and the client re-checks the session);
+    // without one, protected pages still go to the login.
+    const hasSessionCookie = request.cookies.getAll().some(c => /^sb-.*-auth-token/.test(c.name))
+    if (!hasSessionCookie && (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding'))) {
+      return redirectTo('/login')
+    }
+    return response
+  }
+  const user = auth.data.user
 
   // 4. Signed in → entry pages go straight to the dashboard (password
   // change and onboarding are enforced from there).
@@ -113,12 +149,18 @@ export default async function middleware(request: NextRequest) {
   const isPasswordChangeRoute = pathname === PASSWORD_CHANGE_ROUTE
 
   if (isDashboardRoute || isOnboardingRoute || isPasswordChangeRoute) {
-    // Optimization: Only fetch profile if we are in the dashboard/onboarding silo
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, onboarding_completed, must_change_password')
-      .eq('id', user.id)
-      .single()
+    // Role and flags travel in app_metadata (copied from profiles by the
+    // trigger in 20261119120000_qa_fixes.sql), so normally no query runs
+    // here. Until that migration is applied, fall back to one lookup.
+    let profile: ProfileFlags | null = profileFromAppMetadata(user.app_metadata)
+    if (!profile) {
+      const lookup = await withTimeout(
+        supabase.from('profiles').select('role, onboarding_completed, must_change_password').eq('id', user.id).single(),
+        AUTH_TIMEOUT_MS,
+      )
+      if (lookup === TIMED_OUT) return response
+      profile = lookup.data as ProfileFlags | null
+    }
 
     // Force first-login password change before anything else (Section 5.1).
     // We never "kick off" /change-password — any authenticated user is
@@ -130,7 +172,8 @@ export default async function middleware(request: NextRequest) {
     }
 
     // Default role logic
-    let role = (profile?.role || user.user_metadata?.role || 'employee').toLowerCase()
+    // Never user_metadata: users can write it themselves.
+    let role = (profile?.role || 'employee').toLowerCase()
     if (role === 'administrator') role = 'admin'
     if (role === 'disponent') role = 'dispatcher'
     if (!['admin', 'dispatcher', 'employee'].includes(role)) role = 'employee'

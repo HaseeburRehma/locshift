@@ -108,6 +108,19 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
   styleHeader(ws, headerRowNumber)
 
   for (const d of report.days) {
+    // Planned shifts without any time entry (QA P1-1).
+    for (const m of d.missing) {
+      const info = [m.label, m.isGastfahrt ? 'Gastfahrt' : null, m.customer, m.route].filter(Boolean).join(' · ')
+      const row = ws.addRow([
+        formatDateDE(d.date), d.weekdayShort, m.start, `${m.end}${m.endDayOffset > 0 ? ` (+${m.endDayOffset})` : ''}`,
+        '', '', '', '', '', '', '', '', '', `Geplant – keine Zeit erfasst${info ? ` · ${info}` : ''}`,
+      ])
+      row.font = { bold: true, color: { argb: 'FF9A3412' } }
+      row.eachCell({ includeEmpty: true }, (c) => {
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } }
+      })
+    }
+    if (d.rows.length === 0 && d.missing.length > 0) continue
     if (d.rows.length === 0) {
       const row = ws.addRow([formatDateDE(d.date), d.weekdayShort, '', '', '', '', '', '', '', '', '', '', '', d.absence?.label ?? d.holidayName ?? 'kein Einsatz'])
       row.font = { color: { argb: 'FF94A3B8' }, italic: true }
@@ -206,7 +219,7 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
 function overviewSheet(ws: Worksheet, title: string, subtitle: string, rows: OverviewRow[], totalsLabel: string, firstCol: string, totals: OverviewRow, gastfahrtCountsAsWork: boolean) {
   ws.columns = [
     { width: 28 }, { width: 12 }, { width: 13 }, { width: 13 }, { width: 13 }, { width: 13 },
-    { width: 11 }, { width: 12 }, { width: 12 }, { width: 14 }, { width: 16 },
+    { width: 11 }, { width: 12 }, { width: 12 }, { width: 14 }, { width: 16 }, { width: 16 },
   ]
   ws.addRow([title]).font = { bold: true, size: 14 }
   ws.addRow([subtitle]).font = { color: { argb: 'FF64748B' } }
@@ -214,13 +227,13 @@ function overviewSheet(ws: Worksheet, title: string, subtitle: string, rows: Ove
   const headerRowNumber = 4
   ws.getRow(headerRowNumber).values = [
     firstCol, 'Soll (Std.)', 'Arbeitszeit (Std.)', 'Gastfahrt (Std.)', 'Ist (Std.)', 'Differenz (Std.)',
-    'Urlaub (Tage)', 'Krank (Tage)', 'Arbeitstage', 'Offene Einträge', 'Fehlerhafte Einträge',
+    'Urlaub (Tage)', 'Krank (Tage)', 'Arbeitstage', 'Offene Einträge', 'Fehlerhafte Einträge', 'Fehlende Schichten',
   ]
   styleHeader(ws, headerRowNumber)
   const put = (r: OverviewRow, bold = false) => {
     const row = ws.addRow([
       r.label, r.targetHours, r.workHours, r.gastfahrtHours, r.actualHours, r.differenceHours,
-      r.vacationDays, r.sickDays, r.workingDays, r.openEntries, r.issueCount,
+      r.vacationDays, r.sickDays, r.workingDays, r.openEntries, r.issueCount, r.missingShifts,
     ])
     for (const c of [2, 3, 4, 5, 6]) row.getCell(c).numFmt = HOURS
     if (bold) {
@@ -232,6 +245,7 @@ function overviewSheet(ws: Worksheet, title: string, subtitle: string, rows: Ove
     } else {
       if (r.openEntries > 0) row.getCell(10).font = { bold: true, color: { argb: 'FFB45309' } }
       if (r.issueCount > 0) row.getCell(11).font = { bold: true, color: { argb: 'FFB91C1C' } }
+      if (r.missingShifts > 0) row.getCell(12).font = { bold: true, color: { argb: 'FFC2410C' } }
     }
   }
   rows.forEach((r) => put(r))

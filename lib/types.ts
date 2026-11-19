@@ -43,6 +43,8 @@ export interface Profile {
   role: UserRole
   avatar_url: string | null
   is_active: boolean
+  /** Internal test/support account, hidden from client views (QA cleanup). */
+  is_internal?: boolean | null
   onboarding_completed: boolean
   must_change_password?: boolean
   target_hours: number

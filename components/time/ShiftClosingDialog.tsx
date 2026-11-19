@@ -24,18 +24,21 @@ import { useUser } from '@/lib/user-context'
 import { calculateShiftTimes, isValidDate, isValidTime, localDateKey, localTimeKey } from '@/lib/time/shift-hours'
 import { formatDateDE, formatEuro, formatHours, formatHoursLong, weekdayName } from '@/lib/time/format'
 import { calculateSpesen, spesenTierLabel } from '@/lib/spesen'
+import { DateField } from '@/components/shared/DateField'
 
 interface ShiftClosingDialogProps {
   entry: TimeEntry | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (entryId: string, values: SubmitShiftValues) => Promise<boolean>
+  /** The end time is still being stored — submitting waits for it. */
+  saving?: boolean
 }
 
 const hhmm = (iso?: string | null) => (iso ? localTimeKey(new Date(iso)) : '')
 const dayOf = (iso?: string | null) => (iso ? localDateKey(new Date(iso)) : '')
 
-export function ShiftClosingDialog({ entry, open, onOpenChange, onSubmit }: ShiftClosingDialogProps) {
+export function ShiftClosingDialog({ entry, open, onOpenChange, onSubmit, saving = false }: ShiftClosingDialogProps) {
   const { locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const { spesenRates } = useUser()
@@ -60,7 +63,10 @@ export function ShiftClosingDialog({ entry, open, onOpenChange, onSubmit }: Shif
     setBreakMinutes(String(entry.break_minutes ?? 0))
     setOvernight(!!entry.overnight_stay)
     setNotes(entry.notes ?? '')
-  }, [entry, open])
+    // Only when another shift is opened: the stored copy arriving after
+    // "Beenden" must not wipe what the employee already changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.id, open])
 
   const brk = Math.max(0, Math.round(Number(breakMinutes.replace(',', '.')) || 0))
   const shift = useMemo(
@@ -129,11 +135,10 @@ export function ShiftClosingDialog({ entry, open, onOpenChange, onSubmit }: Shif
   }
 
   const cellLabel = 'text-[10px] font-black uppercase tracking-widest text-slate-400'
-  const readCell = 'h-11 flex items-center justify-center rounded-xl bg-slate-50 text-sm font-bold text-slate-600 tabular-nums'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl rounded-[2rem] p-0 overflow-hidden max-h-[92vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[min(48rem,calc(100%-2rem))] rounded-[2rem] p-0 overflow-x-hidden max-h-[92vh] overflow-y-auto">
         <div className="p-6 md:p-8 space-y-6">
           <DialogHeader className="space-y-1 text-left">
             <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">
@@ -146,41 +151,38 @@ export function ShiftClosingDialog({ entry, open, onOpenChange, onSubmit }: Shif
             </DialogDescription>
           </DialogHeader>
 
-          {/* Comparison */}
-          <div className="grid grid-cols-[90px_1fr_1fr_1.3fr] gap-2 items-center">
-            <span />
-            <span className={cn(cellLabel, 'text-center')}>{L('Geplant', 'Planned')}</span>
-            <span className={cn(cellLabel, 'text-center')}>{L('Erfasst', 'Recorded')}</span>
-            <span className={cn(cellLabel, 'text-center text-[#0064E0]')}>{L('Absenden', 'Submit')}</span>
-
-            <span className={cellLabel}>{L('Datum', 'Date')}</span>
-            <span className={readCell}>{plan ? formatDateDE(dayOf(plan.start_time)).slice(0, 6) : '—'}</span>
-            <span className={readCell}>{recordedStart ? formatDateDE(dayOf(recordedStart)).slice(0, 6) : '—'}</span>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-11 rounded-xl font-bold" />
-
-            <span className={cellLabel}>{L('Beginn', 'Start')}</span>
-            <span className={readCell}>{plan ? hhmm(plan.start_time) : '—'}</span>
-            <span className={readCell}>{hhmm(recordedStart) || '—'}</span>
-            <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-11 rounded-xl font-bold tabular-nums" />
-
-            <span className={cellLabel}>{L('Ende', 'End')}</span>
-            <span className={readCell}>{plan ? hhmm(plan.end_time) : '—'}</span>
-            <span className={readCell}>{hhmm(recordedEnd) || '—'}</span>
-            <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="h-11 rounded-xl font-bold tabular-nums" />
-
-            <span className={cellLabel}>{L('Pause', 'Break')}</span>
-            <span className={cn(readCell, 'text-xs')}>{L('nicht hinterlegt', 'not set')}</span>
-            <span className={readCell}>{entry ? `${entry.break_minutes ?? 0} Min.` : '—'}</span>
-            <div className="relative">
-              <Input
-                inputMode="numeric"
-                value={breakMinutes}
-                onChange={(e) => setBreakMinutes(e.target.value.replace(/[^\d]/g, ''))}
-                className="h-11 rounded-xl font-bold tabular-nums pr-12"
-                aria-label={L('Pause in Minuten', 'Break in minutes')}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Min.</span>
+          {/* Comparison — three columns from tablet width up; on phones each
+              field is a block with planned/recorded chips above the input
+              (QA P0-3: no horizontal scrolling at 375–1920 px). */}
+          <div className="space-y-3 sm:space-y-2">
+            <div className={cn(compareRow, 'hidden sm:grid')}>
+              <span />
+              <span className={cn(cellLabel, 'text-center')}>{L('Geplant', 'Planned')}</span>
+              <span className={cn(cellLabel, 'text-center')}>{L('Erfasst', 'Recorded')}</span>
+              <span className={cn(cellLabel, 'text-center text-[#0064E0]')}>{L('Absenden', 'Submit')}</span>
             </div>
+
+            <CompareRow label={L('Datum', 'Date')} planned={plan ? formatDateDE(dayOf(plan.start_time)).slice(0, 6) : '—'} recorded={recordedStart ? formatDateDE(dayOf(recordedStart)).slice(0, 6) : '—'} L={L}>
+              <DateField as={Input} value={date} onValueChange={setDate} className="h-11 w-full min-w-0 rounded-xl font-bold" aria-label={L('Datum absenden', 'Date to submit')} />
+            </CompareRow>
+            <CompareRow label={L('Beginn', 'Start')} planned={plan ? hhmm(plan.start_time) : '—'} recorded={hhmm(recordedStart) || '—'} L={L}>
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-11 w-full min-w-0 rounded-xl font-bold tabular-nums" aria-label={L('Beginn absenden', 'Start to submit')} />
+            </CompareRow>
+            <CompareRow label={L('Ende', 'End')} planned={plan ? hhmm(plan.end_time) : '—'} recorded={hhmm(recordedEnd) || '—'} L={L}>
+              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="h-11 w-full min-w-0 rounded-xl font-bold tabular-nums" aria-label={L('Ende absenden', 'End to submit')} />
+            </CompareRow>
+            <CompareRow label={L('Pause', 'Break')} planned={L('nicht hinterlegt', 'not set')} recorded={entry ? `${entry.break_minutes ?? 0} Min.` : '—'} L={L}>
+              <div className="relative min-w-0">
+                <Input
+                  inputMode="numeric"
+                  value={breakMinutes}
+                  onChange={(e) => setBreakMinutes(e.target.value.replace(/[^\d]/g, ''))}
+                  className="h-11 w-full min-w-0 rounded-xl font-bold tabular-nums pr-12"
+                  aria-label={L('Pause in Minuten', 'Break in minutes')}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Min.</span>
+              </div>
+            </CompareRow>
           </div>
 
           {!plan && (
@@ -256,11 +258,11 @@ export function ShiftClosingDialog({ entry, open, onOpenChange, onSubmit }: Shif
             />
           </div>
 
-          <div className="flex flex-col-reverse md:flex-row gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap gap-3 pt-2">
             <Button
               type="button"
               variant="ghost"
-              className="md:mr-auto rounded-xl font-bold text-slate-500"
+              className="sm:mr-auto rounded-xl font-bold text-slate-500"
               onClick={() => onOpenChange(false)}
             >
               <Undo2 className="w-4 h-4 mr-2" />
@@ -278,16 +280,36 @@ export function ShiftClosingDialog({ entry, open, onOpenChange, onSubmit }: Shif
             </Button>
             <Button
               type="button"
-              disabled={!entry || errors.length > 0 || submitting}
+              disabled={!entry || errors.length > 0 || submitting || saving}
               onClick={handleSubmit}
               className="h-12 rounded-xl bg-[#0064E0] hover:bg-[#0050B4] text-white font-black uppercase text-[11px] tracking-widest"
             >
-              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-              {L('Schicht absenden', 'Submit shift')}
+              {submitting || saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+              {saving ? L('Ende wird gespeichert…', 'Saving end…') : L('Schicht absenden', 'Submit shift')}
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+const compareRow = 'grid grid-cols-2 gap-2 sm:grid-cols-[84px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)] sm:items-center'
+const chip = 'h-11 min-w-0 flex flex-col sm:flex-row items-center justify-center rounded-xl bg-slate-50 text-sm font-bold text-slate-600 tabular-nums truncate'
+
+function CompareRow({ label, planned, recorded, L, children }: { label: string; planned: string; recorded: string; L: (de: string, en: string) => string; children: React.ReactNode }) {
+  return (
+    <div className={compareRow}>
+      <span className="col-span-2 sm:col-span-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
+      <span className={chip}>
+        <span className="sm:hidden text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">{L('Geplant', 'Planned')}</span>
+        {planned}
+      </span>
+      <span className={chip}>
+        <span className="sm:hidden text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">{L('Erfasst', 'Recorded')}</span>
+        {recorded}
+      </span>
+      <div className="col-span-2 sm:col-span-1 min-w-0">{children}</div>
+    </div>
   )
 }

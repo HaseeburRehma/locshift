@@ -83,7 +83,7 @@ export default function PersonnelFilePage() {
       )}
 
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <DialogContent className="max-w-xl rounded-2xl p-6 max-h-[92vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-xl rounded-2xl p-6 max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">
               {form?.mode === 'renew' ? L('Nachweis erneuern', 'Renew document') : form?.mode === 'edit' ? L('Nachweis bearbeiten', 'Edit document') : L('Nachweis hinzufügen', 'Add document')}

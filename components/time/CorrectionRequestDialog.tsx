@@ -13,6 +13,7 @@ import { useUser } from '@/lib/user-context'
 import { calculateShiftTimes, isValidDate, isValidTime, localTimeKey } from '@/lib/time/shift-hours'
 import { formatDateDE, formatHours, formatShiftRange } from '@/lib/time/format'
 import { calculateSpesen } from '@/lib/spesen'
+import { DateField } from '@/components/shared/DateField'
 
 interface Props {
   entry: TimeEntry | null
@@ -106,7 +107,7 @@ export function CorrectionRequestDialog({ entry, open, onOpenChange, onSubmit }:
         <div className="grid grid-cols-2 gap-3 mt-4">
           <label className="col-span-2 text-xs font-black uppercase tracking-widest text-slate-400">
             {L('Datum', 'Date')}
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 h-11 rounded-xl" />
+            <DateField as={Input} value={date} onValueChange={setDate} className="mt-1 h-11 rounded-xl" />
           </label>
           <label className="text-xs font-black uppercase tracking-widest text-slate-400">
             {L('Beginn', 'Start')}

@@ -79,7 +79,8 @@ export function usePerDiem() {
            organization_id: profile.organization_id,
            status: 'submitted'
         })
-        .select()
+        // Same join as the list, so the new claim shows its employee at once.
+        .select('*, employee:profiles!employee_id(id, full_name), plan:plans(*, customer:customers(*))')
         .single()
 
       if (error) throw error

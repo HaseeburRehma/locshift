@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { UserProvider } from '@/lib/user-context'
 import { I18nProvider } from '@/lib/i18n'
+import { ConfirmProvider } from '@/components/shared/ConfirmDialog'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
@@ -41,8 +42,10 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <UserProvider>
           <I18nProvider>
+            <ConfirmProvider>
             {children}
             <Toaster />
+            </ConfirmProvider>
           </I18nProvider>
         </UserProvider>
         <Analytics />

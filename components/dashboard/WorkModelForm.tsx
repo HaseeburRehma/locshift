@@ -64,7 +64,7 @@ export function WorkModelForm({ model, isOpen, onClose, onSubmit }: WorkModelFor
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md rounded-[2rem] p-8">
+      <DialogContent className="sm:max-w-md rounded-[2rem] p-8">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black tracking-tight uppercase">
             {model ? L('Modell bearbeiten', 'Edit Model') : L('Neues Arbeitszeitmodell', 'New Work Model')}
