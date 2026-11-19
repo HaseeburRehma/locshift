@@ -159,9 +159,18 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
   }
 
   const timeRange = (entry: TimeEntry) => {
-    if (!entry.end_time) return `${formatTimeOfDay(entry.start_time)} – ${L('läuft', 'running')}`
+    if (!entry.end_time) return <span className="whitespace-nowrap">{formatTimeOfDay(entry.start_time)} – {L('läuft', 'running')}</span>
     const off = endDayOffset(entry.start_time, entry.end_time)
-    return `${formatTimeOfDay(entry.start_time)}–${formatTimeOfDay(entry.end_time)}${off > 0 ? ` (+${off})` : ''}`
+    return (
+      <>
+        <span className="whitespace-nowrap">{formatTimeOfDay(entry.start_time)}–{formatTimeOfDay(entry.end_time)}</span>
+        {off > 0 && (
+          <span className="ml-1 inline-block rounded bg-indigo-50 px-1 text-[10px] font-black text-indigo-700" title={L('Ende am Folgetag', 'Ends next day')}>
+            +{off}
+          </span>
+        )}
+      </>
+    )
   }
   const customerOf = (entry: TimeEntry) => entry.customer?.name || entry.plan?.customer?.name || null
   // Betriebsstellen as Kürzel where available (fits the column), else name.
@@ -472,12 +481,12 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
         <div className="hidden xl:block w-full">
           <table className="w-full table-fixed text-left border-collapse">
             <colgroup>
-              <col className="w-[88px]" />
+              <col className="w-[104px]" />
               {isAdminView && <col className="w-[120px]" />}
-              <col className="w-[112px]" />
-              <col className="w-[80px]" />
+              <col className="w-[128px]" />
+              <col className="w-[84px]" />
               <col />
-              <col className="w-[136px]" />
+              <col className="w-[120px]" />
               <col className="w-[132px]" />
             </colgroup>
             <thead>
@@ -495,7 +504,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
               {paginatedEntries.length > 0 ? (
                 paginatedEntries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-slate-50 transition-colors group align-top">
-                    <td className="px-3 py-3 text-sm font-semibold text-slate-600 whitespace-nowrap">
+                    <td className="px-3 py-3 text-sm font-semibold text-slate-600">
                       {format(parseISO(entry.date), locale === 'de' ? 'dd.MM.yyyy' : 'MMM dd, yyyy', { locale: dateLocale })}
                     </td>
                     {isAdminView && (
@@ -506,7 +515,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
                       </td>
                     )}
                     <td className="px-3 py-3 text-sm text-slate-600 font-medium tabular-nums">
-                      <span className="whitespace-nowrap">{timeRange(entry)}</span>
+                      <span>{timeRange(entry)}</span>
                       <span className="block text-xs text-slate-400">{entry.break_minutes ?? 0} Min. {L('Pause', 'break')}</span>
                     </td>
                     <td className="px-3 py-3 text-sm text-slate-900 font-bold whitespace-nowrap tabular-nums">
