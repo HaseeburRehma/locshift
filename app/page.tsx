@@ -764,7 +764,7 @@ function CaseStudy() {
           {/* Left side stats — LokShift-specific outcomes for the Rheinmaasrail rollout */}
           <div className="lg:col-span-3 space-y-5" data-animate>
             <CaseStat
-              big="7 Tage"
+              big={L('7 Tage', '7 days')}
               label={L('Vom Kick-off bis zur produktiven Disposition', 'From kick-off to productive dispatch')}
             />
             <CaseStat
@@ -772,7 +772,7 @@ function CaseStudy() {
               label={L('Verlorene Schichten seit Go-Live', 'Lost shifts since go-live')}
             />
             <CaseStat
-              big="−12 Std."
+              big={L('−12 Std.', '−12 h')}
               label={L('Pro Disponent eingesparte Wochenzeit', 'Hours saved per dispatcher each week')}
             />
           </div>
