@@ -1,6 +1,7 @@
 'use client'
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { visibleByEmployee } from '@/lib/profiles/internal'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -73,7 +74,7 @@ function TimesPageInner() {
     if (!isManager) q = q.eq('employee_id', user.id)
     const { data, error } = await q
     if (error) toast.error(L('Zeiteinträge konnten nicht geladen werden', 'Failed to load time entries'))
-    else setEntries((data ?? []) as TimeEntry[])
+    else setEntries(isManager ? visibleByEmployee((data ?? []) as TimeEntry[], profile) : ((data ?? []) as TimeEntry[]))
 
     const { data: customersData } = await supabase
       .from('customers')

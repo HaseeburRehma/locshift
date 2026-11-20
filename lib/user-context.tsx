@@ -135,8 +135,26 @@ export function UserProvider({ children }: { children: ReactNode }) {
       return { profile: p, org: (org as OrganizationSettings) ?? null };
     };
 
-    const handleUserAndProfile = async (sessionUser: User | null) => {
+    // getSession() and the SIGNED_IN event that supabase-js fires on load
+    // used to load the same profile 2–3 times per page (QA 20.11.
+    // performance). One request per user at a time; a token refresh for
+    // the already loaded user needs no new profile.
+    let inflight: { userId: string; promise: ReturnType<typeof loadProfileAndOrg> } | null = null;
+    let loadedFor: string | null = null;
+    const loadOnce = (userId: string) => {
+      if (inflight?.userId === userId) return inflight.promise;
+      const promise = loadProfileAndOrg(userId);
+      inflight = { userId, promise };
+      promise.finally(() => { if (inflight?.promise === promise) inflight = null; });
+      return promise;
+    };
+
+    const handleUserAndProfile = async (sessionUser: User | null, reload = false) => {
       if (!mounted) return;
+      if (sessionUser && !reload && loadedFor === sessionUser.id) {
+        setUser(sessionUser);
+        return;
+      }
 
       setUser(sessionUser);
       if (sessionUser) {
@@ -147,13 +165,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
           setOrganization(cached.org);
           setIsLoading(false);
         }
-        const { profile: p, org } = await loadProfileAndOrg(sessionUser.id);
+        const { profile: p, org } = await loadOnce(sessionUser.id);
+        loadedFor = p ? sessionUser.id : null;
         if (mounted) {
           setProfile(p);
           setOrganization(org);
           writeProfileCache(sessionUser.id, p, org);
         }
       } else {
+        loadedFor = null;
         clearProfileCache();
         if (mounted) {
           setProfile(null);
@@ -177,8 +197,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
       async (event: string, session: Session | null) => {
         if (event === 'SIGNED_OUT') {
            handleUserAndProfile(null);
-        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
            handleUserAndProfile(session?.user ?? null);
+        } else if (event === 'USER_UPDATED') {
+           handleUserAndProfile(session?.user ?? null, true);
         }
       }
     );

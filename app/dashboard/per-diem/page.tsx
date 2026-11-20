@@ -2,6 +2,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { seesInternal } from '@/lib/profiles/internal'
 import {
   Wallet,
   Plus,
@@ -109,6 +110,8 @@ export default function PerDiemPage() {
 
   const filteredPerDiems = useMemo(() => {
     return perDiems.filter(pd => {
+      // Claims of internal test accounts never show to the client (QA 20.11. #2).
+      if (isAdminView && employeeProfiles[pd.employee_id]?.is_internal && !seesInternal(profile)) return false
       const matchesStatus =
         statusFilter === 'all' || pd.status === statusFilter
       const employeeName =
@@ -119,7 +122,7 @@ export default function PerDiemPage() {
         (pd.country ?? '').toLowerCase().includes(searchQuery.toLowerCase())
       return matchesStatus && matchesSearch
     })
-  }, [perDiems, statusFilter, searchQuery, employeeProfiles])
+  }, [perDiems, statusFilter, searchQuery, employeeProfiles, isAdminView, profile])
 
   const totalPages = Math.max(1, Math.ceil(filteredPerDiems.length / ITEMS_PER_PAGE))
   const paginated = filteredPerDiems.slice(

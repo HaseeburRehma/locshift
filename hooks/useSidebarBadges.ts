@@ -1,15 +1,15 @@
 'use client'
 
-import { setVisibleInterval } from '@/lib/visible-interval'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
-import { useCoalescedRefetch } from '@/hooks/useCoalescedRefetch'
+import { createCoalescer } from '@/hooks/useCoalescedRefetch'
+import { setVisibleInterval } from '@/lib/visible-interval'
 import { berlinDateKey, berlinToInstant } from '@/lib/time/berlin'
 import { addDays } from '@/lib/time/shift-hours'
 import { onTimesChanged } from '@/lib/times/events'
 
-interface SidebarBadges {
+export interface SidebarBadges {
   chat: number
   plans: number
   times: number
@@ -19,31 +19,16 @@ interface SidebarBadges {
   notifications: number
 }
 
-/**
- * Lightweight hook that tracks unread/pending counts for sidebar badges.
- * Uses efficient queries and real-time subscriptions. User, organisation
- * and role come from the user context (no auth round-trip per event);
- * realtime bursts are coalesced into one refresh.
- */
-export function useSidebarBadges() {
-  const [badges, setBadges] = useState<SidebarBadges>({
-    chat: 0,
-    plans: 0,
-    times: 0,
-    approvals: 0,
-    calendar: 0,
-    notifications: 0,
-  })
-  const supabase = createClient()
-  const { user, profile, isAdmin, isDispatcher } = useUser()
-  const userId = user?.id ?? null
-  const orgId = profile?.organization_id ?? null
-  const isManagerRole = isAdmin || isDispatcher
-  const suffix = useRef(Math.random().toString(36).slice(2, 8))
+const EMPTY: SidebarBadges = { chat: 0, plans: 0, times: 0, approvals: 0, calendar: 0, notifications: 0 }
 
-  const fetchBadges = useCallback(async () => {
-    if (!userId) return
+interface Scope {
+  userId: string
+  orgId: string | null
+  isManagerRole: boolean
+}
 
+async function loadBadges({ userId, orgId, isManagerRole }: Scope): Promise<SidebarBadges> {
+  const sb = createClient()
     const nowIso = new Date().toISOString()
 
     // All counts in parallel — one round trip instead of five (QA P0-2).
@@ -53,7 +38,7 @@ export function useSidebarBadges() {
       let chatCount = 0
       try {
         // Get all conversations user is a member of
-        const { data: memberships } = await supabase
+        const { data: memberships } = await sb
           .from('chat_members')
           .select('conversation_id, last_read_at')
           .eq('user_id', userId)
@@ -62,7 +47,7 @@ export function useSidebarBadges() {
           // For each conversation, count messages after last_read_at
           const counts = await Promise.all(
             memberships.map(async (m: { conversation_id: string; last_read_at: string | null }) => {
-              const { count } = await supabase
+              const { count } = await sb
                 .from('chat_messages')
                 .select('id', { count: 'exact', head: true })
                 .eq('conversation_id', m.conversation_id)
@@ -85,7 +70,7 @@ export function useSidebarBadges() {
       let plansCount = 0
       try {
         if (!isManagerRole) {
-          const { count } = await supabase
+          const { count } = await sb
             .from('plans')
             .select('id', { count: 'exact', head: true })
             .eq('employee_id', userId)
@@ -93,7 +78,7 @@ export function useSidebarBadges() {
             .gte('end_time', nowIso)
           plansCount = count || 0
         } else {
-          let q = supabase
+          let q = sb
             .from('plans')
             .select('id', { count: 'exact', head: true })
             .gte('start_time', nowIso)
@@ -112,13 +97,13 @@ export function useSidebarBadges() {
       let approvalsCount = 0
       try {
         if (isManagerRole) {
-          let submittedQ = supabase
+          let submittedQ = sb
             .from('time_entries')
             .select('id', { count: 'exact', head: true })
             .eq('is_verified', false)
             .eq('is_planned', false)
             .not('submitted_at', 'is', null)
-          let correctionsQ = supabase
+          let correctionsQ = sb
             .from('time_entry_corrections')
             .select('id', { count: 'exact', head: true })
             .eq('status', 'pending')
@@ -129,7 +114,7 @@ export function useSidebarBadges() {
           const [{ count: submitted }, { count: corrections }] = await Promise.all([submittedQ, correctionsQ])
           approvalsCount = (submitted || 0) + (corrections || 0)
         } else {
-          const { count } = await supabase
+          const { count } = await sb
             .from('time_entries')
             .select('id', { count: 'exact', head: true })
             .eq('employee_id', userId)
@@ -150,7 +135,7 @@ export function useSidebarBadges() {
         const endOfDay = berlinToInstant(addDays(today, 1)).toISOString()
 
         if (!isManagerRole) {
-          const { count } = await supabase
+          const { count } = await sb
             .from('plans')
             .select('id', { count: 'exact', head: true })
             .eq('employee_id', userId)
@@ -158,7 +143,7 @@ export function useSidebarBadges() {
             .lt('start_time', endOfDay)
           calendarCount = count || 0
         } else {
-          let q = supabase
+          let q = sb
             .from('plans')
             .select('id', { count: 'exact', head: true })
             .gte('start_time', startOfDay)
@@ -174,7 +159,7 @@ export function useSidebarBadges() {
       // ── Notifications: unread count ──────────────────
       let notiCount = 0
       try {
-        const { count } = await supabase
+        const { count } = await sb
           .from('notifications')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
@@ -185,71 +170,90 @@ export function useSidebarBadges() {
     })(),
     ])
 
-    setBadges({
+    return {
       chat: chatCount,
       plans: plansCount,
       times: timesCount,
       approvals: approvalsCount,
       calendar: calendarCount,
       notifications: notiCount,
-    })
-  }, [supabase, userId, orgId, isManagerRole])
+    }
+}
 
-  const scheduleRefresh = useCoalescedRefetch(fetchBadges)
+/**
+ * One badge store per browser tab (QA 20.11. performance): the sidebar and
+ * the mobile bottom nav both show badges, and each used to run its own
+ * fetch, realtime channel and poll — twice the requests on every page.
+ * Now every consumer shares one fetch, one channel and one poll, started
+ * by the first consumer and stopped with the last.
+ */
+let current: SidebarBadges = EMPTY
+let scopeKey: string | null = null
+const listeners = new Set<(b: SidebarBadges) => void>()
+let stop: (() => void) | null = null
 
-  useEffect(() => onTimesChanged(() => scheduleRefresh()), [scheduleRefresh])
+function start(scope: Scope) {
+  const sb = createClient()
+  const coalescer = createCoalescer(async () => {
+    const next = await loadBadges(scope)
+    current = next
+    listeners.forEach((l) => l(next))
+  })
+  const refresh = () => coalescer.schedule()
+  refresh()
+
+  let channel = sb
+    .channel(`sidebar-badges-${scope.userId}-${Math.random().toString(36).slice(2, 8)}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, refresh)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${scope.userId}` }, refresh)
+  if (scope.orgId) {
+    for (const table of ['plans', 'time_entries', 'time_entry_corrections']) {
+      channel = channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `organization_id=eq.${scope.orgId}` }, refresh)
+    }
+  }
+  channel.subscribe()
+
+  const offTimes = onTimesChanged(refresh)
+  // Realtime is the primary signal; the poll is only a fallback.
+  const stopPolling = setVisibleInterval(refresh, 60_000)
+
+  stop = () => {
+    coalescer.dispose()
+    sb.removeChannel(channel)
+    offTimes()
+    stopPolling()
+  }
+}
+
+export function useSidebarBadges(): SidebarBadges {
+  const { user, profile, isAdmin, isDispatcher } = useUser()
+  const userId = user?.id ?? null
+  const orgId = profile?.organization_id ?? null
+  const isManagerRole = isAdmin || isDispatcher
+  const [badges, setBadges] = useState<SidebarBadges>(current)
 
   useEffect(() => {
     if (!userId) return
-    fetchBadges()
-
-    // Real-time: refresh badges when relevant tables change. Org-scoped
-    // tables are filtered by organization_id; chat_messages has no org
-    // column (RLS limits it to the user's conversations).
-    let channel = supabase
-      .channel(`sidebar-badges-${userId}-${suffix.current}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages'
-      }, () => scheduleRefresh())
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${userId}`
-      }, () => scheduleRefresh())
-    if (orgId) {
-      channel = channel
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'plans',
-          filter: `organization_id=eq.${orgId}`
-        }, () => scheduleRefresh())
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'time_entries',
-          filter: `organization_id=eq.${orgId}`
-        }, () => scheduleRefresh())
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'time_entry_corrections',
-          filter: `organization_id=eq.${orgId}`
-        }, () => scheduleRefresh())
+    const key = `${userId}|${orgId}|${isManagerRole}`
+    if (scopeKey !== key) {
+      // Another user or role: restart the shared store.
+      stop?.()
+      stop = null
+      current = EMPTY
+      scopeKey = key
     }
-    channel.subscribe()
-
-    // Also refresh periodically (every 30s) as a fallback
-    const stopPolling = setVisibleInterval(scheduleRefresh, 30000)
-
+    listeners.add(setBadges)
+    setBadges(current)
+    if (!stop) start({ userId, orgId, isManagerRole })
     return () => {
-      supabase.removeChannel(channel)
-      stopPolling()
+      listeners.delete(setBadges)
+      if (listeners.size === 0) {
+        stop?.()
+        stop = null
+        scopeKey = null
+      }
     }
-  }, [supabase, userId, orgId, fetchBadges, scheduleRefresh])
+  }, [userId, orgId, isManagerRole])
 
   return badges
 }

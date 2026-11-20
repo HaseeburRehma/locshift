@@ -221,8 +221,8 @@ export interface TimeEntry {
   // Joined
   employee?: Profile
   customer?: { id: string; name: string }
-  verifier?: { id: string; full_name: string }
-  enterer?: { id: string; full_name: string } | null
+  verifier?: { id: string; full_name: string | null; email?: string | null }
+  enterer?: { id: string; full_name: string | null; email?: string | null } | null
   plan?: {
     id?: string
     start_time?: string
@@ -305,8 +305,8 @@ export interface TimeEntryCorrection {
   reviewed_at: string | null
   review_note: string | null
   // Joined
-  employee?: { id: string; full_name: string } | null
-  reviewer?: { id: string; full_name: string } | null
+  employee?: { id: string; full_name: string | null; email?: string | null; is_internal?: boolean | null } | null
+  reviewer?: { id: string; full_name: string | null; email?: string | null } | null
   entry?: TimeEntry | null
 }
 

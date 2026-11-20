@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
+import { cn, personName } from '@/lib/utils'
 import type { TimeEntry, TimeEntryAuditRow, TimeEntryCorrection } from '@/lib/types'
 import { useTranslation } from '@/lib/i18n'
 import { useUser } from '@/lib/user-context'
@@ -67,8 +67,8 @@ export function TimeEntryDetails({
   const { rows: history, loading: historyLoading, failed: historyFailed, refetch: refetchHistory } = useEntryHistory(entry.id, historyVersion)
   const timeline = useMemo(() => buildTimeline(history, corrections, locale), [history, corrections, locale])
   // Approver: the stored verifier; for approvals via correction the reviewer.
-  const approvedCorrection = corrections.find((c) => c.status === 'approved' && c.reviewer?.full_name)
-  const approverName = entry.verifier?.full_name ?? approvedCorrection?.reviewer?.full_name ?? null
+  const approvedCorrection = corrections.find((c) => c.status === 'approved' && personName(c.reviewer))
+  const approverName = personName(entry.verifier) ?? personName(approvedCorrection?.reviewer) ?? null
 
   const decide = async (approve: boolean, note: string) => {
     if (!pending) return false
@@ -243,7 +243,7 @@ export function TimeEntryDetails({
             <DetailItem
               icon={<UserCheck className="w-5 h-5 text-blue-600" />}
               label={L('Erfasst von', 'Entered by')}
-              value={`${entry.enterer?.full_name ?? entry.employee?.full_name ?? '—'}${onBehalf ? ` (${L('stellvertretend', 'on behalf')})` : ''}`}
+              value={`${personName(entry.enterer) ?? personName(entry.employee) ?? '—'}${onBehalf ? ` (${L('stellvertretend', 'on behalf')})` : ''}`}
             />
             {entry.submitted_at && (
               <DetailItem icon={<Send className="w-5 h-5 text-blue-600" />} label={L('Abgesendet am', 'Submitted')} value={dateTime(entry.submitted_at, locale)} />
@@ -487,7 +487,7 @@ function buildTimeline(rows: TimeEntryAuditRow[], corrections: TimeEntryCorrecti
       key: `c-${c.id}`,
       at: c.requested_at,
       title: de ? 'Korrektur beantragt' : 'Correction requested',
-      who: c.employee?.full_name ?? null,
+      who: personName(c.employee),
       lines: diffLines(c.original as Record<string, unknown>, c.proposed as Record<string, unknown>, locale),
       note: `${de ? 'Begründung' : 'Reason'}: ${c.reason}`,
       tone: 'default',
@@ -502,7 +502,9 @@ function buildTimeline(rows: TimeEntryAuditRow[], corrections: TimeEntryCorrecti
         key: `r-${c.id}`,
         at: c.reviewed_at,
         title,
-        who: c.reviewer?.full_name ?? c.employee?.full_name ?? null,
+        // Approved/rejected: always the reviewer, never the employee (QA 20.11.).
+        // Only a withdrawn request is the employee's own action.
+        who: c.status === 'cancelled' ? personName(c.employee) : personName(c.reviewer),
         lines: [],
         note: c.review_note ? `${de ? 'Hinweis' : 'Note'}: ${c.review_note}` : null,
         tone: c.status === 'approved' ? 'success' : c.status === 'rejected' ? 'danger' : 'default',

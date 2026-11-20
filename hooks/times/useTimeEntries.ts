@@ -32,7 +32,7 @@ export function useTimeEntries(filter: TimeFilter = 'all') {
           *,
           employee:profiles!employee_id(id, full_name, avatar_url, role),
           customer:customers(id, name),
-          verifier:profiles!verified_by(id, full_name)
+          verifier:profiles!verified_by(id, full_name, email)
         `)
         .eq('organization_id', orgId)
 

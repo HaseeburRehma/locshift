@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { visibleByEmployee } from '@/lib/profiles/internal'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
@@ -56,7 +57,7 @@ export function usePersonnelDocuments(opts: { employeeId?: string; includeArchiv
     // A failed page keeps the previous list instead of showing a partial one.
     if (error) console.warn('[usePersonnelDocuments]', error.message)
     // Fristen never list internal test accounts to the client (QA cleanup).
-    else setDocuments(profile.is_internal ? data : data.filter((d) => !(d as { employee?: { is_internal?: boolean | null } | null }).employee?.is_internal))
+    else setDocuments(visibleByEmployee(data as Array<PersonnelDocument & { employee?: { is_internal?: boolean | null } | null }>, profile))
     setLoading(false)
   }, [profile?.organization_id, profile?.is_internal, opts.employeeId, opts.includeArchived, supabase])
 

@@ -22,6 +22,7 @@ import {
 import Link from 'next/link'
 import Image from 'next/image'
 import { NotificationToggle } from '@/components/settings/NotificationToggle'
+import { TestAccountsToggle } from '@/components/settings/TestAccountsToggle'
 import { cn } from '@/lib/utils'
 
 export default async function SettingsHubPage() {
@@ -31,7 +32,7 @@ export default async function SettingsHubPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, email, avatar_url')
+    .select('full_name, email, avatar_url, is_internal')
     .eq('id', user.id)
     .single()
 
@@ -119,6 +120,8 @@ export default async function SettingsHubPage() {
           <p className="text-slate-500 font-medium">Feinjustieren Sie Ihre LokShift-Einsatzzentrale.</p>
         </div>
 
+        {profile?.is_internal && <TestAccountsToggle />}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {settingsCards.map((card) => {
             const Icon = card.icon
@@ -172,6 +175,8 @@ export default async function SettingsHubPage() {
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{profile?.full_name || 'User'}</h2>
           <p className="text-sm font-medium text-slate-400">{profile?.email || user.email}</p>
         </div>
+
+        {profile?.is_internal && <TestAccountsToggle />}
 
         {/* Persönliche Daten */}
         <div className="space-y-3">

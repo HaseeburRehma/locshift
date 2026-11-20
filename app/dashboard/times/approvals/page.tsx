@@ -10,6 +10,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { visibleByEmployee } from '@/lib/profiles/internal'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, ArrowLeft, BellRing, CheckCircle2, Loader2, ShieldCheck, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -84,7 +85,7 @@ export default function ApprovalsPage() {
         .limit(500),
       supabase
         .from('plans')
-        .select('id, employee_id, start_time, end_time, status, shift_name, route, is_gastfahrt, customer:customers(name), employee:profiles!employee_id(full_name)')
+        .select('id, employee_id, start_time, end_time, status, shift_name, route, is_gastfahrt, customer:customers(name), employee:profiles!employee_id(full_name, is_internal)')
         .eq('organization_id', orgId)
         .not('employee_id', 'is', null)
         .not('status', 'in', '(cancelled,rejected)')
@@ -100,7 +101,7 @@ export default function ApprovalsPage() {
         .limit(5000),
     ])
     if (!plansRes.error && !windowRes.error) {
-      const plans = (plansRes.data ?? []) as unknown as MissingPlan[]
+      const plans = visibleByEmployee((plansRes.data ?? []) as unknown as Array<MissingPlan & { employee?: { is_internal?: boolean | null } | null }>, profile) as MissingPlan[]
       const windowEntries = (windowRes.data ?? []) as unknown as ReportEntry[]
       const now = new Date()
       const byEmployee = [...new Set(plans.map((p) => p.employee_id as string))]
@@ -111,7 +112,7 @@ export default function ApprovalsPage() {
     const merged = [...submittedRes.data, ...unsentRows].sort(
       (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     )
-    setEntries(merged)
+    setEntries(visibleByEmployee(merged, profile))
     setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.organization_id, supabase])

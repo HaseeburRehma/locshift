@@ -26,7 +26,7 @@ import { formatHours, formatSignedHours, monthShort } from '@/lib/time/format'
 import { buildMonthOverviewPdf, buildMultiMonthPdf } from '@/lib/pdf/overview-reports'
 import { downloadMonthOverviewXlsx, downloadMultiMonthXlsx } from '@/lib/excel/monatsnachweis'
 import { DateField } from '@/components/shared/DateField'
-import { hideInternal } from '@/lib/profiles/internal'
+import { hideInternal, seesInternal } from '@/lib/profiles/internal'
 
 function currentMonth(offset = 0): string {
   const d = new Date()
@@ -91,13 +91,13 @@ function OverviewReports() {
     try {
       const s =
         tab === 'month'
-          ? await loadReportSources(supabase, { organizationId: profile.organization_id, fromMonth: month, includeInternal: !!profile.is_internal })
+          ? await loadReportSources(supabase, { organizationId: profile.organization_id, fromMonth: month, includeInternal: seesInternal(profile) })
           : await loadReportSources(supabase, {
               organizationId: profile.organization_id,
               fromMonth: from <= to ? from : to,
               toMonth: from <= to ? to : from,
               employeeIds: employeeId ? [employeeId] : undefined,
-              includeInternal: !!profile.is_internal,
+              includeInternal: seesInternal(profile),
             })
       setSources(s)
     } catch (e) {

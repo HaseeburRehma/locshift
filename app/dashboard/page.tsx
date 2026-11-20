@@ -64,7 +64,9 @@ function AdminDashboard({ profile, locale, stats, loading, isDispatcher }: { pro
   const firstName = greetingName(profile)
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const hr = L('Std.', 'h')
-  if (loading || !stats) {
+  // Skeleton only on first load: a refresh (e.g. after ending a shift) must not
+  // unmount the page, or the open review dialog closes (QA 20.11. #6).
+  if (!stats) {
     return (
       <div className="space-y-8 animate-pulse p-6">
         <div className="h-10 w-64 bg-slate-100 rounded-xl" />
@@ -226,7 +228,9 @@ function EmployeeDashboard({ profile, locale, stats, loading }: { profile: any, 
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const hr = L('Std.', 'h')
 
-  if (loading || !stats) {
+  // Skeleton only on first load: a refresh (e.g. after ending a shift) must not
+  // unmount the page, or the open review dialog closes (QA 20.11. #6).
+  if (!stats) {
     return (
       <div className="space-y-8 animate-pulse p-6">
         <div className="h-10 w-64 bg-slate-100 rounded-xl" />

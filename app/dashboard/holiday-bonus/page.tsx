@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { hideInternal } from '@/lib/profiles/internal'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Download, Edit2, Gift, Loader2, Plus, Search, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
@@ -43,10 +44,8 @@ export default function SpecialPaymentsPage() {
 
   useEffect(() => {
     if (!isManager || !profile?.organization_id) return
-    createClient()
-      .from('profiles')
-      .select('id, full_name')
-      .eq('organization_id', profile.organization_id)
+    // Test accounts never appear in the list or the filter (QA 20.11. #2).
+    hideInternal(createClient().from('profiles').select('id, full_name').eq('organization_id', profile.organization_id), profile)
       .then(({ data }: { data: Array<{ id: string; full_name: string | null }> | null }) => {
         const map: Record<string, string> = {}
         for (const p of data ?? []) map[p.id] = p.full_name ?? '—'
@@ -57,13 +56,14 @@ export default function SpecialPaymentsPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return payments.filter((p) => {
+      if (isManager && !names[p.employee_id]) return false
       if (employeeFilter !== 'all' && p.employee_id !== employeeFilter) return false
       if (!q) return true
       return [names[p.employee_id], p.title, p.notes, specialPaymentTypeLabel(p.bonus_type, locale), String(p.amount)]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q))
     })
-  }, [payments, employeeFilter, search, names, locale])
+  }, [payments, employeeFilter, search, names, locale, isManager])
 
   useEffect(() => setPage(1), [search, employeeFilter])
 

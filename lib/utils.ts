@@ -21,3 +21,10 @@ export function formatDate(date: Date | string | number, formatStr: string = 'PP
     locale: de,
   })
 }
+
+/** Display name of a person: full name, else e-mail, else null. */
+export function personName(p: { full_name?: string | null; email?: string | null } | null | undefined): string | null {
+  const name = p?.full_name?.trim()
+  if (name) return name
+  return p?.email?.trim() || null
+}

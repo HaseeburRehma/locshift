@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react'
 import { Eye, Plus, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, ChevronDown, Users, CalendarClock, Play, UserCheck, Download, Trash2, Send, AlertTriangle, FilePen, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn, personName } from '@/lib/utils'
 import { TimeEntry, UserRole, Profile } from '@/lib/types'
 import { format, isThisWeek, isThisMonth, parseISO } from 'date-fns'
 import { de as deLocale } from 'date-fns/locale'
@@ -208,7 +208,7 @@ export function TimesList({ entries, userRole, onEntryClick, onAddClick, onToggl
         {entry.entered_by && entry.entered_by !== entry.employee_id && (
           <span
             className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-600"
-            title={L(`Stellvertretend erfasst von ${entry.enterer?.full_name ?? ''}`, `Entered on behalf by ${entry.enterer?.full_name ?? ''}`)}
+            title={L(`Stellvertretend erfasst von ${personName(entry.enterer) ?? ''}`, `Entered on behalf by ${personName(entry.enterer) ?? ''}`)}
           >
             {L('Stellv.', 'On behalf')}
           </span>
