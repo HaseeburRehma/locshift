@@ -9,6 +9,7 @@
  * end exceeded while still clocked in.
  */
 
+import { setVisibleInterval } from '@/lib/visible-interval'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, MapPin, Radio } from 'lucide-react'
@@ -82,15 +83,15 @@ export function OnDutyNow() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(scheduleLoad, 60_000)
-    if (!profile?.organization_id) return () => clearInterval(interval)
+    const stopPolling = setVisibleInterval(scheduleLoad, 60_000)
+    if (!profile?.organization_id) return stopPolling
     const channel = supabase
       .channel(`on-duty-${profile.organization_id}-${suffix.current}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'time_entries', filter: `organization_id=eq.${profile.organization_id}` }, () => scheduleLoad())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'plans', filter: `organization_id=eq.${profile.organization_id}` }, () => scheduleLoad())
       .subscribe()
     return () => {
-      clearInterval(interval)
+      stopPolling()
       supabase.removeChannel(channel)
     }
   }, [load, scheduleLoad, profile?.organization_id, supabase])

@@ -16,7 +16,7 @@ interface ChatRoomProps {
   currentUserId: string
   typingUsers: { user_id: string; full_name: string }[]
   isOnline: boolean
-  onSendMessage: (content: string, attachment?: { url: string; type: 'image' | 'file'; name: string }) => Promise<void>
+  onSendMessage: (content: string, attachment?: { url: string; type: 'image' | 'file' | 'audio'; name: string }) => Promise<void>
   onTyping: (isTyping: boolean) => void
   onBack?: () => void
 }

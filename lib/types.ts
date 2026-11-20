@@ -421,7 +421,7 @@ export interface ChatMessage {
   sender_id: string
   content: string | null
   attachment_url: string | null
-  attachment_type?: 'image' | 'file' | null
+  attachment_type?: 'image' | 'file' | 'audio' | null
   attachment_name?: string | null
   is_deleted?: boolean
   created_at: string

@@ -446,7 +446,7 @@ function Features() {
             {L('Hauptfunktionen', 'Main features')}
           </span>
           <h2 className="mt-5 text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
-            {L('Eine Oberfläche für')} <span className="text-[#0064E0]">{L('alles.', 'everything.')}</span>
+            {L('Eine Oberfläche für', 'One workspace for')} <span className="text-[#0064E0]">{L('alles.', 'everything.')}</span>
           </h2>
           <p className="mt-4 text-base md:text-lg text-slate-500">
             {L(
@@ -573,7 +573,7 @@ function Impact() {
             {L('Kennzahlen', 'Key Stats')}
           </span>
           <h2 className="mt-8 text-6xl md:text-8xl lg:text-[9rem] font-extrabold tracking-tighter text-slate-900 leading-[0.9]">
-            {L('Die Wirkung,')}
+            {L('Die Wirkung,', 'The impact,')}
             <br />
             <span className="bg-gradient-to-r from-[#0064E0] to-[#0050B3] bg-clip-text text-transparent">
               {L('in Zahlen.', 'quantified.')}
@@ -680,7 +680,7 @@ function WhyLokShift() {
               {L('Vorteile', 'Our Benefits')}
             </span>
             <h2 className="mt-6 text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.05]">
-              {L('Warum')} <br className="md:hidden" />
+              {L('Warum', 'Why')} <br className="md:hidden" />
               {L('LokShift?', 'LokShift?')}
             </h2>
           </div>
@@ -731,7 +731,7 @@ function CaseStudy() {
             {L('Praxisbericht', 'Case Studies')}
           </span>
           <h2 className="mt-6 text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.05]">
-            {L('Disposition,')} <br className="md:hidden" />
+            {L('Disposition,', 'Dispatching')} <br className="md:hidden" />
             <span className="bg-gradient-to-r from-[#4DA3FF] to-[#0064E0] bg-clip-text text-transparent">
               {L('die liefert.', 'that delivers.')}
             </span>
@@ -936,7 +936,7 @@ function FAQ() {
             {L('Häufige Fragen', 'FAQ')}
           </span>
           <h2 className="mt-6 text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
-            {L('Antworten zu')} <span className="text-[#0064E0]">{L('häufigen Fragen.', 'common questions.')}</span>
+            {L('Antworten zu', 'Answers to')} <span className="text-[#0064E0]">{L('häufigen Fragen.', 'common questions.')}</span>
           </h2>
         </div>
 

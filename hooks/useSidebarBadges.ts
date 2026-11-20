@@ -1,5 +1,6 @@
 'use client'
 
+import { setVisibleInterval } from '@/lib/visible-interval'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
@@ -242,11 +243,11 @@ export function useSidebarBadges() {
     channel.subscribe()
 
     // Also refresh periodically (every 30s) as a fallback
-    const interval = setInterval(scheduleRefresh, 30000)
+    const stopPolling = setVisibleInterval(scheduleRefresh, 30000)
 
     return () => {
       supabase.removeChannel(channel)
-      clearInterval(interval)
+      stopPolling()
     }
   }, [supabase, userId, orgId, fetchBadges, scheduleRefresh])
 

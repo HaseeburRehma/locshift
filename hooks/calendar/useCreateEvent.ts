@@ -197,7 +197,7 @@ export function useCreateEvent() {
           .from('calendar_event_members')
           .select('user_id')
           .eq('event_id', id)
-        const existingIds = new Set((existingRows || []).map(r => r.user_id))
+        const existingIds = new Set((existingRows || []).map((r: { user_id: string }) => r.user_id))
 
         // Simple approach: delete all and re-insert
         await supabase.from('calendar_event_members').delete().eq('event_id', id)

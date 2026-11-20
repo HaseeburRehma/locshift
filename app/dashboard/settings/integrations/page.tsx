@@ -126,7 +126,7 @@ export default function IntegrationsPage() {
 
       const byProvider: Record<string, IntegrationRow> = {}
       for (const p of PROVIDERS) {
-        const found = (data || []).find(r => r.provider === p.key)
+        const found = (data || []).find((r: { provider: string }) => r.provider === p.key)
         byProvider[p.key] = found || {
           provider: p.key,
           display_name: p.name,

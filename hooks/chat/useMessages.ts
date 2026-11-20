@@ -1,3 +1,4 @@
+import { setVisibleInterval } from '@/lib/visible-interval'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChatMessage } from '@/lib/types'
@@ -211,7 +212,7 @@ export function useMessages(conversationId: string | null) {
       .subscribe()
 
     // ── Fallback: Poll every 10s in case realtime fails ──
-    const pollInterval = setInterval(async () => {
+    const stopPolling = setVisibleInterval(async () => {
       const { data } = await supabase
         .from('chat_messages')
         .select(`
@@ -237,13 +238,13 @@ export function useMessages(conversationId: string | null) {
     return () => {
       supabase.removeChannel(dbChannel)
       supabase.removeChannel(broadcastChannel)
-      clearInterval(pollInterval)
+      stopPolling()
     }
   }, [conversationId, supabase, markAsRead, addMessage, hydrateSender])
 
   const sendMessage = useCallback(async (
     content: string,
-    attachment?: { url: string; type: 'image' | 'file'; name: string }
+    attachment?: { url: string; type: 'image' | 'file' | 'audio'; name: string }
   ) => {
     if (!conversationId || !userIdRef.current) return
 
@@ -317,7 +318,7 @@ export function useMessages(conversationId: string | null) {
           .eq('conversation_id', conversationId)
 
         const recipients = (members ?? [])
-          .map(m => m.user_id)
+          .map((m: { user_id: string }) => m.user_id)
           .filter((uid: string) => uid !== userIdRef.current)
 
         if (recipients.length > 0) {

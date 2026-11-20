@@ -1,3 +1,4 @@
+import { setVisibleInterval } from '@/lib/visible-interval'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChatConversation } from '@/lib/types'
@@ -133,13 +134,13 @@ export function useConversations() {
      * background tab, network blip, RLS-hidden row briefly invisible), the
      * poll catches new conversations that the user IS a member of.
      */
-    const pollInterval = setInterval(() => {
+    const stopPolling = setVisibleInterval(() => {
       fetchConversations(true)
     }, 15000)
 
     return () => {
       if (channel) supabase.removeChannel(channel)
-      clearInterval(pollInterval)
+      stopPolling()
     }
   }, [supabase, fetchConversations])
 
