@@ -723,6 +723,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         setMounted(true)
     }, [])
 
+    // Keep <html lang> in sync so screen readers and browser translation
+    // know which language the page is in.
+    useEffect(() => {
+        document.documentElement.lang = locale
+    }, [locale])
+
     const setLocale = (newLocale: Locale) => {
         setLocaleState(newLocale)
         localStorage.setItem('locale', newLocale)

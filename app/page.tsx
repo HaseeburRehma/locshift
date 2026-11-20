@@ -83,24 +83,46 @@ function useSectionProgress(ref: React.RefObject<HTMLElement | null>) {
 function useScrollReveal() {
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const els = document.querySelectorAll<HTMLElement>('[data-animate]')
-    if (reduce) {
-      els.forEach((el) => el.classList.add('is-visible'))
-      return
+    const io = reduce
+      ? null
+      : new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting) {
+                e.target.classList.add('is-visible')
+                io?.unobserve(e.target)
+              }
+            })
+          },
+          { threshold: 0.15, rootMargin: '0px 0px -50px 0px' }
+        )
+    const watch = (root: ParentNode) => {
+      root.querySelectorAll<HTMLElement>('[data-animate]:not(.is-visible)').forEach((el) => {
+        if (io) io.observe(el)
+        else el.classList.add('is-visible')
+      })
     }
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            e.target.classList.add('is-visible')
-            io.unobserve(e.target)
+    watch(document)
+    // Elements mounted later (e.g. cards keyed by their translated title are
+    // re-created when the language switches) must be revealed too —
+    // otherwise they stay at opacity 0.
+    const mo = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        m.addedNodes.forEach((n) => {
+          if (!(n instanceof HTMLElement)) return
+          if (n.matches('[data-animate]:not(.is-visible)')) {
+            if (io) io.observe(n)
+            else n.classList.add('is-visible')
           }
+          watch(n)
         })
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -50px 0px' }
-    )
-    els.forEach((el) => io.observe(el))
-    return () => io.disconnect()
+      }
+    })
+    mo.observe(document.body, { childList: true, subtree: true })
+    return () => {
+      mo.disconnect()
+      io?.disconnect()
+    }
   }, [])
 }
 
