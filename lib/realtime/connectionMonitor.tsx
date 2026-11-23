@@ -13,15 +13,32 @@ export function useRealtimeConnection() {
   const supabase = createClient()
 
   useEffect(() => {
+    // A drop only counts after 5 s: page unloads and short network blips
+    // close the channel for a moment and used to flash the banner on every
+    // navigation (QA 23.11.).
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
     const channel = supabase.channel('__connection-monitor__')
       .subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') setConnected(true)
-        if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          setConnected(false)
+        if (disposed) return
+        if (status === 'SUBSCRIBED') {
+          if (timer) clearTimeout(timer)
+          timer = null
+          setConnected(true)
+        }
+        if ((status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !timer) {
+          timer = setTimeout(() => {
+            timer = null
+            if (!disposed) setConnected(false)
+          }, 5000)
         }
       })
 
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      disposed = true
+      if (timer) clearTimeout(timer)
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   return connected

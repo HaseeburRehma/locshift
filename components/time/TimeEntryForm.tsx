@@ -115,6 +115,10 @@ export function TimeEntryForm({
   const isEdit = !!initialData
   const [plans, setPlans] = useState<PickablePlan[]>([])
   const [overlaps, setOverlaps] = useState<TimeEntry[] | null>(null)
+  // Entries the employee already has on the chosen day (QA acceptance D:
+  // "duplicate warning if an entry already exists that day") — a hint only,
+  // a second shift on the same day stays possible.
+  const [sameDay, setSameDay] = useState<TimeEntry[]>([])
   const [saving, setSaving] = useState(false)
 
   // Known shifts of the selected employee around the chosen date — picking
@@ -124,10 +128,21 @@ export function TimeEntryForm({
     // Half-typed years (0002 → 0202 → 2026) arrive here while typing.
     if (!emp || !isValidDate(formData.date)) {
       setPlans([])
+      setSameDay([])
       return
     }
     let cancelled = false
     const supabase = createClient()
+    let dayQ = supabase
+      .from('time_entries')
+      .select('id, date, start_time, end_time, break_minutes, net_hours, employee_id')
+      .eq('employee_id', emp)
+      .eq('date', formData.date)
+      .eq('is_planned', false)
+    if (initialData?.id) dayQ = dayQ.neq('id', initialData.id)
+    dayQ.then(({ data }: { data: TimeEntry[] | null }) => {
+      if (!cancelled) setSameDay(data ?? [])
+    })
     const from = new Date(`${addDays(formData.date, -1)}T12:00:00`).toISOString()
     const to = new Date(`${addDays(formData.date, 1)}T12:00:00`).toISOString()
     supabase
@@ -144,7 +159,7 @@ export function TimeEntryForm({
     return () => {
       cancelled = true
     }
-  }, [formData.employeeId, formData.date, showEmployeePicker, initialData?.employee_id])
+  }, [formData.employeeId, formData.date, showEmployeePicker, initialData?.employee_id, initialData?.id])
 
   const applyPlan = (planId: string) => {
     const p = plans.find((x) => x.id === planId)
@@ -610,6 +625,24 @@ export function TimeEntryForm({
             </span>
             <Switch checked={!!formData.approveNow} onCheckedChange={(v) => setFormData({ ...formData, approveNow: v })} />
           </label>
+        )}
+        {sameDay.length > 0 && !formData.isPlanned && !(overlaps && overlaps.length > 0) && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-1">
+            <p className="flex items-center gap-2 text-sm font-black text-amber-800">
+              <AlertTriangle className="w-4 h-4" />
+              {t('An diesem Tag gibt es bereits einen Eintrag', 'There is already an entry on this day')}
+            </p>
+            <ul className="text-xs text-amber-900 space-y-0.5">
+              {sameDay.map((o) => (
+                <li key={o.id}>
+                  {formatDateDE(o.date)} · {formatShiftRange(o.start_time, o.end_time, locale)} · {formatHours(o.net_hours, locale)} {t('Std.', 'h')}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-amber-800">
+              {t('Eine zweite Schicht am selben Tag ist möglich – bitte prüfen, dass es keine Doppelerfassung ist.', 'A second shift on the same day is allowed – please make sure it is not a duplicate.')}
+            </p>
+          </div>
         )}
         {overlaps && overlaps.length > 0 && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">

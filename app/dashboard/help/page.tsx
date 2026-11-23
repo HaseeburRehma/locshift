@@ -29,7 +29,7 @@ const EMPLOYEE: Guide[] = [
     title: 'Meine Woche ansehen und Schichten bestätigen',
     summary: 'Alle Einsätze der Woche mit Beginn, Ende, Kunde, Start- und Zielbetriebsstelle.',
     steps: [
-      'Menü „Meine Woche“ öffnen – die aktuelle Kalenderwoche wird angezeigt.',
+      { text: 'Menü „Meine Woche“ öffnen – die aktuelle Kalenderwoche wird angezeigt.', image: '/help/mitarbeiter-meine-woche.jpg', alt: 'Meine Woche auf dem Handy' },
       'Mit den Pfeilen oben zur Vor- oder Folgewoche wechseln.',
       'Neue Schichten sind als „Offen“ markiert: „Bestätigen“ tippen. Passt eine Schicht nicht, über „Details“ → „Ablehnen“ einen Grund angeben.',
       'Änderungen der Disposition erscheinen automatisch; Sie erhalten zusätzlich eine Nachricht per App und E-Mail.',
@@ -42,7 +42,7 @@ const EMPLOYEE: Guide[] = [
     summary: 'Zeiterfassung direkt auf der Übersicht.',
     steps: [
       { text: 'Auf der Übersicht „Schicht starten“ tippen. Die geplante Schicht wird automatisch zugeordnet.', image: '/help/mitarbeiter-uebersicht.jpg', alt: 'Übersicht mit Schicht starten' },
-      'Für eine Pause „Pause machen“, danach „Fortsetzen“ tippen. Ohne Pause bleibt die Pause bei 0 Minuten – das ist erlaubt.',
+      { text: 'Für eine Pause „Pause machen“, danach „Fortsetzen“ tippen. Ohne Pause bleibt die Pause bei 0 Minuten – das ist erlaubt.', image: '/help/mitarbeiter-schicht-aktiv.jpg', alt: 'Laufende Schicht mit Pause und Beenden' },
       'Am Ende „Beenden“ tippen. Die Zeit stoppt, und die Abschlussansicht öffnet sich.',
     ],
     href: '/dashboard',
@@ -52,8 +52,8 @@ const EMPLOYEE: Guide[] = [
     title: 'Abschlussansicht: Zeiten prüfen und absenden',
     summary: 'Geplant, erfasst und abzusendende Werte nebeneinander.',
     steps: [
-      { text: 'Prüfen Sie Beginn, Ende und Pause. Die Arbeitszeit wird sofort berechnet (z. B. 22:00–08:00 = 10,00 Std.; Ende am Folgetag wird erkannt).', image: '/help/abschlussansicht.jpg', alt: 'Abschlussansicht mit Geplant, Erfasst und Absenden' },
-      '„Planzeit übernehmen“ setzt Beginn und Ende auf die geplanten Zeiten.',
+      { text: 'Prüfen Sie Beginn, Ende und Pause. Die Arbeitszeit wird sofort berechnet (z. B. 22:00–08:00 = 10,00 Std.; Ende am Folgetag wird erkannt).', image: '/help/mitarbeiter-abschlussansicht.jpg', alt: 'Abschlussansicht mit Geplant, Erfasst und Absenden' },
+      { text: '„Planzeit übernehmen“ setzt Beginn und Ende auf die geplanten Zeiten.', image: '/help/mitarbeiter-planzeit.jpg', alt: 'Planzeit übernommen: 8,00 Std.' },
       'Haben Sie länger gearbeitet, tragen Sie die tatsächlichen Zeiten ein.',
       '„Übernachtung“ einschalten, falls zutreffend – die Spesen werden angepasst.',
       '„Schicht absenden“ tippen. Danach sind Änderungen nur noch per Korrekturantrag möglich.',
@@ -64,9 +64,9 @@ const EMPLOYEE: Guide[] = [
     summary: 'Beispiel: geplant 10:00–18:00, beendet erst um 23:00.',
     steps: [
       'Schicht wie gewohnt mit „Beenden“ stoppen (auch nachträglich).',
-      'In der Abschlussansicht „Planzeit übernehmen“ tippen → 10:00–18:00, ohne Pause 8,00 Std.',
+      { text: 'In der Abschlussansicht „Planzeit übernehmen“ tippen → 10:00–18:00, ohne Pause 8,00 Std.', image: '/help/mitarbeiter-planzeit.jpg', alt: 'Planzeit übernommen' },
       '„Schicht absenden“. Die ursprünglich erfasste Zeit (23:00) bleibt für die Disposition im Verlauf sichtbar.',
-      'Bereits abgesendet? Dann unter „Zeiterfassung“ den Eintrag öffnen und „Korrektur beantragen“.',
+      { text: 'Bereits abgesendet? Dann unter „Zeiterfassung“ den Eintrag öffnen und „Korrektur beantragen“.', image: '/help/mitarbeiter-zeiterfassung.jpg', alt: 'Zeiterfassung mit abgesendetem Eintrag' },
     ],
   },
   {
@@ -74,9 +74,9 @@ const EMPLOYEE: Guide[] = [
     summary: 'Änderungen werden erst nach Freigabe durch Disposition oder Admin wirksam.',
     steps: [
       '„Zeiterfassung“ öffnen und den Eintrag antippen.',
-      '„Korrektur beantragen“ wählen, die richtigen Werte eintragen und kurz begründen.',
+      { text: '„Korrektur beantragen“ wählen, die richtigen Werte eintragen und kurz begründen.', image: '/help/mitarbeiter-korrektur.jpg', alt: 'Korrekturantrag mit Begründung' },
       'Bis zur Entscheidung gelten die bisherigen Werte; der Antrag ist als „Korrektur offen“ markiert.',
-      'Sie werden über Genehmigung oder Ablehnung benachrichtigt.',
+      { text: 'Sie werden über Genehmigung oder Ablehnung benachrichtigt.', image: '/help/mitarbeiter-ablehnung.jpg', alt: 'Abgelehnter Antrag mit Hinweis im Verlauf' },
     ],
     href: '/dashboard/times',
     linkLabel: 'Zur Zeiterfassung',
@@ -85,7 +85,7 @@ const EMPLOYEE: Guide[] = [
     title: 'Eigene Stunden und Monatsnachweis',
     summary: 'Alle Tage, Zuschläge, Spesen und Sonderzahlungen eines Monats.',
     steps: [
-      'Menü „Monatsnachweis“ öffnen und den Monat wählen.',
+      { text: 'Menü „Monatsnachweis“ öffnen und den Monat wählen.', image: '/help/admin-monatsnachweis.jpg', alt: 'Monatsnachweis' },
       'Offene oder nicht freigegebene Einträge sind markiert.',
       'Über „PDF“ oder „Excel“ den Nachweis herunterladen. 7,50 Std. entsprechen 7 Std. 30 Min.',
     ],
@@ -99,7 +99,7 @@ const MANAGER: Guide[] = [
     title: 'Übersicht: Wer ist laut Planung im Einsatz?',
     summary: 'Die Startseite zeigt alle laut Plan aktiven Personen – auch ohne Check-in.',
     steps: [
-      'Status je Person: noch nicht eingecheckt, eingecheckt, bereits beendet oder Planzeit überschritten.',
+      { text: 'Status je Person: noch nicht eingecheckt, eingecheckt, bereits beendet oder Planzeit überschritten.', image: '/help/admin-dashboard-eingecheckt.jpg', alt: 'Übersicht: eingecheckt und Planzeit überschritten' },
       'Darunter: offene Freigaben, unbesetzte und abgelehnte Schichten sowie bald ablaufende Fristen.',
     ],
     href: '/dashboard',
@@ -109,8 +109,8 @@ const MANAGER: Guide[] = [
     title: 'Schichten anlegen und zuweisen',
     summary: 'Einzeln, für mehrere Tage/Mitarbeiter oder direkt aus der Wochenplanung.',
     steps: [
-      { text: '„Wochenplanung“ öffnen und in der Zeile des Mitarbeiters auf das „+“ des Tages klicken – Datum und Mitarbeiter sind vorausgefüllt.', image: '/help/wochenplanung.jpg', alt: 'Wochenplanung mit Schichtkarten' },
-      'Schichtbezeichnung, Zeiten, Kunde sowie Start- und Zielbetriebsstelle (Suche nach Name oder Kürzel) eintragen.',
+      { text: '„Wochenplanung“ öffnen und in der Zeile des Mitarbeiters auf das „+“ des Tages klicken – Datum und Mitarbeiter sind vorausgefüllt.', image: '/help/admin-wochenplanung.jpg', alt: 'Wochenplanung mit Schichtkarten' },
+      { text: 'Schichtbezeichnung, Zeiten, Kunde sowie Start- und Zielbetriebsstelle (Suche nach Name oder Kürzel) eintragen.', image: '/help/admin-plan-form.jpg', alt: 'Formular Schicht anlegen' },
       'Endet die Schicht nach Mitternacht, wird sie automatisch dem Folgetag zugeordnet.',
       '„Unbesetzt“ wählen, wenn noch niemand feststeht. Der Mitarbeiter wird per App und E-Mail informiert.',
     ],
@@ -121,8 +121,8 @@ const MANAGER: Guide[] = [
     title: 'Schicht umverteilen (A → B)',
     summary: 'Per Drag & Drop oder über „Mitarbeiter ändern“.',
     steps: [
-      'Schicht in der Wochenplanung auf die Zeile des neuen Mitarbeiters (gleicher Tag) ziehen – oder Schicht anklicken → „Mitarbeiter ändern“.',
-      'Vor dem Speichern werden alte und neue Zuordnung angezeigt, dazu Warnungen zu Überschneidungen, Abwesenheit und abgelaufenen Nachweisen.',
+      { text: 'Schicht in der Wochenplanung auf die Zeile des neuen Mitarbeiters (gleicher Tag) ziehen – oder Schicht anklicken → „Mitarbeiter ändern“.', image: '/help/admin-umverteilen-dnd.jpg', alt: 'Umverteilen per Drag & Drop' },
+      { text: 'Vor dem Speichern werden alte und neue Zuordnung angezeigt, dazu Warnungen zu Überschneidungen, Abwesenheit und abgelaufenen Nachweisen.', image: '/help/admin-umverteilen.jpg', alt: 'Bisher → Neu mit Benachrichtigung' },
       '„Umverteilung speichern“: A erhält eine Nachricht über den Entzug, B über die neue Schicht (App + E-Mail).',
       'Begonnene oder abgeschlossene Schichten sind gesperrt und lassen sich nur mit Bestätigung umverteilen.',
     ],
@@ -133,11 +133,11 @@ const MANAGER: Guide[] = [
     title: 'Freigaben und Korrekturanträge',
     summary: 'Alles, was geprüft werden muss, an einer Stelle.',
     steps: [
-      { text: '„Freigaben“ öffnen.', image: '/help/freigaben.jpg', alt: 'Freigaben mit fehlenden Schichten' },
-      'Korrekturanträge: bisherige und beantragte Werte vergleichen, optional Hinweis eingeben, dann „Genehmigen & übernehmen“ oder „Ablehnen“.',
+      { text: '„Freigaben“ öffnen.', image: '/help/admin-freigaben.jpg', alt: 'Freigaben mit Korrekturantrag' },
+      { text: 'Korrekturanträge: bisherige und beantragte Werte vergleichen, optional Hinweis eingeben, dann „Genehmigen & übernehmen“ oder „Ablehnen“.', image: '/help/admin-ablehnen.jpg', alt: 'Korrekturantrag mit Hinweis an den Mitarbeiter' },
       'Abgesendete Zeiten einzeln oder gesammelt freigeben. Einträge mit Fehlern (z. B. 0 Stunden) können erst nach Korrektur freigegeben werden.',
-      'Nicht abgesendete oder noch laufende Schichten: „Erinnern“ sendet dem Mitarbeiter eine Nachricht.',
-      'Jede Änderung wird mit alten und neuen Werten, Bearbeiter, Zeitpunkt und Begründung protokolliert (Verlauf im Eintrag).',
+      { text: 'Nicht abgesendete oder noch laufende Schichten: „Erinnern“ sendet dem Mitarbeiter eine Nachricht.', image: '/help/admin-freigaben-fehlend.jpg', alt: 'Nicht abgesendet, nicht beendet und fehlende Schichten' },
+      { text: 'Jede Änderung wird mit alten und neuen Werten, Bearbeiter, Zeitpunkt und Begründung protokolliert (Verlauf im Eintrag).', image: '/help/admin-verlauf.jpg', alt: 'Verlauf eines Zeiteintrags' },
     ],
     href: '/dashboard/times/approvals',
     linkLabel: 'Zu den Freigaben',
@@ -146,10 +146,10 @@ const MANAGER: Guide[] = [
     title: 'Stunden stellvertretend erfassen',
     summary: 'Zeiten für einen Lokführer eintragen.',
     steps: [
-      { text: '„Zeiterfassung“ → „Eintrag hinzufügen“.', image: '/help/zeiterfassung.jpg', alt: 'Zeiterfassung mit Eintrag hinzufügen' },
+      { text: '„Zeiterfassung“ → „Eintrag hinzufügen“.', image: '/help/admin-stellvertretend.jpg', alt: 'Zeiteintrag stellvertretend hinzufügen' },
       'Mitarbeiter und Datum wählen; unter „Geplante Schicht übernehmen“ eine Schicht auswählen – Zeiten und Details werden vorausgefüllt.',
       'Pause eintragen (0 ist erlaubt) und speichern, optional „Direkt freigeben“.',
-      'Bei möglicher Doppelerfassung erscheint eine Warnung. Der Mitarbeiter sieht den Eintrag als „stellvertretend erfasst“.',
+      { text: 'Hat der Mitarbeiter an dem Tag schon einen Eintrag, erscheint ein Hinweis; bei Überschneidung muss „Trotzdem speichern“ bestätigt werden. Der Mitarbeiter sieht den Eintrag als „stellvertretend erfasst“.', image: '/help/admin-doppelt.jpg', alt: 'Hinweis auf vorhandenen Eintrag am selben Tag' },
     ],
     href: '/dashboard/times',
     linkLabel: 'Zur Zeiterfassung',
@@ -158,9 +158,9 @@ const MANAGER: Guide[] = [
     title: 'Monatsnachweis, Spesen und Sonderzahlungen',
     summary: 'Ein Nachweis pro Mitarbeiter und Monat – identisch in App, PDF und Excel.',
     steps: [
-      { text: '„Monatsnachweis“ öffnen, Mitarbeiter und Monat wählen.', image: '/help/monatsnachweis.jpg', alt: 'Monatsnachweis' },
-      'Kopf: Soll-Stunden, Erstellungsdatum und Freigabestatus. Tageszeilen mit Zuschlägen 25 %/40 %, Sonn-/Feiertag, Gastfahrt und Spesen.',
-      'Sonderzahlungen unter „Sonderzahlungen“ anlegen (einmalig, monatlich oder anteilig) – sie erscheinen automatisch im passenden Monat.',
+      { text: '„Monatsnachweis“ öffnen, Mitarbeiter und Monat wählen.', image: '/help/admin-monatsnachweis.jpg', alt: 'Monatsnachweis' },
+      { text: 'Kopf: Soll-Stunden, Erstellungsdatum und Freigabestatus. Tageszeilen mit Zuschlägen 25 %/40 %, Sonn-/Feiertag, Gastfahrt und Spesen. Geplante Schichten ohne erfasste Zeit stehen als „Geplant – keine Zeit erfasst“ im Nachweis.', image: '/help/admin-monatsnachweis-fehlend.jpg', alt: 'Monatsnachweis mit fehlenden Schichten' },
+      { text: 'Sonderzahlungen unter „Sonderzahlungen“ anlegen (einmalig, monatlich oder anteilig) – sie erscheinen automatisch im passenden Monat.', image: '/help/admin-sonderzahlung.jpg', alt: 'Sonderzahlung monatlich anlegen' },
       'PDF (Querformat, Kopfzeile auf jeder Seite) oder Excel exportieren.',
     ],
     href: '/dashboard/times/monthly',
@@ -170,8 +170,8 @@ const MANAGER: Guide[] = [
     title: 'Auswertungen: alle Lokführer & Mehrmonatsreport',
     summary: 'Monat für alle Lokführer oder ein Mitarbeiter über mehrere Monate.',
     steps: [
-      '„Berichte“ → „Gesamtauswertung“: Monat wählen – eine Zeile je Mitarbeiter plus Summen.',
-      '„Mehrmonatsreport“: Mitarbeiter und Zeitraum (z. B. Januar bis Juni) wählen – Monatszeilen, Summen und Diagramme.',
+      { text: '„Berichte“ → „Gesamtauswertung“: Monat wählen – eine Zeile je Mitarbeiter plus Summen.', image: '/help/admin-gesamtauswertung.jpg', alt: 'Gesamtauswertung eines Monats' },
+      { text: '„Mehrmonatsreport“: Mitarbeiter und Zeitraum (z. B. Januar bis Juni) wählen – Monatszeilen, Summen und Diagramme.', image: '/help/admin-mehrmonatsreport.jpg', alt: 'Mehrmonatsreport' },
       'Export als PDF oder Excel. Die Werte entsprechen den Monatsnachweisen.',
     ],
     href: '/dashboard/reports/overview',
@@ -181,8 +181,8 @@ const MANAGER: Guide[] = [
     title: 'Personalakte und Fristen',
     summary: 'Tauglichkeit und weitere Nachweise mit Ablaufdatum.',
     steps: [
-      '„Personal & Fristen“ → „Nachweis hinzufügen“: Mitarbeiter, Dokumentart, Ablaufdatum, Datei und Erinnerungen wählen.',
-      'Erinnerungen gehen automatisch an Admin und Disposition (Standard: 4 und 2 Wochen vorher sowie am Ablaufdatum).',
+      { text: '„Personal & Fristen“ → „Nachweis hinzufügen“: Mitarbeiter, Dokumentart, Ablaufdatum, Datei und Erinnerungen wählen.', image: '/help/admin-personalakte.jpg', alt: 'Nachweis mit Ablaufdatum und Erinnerungen' },
+      { text: 'Erinnerungen gehen automatisch an Admin und Disposition (Standard: 4 und 2 Wochen vorher sowie am Ablaufdatum).', image: '/help/admin-fristen.jpg', alt: 'Fristen mit bald ablaufenden Nachweisen' },
       'Nach Erneuerung „Erneuern“ wählen: neuer Nachweis wird gespeichert, der alte archiviert – offene Erinnerungen sind erledigt.',
       'Vertrauliche Unterlagen sind nur für Admins sichtbar.',
     ],
@@ -193,10 +193,10 @@ const MANAGER: Guide[] = [
     title: 'Betriebsstellen importieren und suchen',
     summary: 'Hunderte Betriebsstellen aus PDF, CSV oder Excel übernehmen.',
     steps: [
-      '„Einstellungen“ → „Betriebsstellen“ → „Importieren“ und die Datei wählen.',
+      { text: '„Einstellungen“ → „Betriebsstellen“ → „Importieren“ und die Datei wählen.', image: '/help/admin-betriebsstellen.jpg', alt: 'Betriebsstellen mit Suche' },
       'In der Vorschau jede Zeile prüfen und bei Bedarf Kürzel, Name oder Art korrigieren. Dubletten sind markiert.',
       '„Importieren“ speichert die ausgewählten Zeilen. Danach lassen sich Betriebsstellen jederzeit einzeln ergänzen.',
-      'In Schicht- und Zeitformularen nach Name, Namensteil oder Kürzel suchen.',
+      { text: 'In Schicht- und Zeitformularen nach Name, Namensteil oder Kürzel suchen.', image: '/help/admin-betriebsstellen-suche.jpg', alt: 'Betriebsstelle im Schichtformular suchen' },
     ],
     href: '/dashboard/settings/betriebsstellen',
     linkLabel: 'Zu den Betriebsstellen',
@@ -314,7 +314,7 @@ function StepList({ steps }: { steps: Step[] }) {
             <span className="block">{stepText(s)}</span>
             {typeof s !== 'string' && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={s.image} alt={s.alt ?? stepText(s)} loading="lazy" className="w-full max-w-xl rounded-xl border border-slate-200 shadow-sm" />
+              <img src={s.image} alt={s.alt ?? stepText(s)} loading="lazy" className={cn('w-full rounded-xl border border-slate-200 shadow-sm', s.image.includes('/mitarbeiter-') ? 'max-w-[260px]' : 'max-w-xl')} />
             )}
           </span>
         </li>
