@@ -27,7 +27,9 @@ import { jsPDF } from 'jspdf'
 import autoTable, { type RowInput } from 'jspdf-autotable'
 import { calculateShiftTimes } from '@/lib/time/shift-hours'
 import {
+  calculateSurcharges,
   calculateZuschlag,
+  type BreakPeriod,
   sumZuschlag,
   type ZuschlagBreakdown,
 } from '@/lib/time/zuschlag'
@@ -40,6 +42,7 @@ export interface StundenzettelEntry {
   start_time: string | null       // ISO string
   end_time: string | null         // ISO string
   break_minutes: number | null
+  break_periods?: BreakPeriod[] | null
   net_hours?: number | null
   overnight_stay?: boolean | null
   meal_allowance?: number | null
@@ -126,9 +129,13 @@ export function exportStundenzettelPdf(opts: StundenzettelOptions): void {
     const start = fmtHHMM(e.start_time)
     const end = fmtHHMM(e.end_time)
     const shift = calculateShiftTimes(e.date, start, end, e.break_minutes ?? 0)
-    const zuschlag = calculateZuschlag(
-      e.date, start, end, e.break_minutes ?? 0, !!e.is_gastfahrt,
-    )
+    const zuschlag = e.start_time && e.end_time
+      ? calculateSurcharges(e.start_time, e.end_time, {
+          isGastfahrt: !!e.is_gastfahrt,
+          netHours: e.net_hours ?? shift.netHours,
+          breakPeriods: e.break_periods,
+        })
+      : calculateZuschlag(e.date, start, end, e.break_minutes ?? 0, !!e.is_gastfahrt)
     return {
       entry: e,
       start,

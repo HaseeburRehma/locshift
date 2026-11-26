@@ -33,6 +33,7 @@ import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 import type { OperationalLocation, OperationalLocationType } from '@/lib/types'
 import { LocationImportDialog } from '@/components/locations/LocationImportDialog'
 import { searchLocationsRemote } from '@/lib/operational-locations/remote'
+import { ril100StatusLabel } from '@/lib/operational-locations/parse'
 import { createClient } from '@/lib/supabase/client'
 import { useConfirm } from '@/components/shared/ConfirmDialog'
 
@@ -316,8 +317,8 @@ export default function BetriebsstellenPage() {
                     <td className="px-4 py-2.5 font-mono text-xs font-black text-slate-700">{loc.short_code || '—'}</td>
                     <td className="px-4 py-2.5 font-bold text-slate-900">
                       {loc.name}
-                      {loc.ril100_status && loc.ril100_status !== 'Betrieb' && (
-                        <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-slate-500">RIL100: {loc.ril100_status}</span>
+                      {ril100StatusLabel(loc.ril100_status) && (
+                        <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-700">RIL100: {ril100StatusLabel(loc.ril100_status)}</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-slate-500">{TYPE_OPTIONS.find((t) => t.value === loc.type)?.label ?? loc.type}</td>

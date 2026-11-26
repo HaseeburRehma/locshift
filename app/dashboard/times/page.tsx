@@ -210,6 +210,7 @@ function TimesPageInner() {
         start_time: shift.startISO,
         end_time: shift.endISO,
         break_minutes: data.breakMinutes ?? 0,
+        break_periods: data.breakPeriods ?? [],
         customer_id: data.customerId || null,
         location: data.location || null,
         notes: data.notes || null,
@@ -271,6 +272,9 @@ function TimesPageInner() {
       destination_location_id: data.destinationLocationId ?? null,
       is_gastfahrt: !!data.isGastfahrt,
     }
+    // Clock break times are system data for employees (DB rule); only
+    // dispatch/admin send corrected ones.
+    if (data.breakPeriods !== undefined && (isManager || !selectedEntry.clock_start_time)) payload.break_periods = data.breakPeriods
     if (isManager && data.employeeId) payload.employee_id = data.employeeId
     if (data.changeReason?.trim()) payload.change_reason = `Änderung durch Disposition: ${data.changeReason.trim()}`
 

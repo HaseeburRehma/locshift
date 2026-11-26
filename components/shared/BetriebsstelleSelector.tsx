@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import type { OperationalLocation } from '@/lib/types'
 import { cachedLocation, fetchLocationsByIds, searchLocationsRemote } from '@/lib/operational-locations/remote'
+import { ril100StatusLabel } from '@/lib/operational-locations/parse'
 
 const TYPE_LABELS: Record<OperationalLocation['type'], [string, string]> = {
   depot: ['Depot', 'Depot'],
@@ -123,6 +124,9 @@ export function BetriebsstelleSelector({
               <span className="truncate">
                 {selected.short_code && <span className="mr-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-black text-slate-700">{selected.short_code}</span>}
                 {selected.name}
+                {ril100StatusLabel(selected.ril100_status, locale === 'de' ? 'de' : 'en') && (
+                  <span className="ml-2 text-[10px] font-bold text-amber-600">{ril100StatusLabel(selected.ril100_status, locale === 'de' ? 'de' : 'en')}</span>
+                )}
               </span>
             ) : (
               <span className="text-slate-400">
@@ -181,6 +185,7 @@ export function BetriebsstelleSelector({
                   <span className="flex-1 truncate font-semibold">{loc.name}</span>
                   <span className="shrink-0 text-[10px] text-slate-400">
                     {TYPE_LABELS[loc.type]?.[locale === 'de' ? 0 : 1] ?? ''}
+                    {ril100StatusLabel(loc.ril100_status, locale === 'de' ? 'de' : 'en') ? ` · ${ril100StatusLabel(loc.ril100_status, locale === 'de' ? 'de' : 'en')}` : ''}
                     {!loc.is_active ? ` · ${t('inaktiv', 'inactive')}` : ''}
                   </span>
                 </CommandItem>

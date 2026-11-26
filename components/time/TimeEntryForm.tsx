@@ -17,6 +17,7 @@ import { TimeEntry, TimeEntryFormData, Plan } from '@/lib/types'
 import { calculateSpesen, spesenTierLabel } from '@/lib/spesen'
 import { addDays, calculateShiftTimes, isValidDate, isValidTime, localDateKey, localTimeKey } from '@/lib/time/shift-hours'
 import { formatDateDE, formatHours, formatHoursLong, formatShiftRange } from '@/lib/time/format'
+import { breakPeriodFromForm, breakPeriodsToSave, breakStartForForm } from '@/lib/time/zuschlag'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import { BetriebsstelleSelector } from '@/components/shared/BetriebsstelleSelector'
@@ -94,6 +95,7 @@ export function TimeEntryForm({
     // because most shifts they log are short and don't include a break.
     // `??` (not `||`) so a genuine 0 from `initialData` isn't replaced.
     breakMinutes: initialData?.break_minutes ?? 0,
+    breakStart: breakStartForForm(initialData?.break_periods),
     customerId: initialData?.customer_id || '',
     location: initialData?.location || '',
     notes: initialData?.notes || '',
@@ -210,6 +212,27 @@ export function TimeEntryForm({
     errors.push(t('Die Pause ist so lang wie die Schicht.', 'The break is as long as the shift.'))
   }
   if ((formData.breakMinutes ?? 0) < 0) errors.push(t('Die Pause darf nicht negativ sein.', 'The break cannot be negative.'))
+
+  // Break times (billing spec: surcharges only for actually worked minutes,
+  // by real clock time). Recorded clock breaks stay unless the break itself
+  // is changed here.
+  const storedBreaks = initialData?.break_periods ?? []
+  const breakMinutesChanged = (formData.breakMinutes ?? 0) !== (initialData?.break_minutes ?? 0)
+  const clockBreaks = storedBreaks.length > 1 && !breakMinutesChanged && !formData.breakStart
+  const formBreaks = (formData.breakMinutes ?? 0) > 0 && formData.breakStart && isValidTime(formData.breakStart) && shiftPreview.netHours > 0
+    ? breakPeriodFromForm(shiftPreview.startISO, shiftPreview.endISO, formData.breakStart, formData.breakMinutes ?? 0)
+    : []
+  if (formData.breakStart && !isValidTime(formData.breakStart)) {
+    errors.push(t('Bitte „Pause ab“ als Uhrzeit angeben (HH:MM).', 'Please enter "Break from" as a time (HH:MM).'))
+  } else if (formBreaks === null) {
+    errors.push(t('Die Pause muss innerhalb der Schicht liegen.', 'The break must lie within the shift.'))
+  }
+  const breakPeriods = breakPeriodsToSave(
+    storedBreaks,
+    formBreaks,
+    (formData.breakMinutes ?? 0) > 0 ? formData.breakStart : '',
+    breakMinutesChanged,
+  )
   if (requireReason && (formData.changeReason ?? '').trim().length < 3) {
     errors.push(t('Bitte einen Änderungsgrund angeben.', 'Please enter a reason for the change.'))
   }
@@ -229,7 +252,7 @@ export function TimeEntryForm({
     setOverlaps(null)
     setSaving(true)
     try {
-      await onSubmit(formData)
+      await onSubmit({ ...formData, breakPeriods })
     } finally {
       setSaving(false)
     }
@@ -344,6 +367,22 @@ export function TimeEntryForm({
                     className="h-14 pl-16 rounded-2xl border-gray-100 bg-gray-50/50 font-bold focus:bg-white transition-all border-2"
                     />
                 </div>
+                {(formData.breakMinutes ?? 0) > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">{t('Pause ab (Uhrzeit)', 'Break from (time)')}</label>
+                    <Input
+                      type="time"
+                      value={formData.breakStart ?? ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, breakStart: e.target.value })}
+                      className="h-12 rounded-2xl border-gray-100 bg-gray-50/50 font-bold focus:bg-white transition-all border-2"
+                    />
+                    <p className="text-[10px] font-semibold text-gray-400 ml-1 leading-tight">
+                      {clockBreaks
+                        ? t(`${storedBreaks.length} Pausen aus der Stempeluhr – Zuschläge minutengenau.`, `${storedBreaks.length} breaks from the clock – surcharges to the minute.`)
+                        : t('Für minutengenaue Zuschläge (Pause zählt nicht als Nachtarbeit). Leer = Lage unbekannt.', 'For exact surcharges (the break is not night work). Empty = position unknown.')}
+                    </p>
+                  </div>
+                )}
             </div>
 
             {/* Time Fields */}

@@ -211,6 +211,8 @@ export interface TimeEntry {
   is_on_break?: boolean             // Real-time status
   current_break_start?: string     // ISO timestamp
   total_break_seconds?: number     // Accumulated
+  /** Real break times [{start,end}] — clock breaks are recorded by the DB. */
+  break_periods?: { start: string; end: string }[] | null
   // Phase 2 #11 — overnight stay + meal allowance (Spesen)
   overnight_stay?: boolean
   hotel_address?: string | null
@@ -258,6 +260,13 @@ export interface TimeEntryFormData {
   startTime: string              // 'HH:MM'
   endTime: string                // 'HH:MM'
   breakMinutes: number
+  /** "Pause ab" (German wall-clock "HH:MM"); '' = time of the break unknown. */
+  breakStart?: string
+  /**
+   * Break times to store in time_entries.break_periods. undefined = leave the
+   * stored ones (e.g. clock breaks) untouched.
+   */
+  breakPeriods?: { start: string; end: string }[]
   customerId?: string
   location?: string
   notes?: string

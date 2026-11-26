@@ -24390,6 +24390,15 @@ ALTER TABLE public.operational_locations
 CREATE UNIQUE INDEX IF NOT EXISTS uq_operational_locations_org_name_own
   ON public.operational_locations (organization_id, name)
   WHERE source IS NULL;
+-- Codes: unique among own entries and among imported entries (an own code
+-- may name a different place than RIL100, e.g. RMR) — as 20261126120000.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_operational_locations_org_code_own
+  ON public.operational_locations (organization_id, upper(btrim(short_code)))
+  WHERE source IS NULL AND short_code IS NOT NULL AND btrim(short_code) <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_operational_locations_org_code_ril
+  ON public.operational_locations (organization_id, upper(btrim(short_code)))
+  WHERE source IS NOT NULL AND short_code IS NOT NULL AND btrim(short_code) <> '';
+DROP INDEX IF EXISTS public.uq_operational_locations_org_code;
 
 -- Reference table: replace with this Stand.
 DELETE FROM public.ril100_betriebsstellen;
@@ -24403,18 +24412,20 @@ UPDATE public.operational_locations l
        ril100_type   = r.typ,
        ril100_status = NULLIF(r.status, ''),
        plc_code      = r.plc,
-       is_active     = COALESCE(r.status, '') IN ('Betrieb', ''),
        source        = 'RIL100 30.10.2026',
        updated_at    = now()
   FROM _ril100 r
  WHERE l.source LIKE 'RIL100 %'
    AND upper(btrim(l.short_code)) = upper(r.code)
-   AND (l.name, l.ril100_type, l.ril100_status, l.plc_code, l.is_active)
-       IS DISTINCT FROM (r.name, r.typ, NULLIF(r.status, ''), r.plc, COALESCE(r.status, '') IN ('Betrieb', ''));
+   AND (l.name, l.ril100_type, l.ril100_status, l.plc_code)
+       IS DISTINCT FROM (r.name, r.typ, NULLIF(r.status, ''), r.plc);
 
--- New codes for every organisation. Matching is on the exact code
--- (case-insensitive, trimmed) — the same rule as the unique index
--- uq_operational_locations_org_code.
+-- New codes for every organisation, all searchable (closed/planned points
+-- show their RIL100 status; admins can still archive single entries, which
+-- later imports keep). Matching is on the exact code (case-insensitive,
+-- trimmed). An own entry with the same code is skipped only when it is the
+-- same place (same name, e.g. KAW Aachen West); otherwise both exist
+-- (RMR: own "Rhein Maas Rail" and RIL100 "Mannheim Rbf").
 INSERT INTO public.operational_locations
   (organization_id, name, short_code, type, is_active, ril100_type, ril100_status, plc_code, source)
 SELECT o.id, r.name, r.code,
@@ -24425,14 +24436,20 @@ SELECT o.id, r.name, r.code,
       WHEN r.typ ~* '^(bf|hp|bft|ne-bf|ne-hp|ne-bft|vp-bf|vp-hp|hst|ne-hst)$' THEN 'station'
       ELSE 'other'
     END,
-       COALESCE(r.status, '') IN ('Betrieb', ''),
+       TRUE,
        r.typ, NULLIF(r.status, ''), r.plc, 'RIL100 30.10.2026'
   FROM public.organizations o
  CROSS JOIN _ril100 r
  WHERE NOT EXISTS (
          SELECT 1 FROM public.operational_locations l
-          WHERE l.organization_id = o.id
+          WHERE l.organization_id = o.id AND l.source IS NOT NULL
             AND upper(btrim(l.short_code)) = upper(r.code)
+       )
+   AND NOT EXISTS (
+         SELECT 1 FROM public.operational_locations l
+          WHERE l.organization_id = o.id AND l.source IS NULL
+            AND upper(btrim(l.short_code)) = upper(r.code)
+            AND public.location_search_norm(l.name) = public.location_search_norm(r.name)
        );
 
 DROP TABLE IF EXISTS pg_temp._ril100;
