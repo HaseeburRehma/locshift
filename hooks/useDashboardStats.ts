@@ -47,7 +47,8 @@ export function useDashboardStats() {
           // Org-wide month total: paged past PostgREST's 1000-row cap.
           fetchAllPages<{ net_hours: number | null }>((from, to) =>
             supabase.from('time_entries').select('id, net_hours')
-              .eq('organization_id', profile.organization_id).gte('date', firstDayOfMonth.split('T')[0])
+              .eq('organization_id', profile.organization_id).eq('is_planned', false).eq('is_gastfahrt', false)
+              .gte('date', firstDayOfMonth.split('T')[0])
               .order('date', { ascending: true }).order('id', { ascending: true })
               .range(from, to)),
           supabase.from('notifications').select('*', { count: 'exact', head: true })
@@ -109,8 +110,10 @@ export function useDashboardStats() {
           supabase.from('plans').select('*, customer:customers(*)').eq('employee_id', profile.id)
             .gte('start_time', startOfToday).order('start_time', { ascending: true }).limit(5),
           supabase.from('time_entries').select('net_hours').eq('employee_id', profile.id)
+            .eq('is_planned', false).eq('is_gastfahrt', false) // worked time only (spec §5)
             .gte('date', firstDayOfMonth.split('T')[0]),
           supabase.from('time_entries').select('net_hours').eq('employee_id', profile.id)
+            .eq('is_planned', false).eq('is_gastfahrt', false)
             .gte('date', monday)
             .lte('date', addDays(monday, 6)),
           supabase.from('per_diems').select('amount').eq('employee_id', profile.id)

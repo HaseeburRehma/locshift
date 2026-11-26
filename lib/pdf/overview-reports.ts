@@ -76,10 +76,11 @@ function surchargeTable(doc: jsPDF, startY: number, firstCol: string, rows: Over
   const cells = (r: OverviewRow | OverviewTotals) => [
     h(r.night25), h(r.night40), h(r.sunday), h(r.holiday), h(r.christmas), h(r.newYearsEve),
     eur(r.surchargeTotal), eur(r.gastfahrtAmount, r.gastfahrtHours > 0),
+    formatEuro(r.spesenTotal, 'de'), formatEuro(r.specialPaymentsTotal, 'de'),
   ]
   autoTable(doc, {
     startY,
-    head: [[firstCol, 'Nacht 25 %', 'Nacht 40 %', 'Sonntag 50 %', 'Feiertag 50 %', '25./26.12. 150 %', '31.12. 125 %', 'Zuschläge (€)', 'Gastfahrt (€)']],
+    head: [[firstCol, 'Nacht 25 %', 'Nacht 40 %', 'Sonntag 50 %', 'Feiertag 50 %', '25./26.12. 150 %', '31.12. 125 %', 'Zuschläge (€)', 'Gastfahrt (€)', 'Spesen (€)', 'Sonderzahl. (€)']],
     body: rows.map((r) => [pdfText(r.label), ...cells(r)]),
     foot: [[pdfText(totalsLabel), ...cells(totals)]],
     theme: 'grid',

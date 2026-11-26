@@ -396,16 +396,18 @@ function SurchargeTable({
   const heads = [
     firstCol, L('Nacht 25 %', 'Night 25 %'), L('Nacht 40 %', 'Night 40 %'), L('Sonntag 50 %', 'Sunday 50 %'), L('Feiertag 50 %', 'Holiday 50 %'),
     L('25./26.12. 150 %', '25/26 Dec 150 %'), L('31.12. 125 %', '31 Dec 125 %'), L('Zuschläge (€)', 'Premiums (€)'), L('Gastfahrt (€)', 'Gastfahrt (€)'),
+    L('Spesen (€)', 'Per diem (€)'), L('Sonderzahlungen (€)', 'Special payments (€)'),
   ]
   const cells = (r: OverviewRow | OverviewTotals) => [
     h(r.night25), h(r.night40), h(r.sunday), h(r.holiday), h(r.christmas), h(r.newYearsEve),
     eur(r.surchargeTotal), eur(r.gastfahrtAmount, r.gastfahrtHours > 0),
+    formatEuro(r.spesenTotal, locale), formatEuro(r.specialPaymentsTotal, locale),
   ]
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <p className="px-4 pt-3 text-[11px] font-black uppercase tracking-widest text-[#0064E0]">{L('Zuschläge (Std.) und Beträge', 'Premiums (h) and amounts')}</p>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[900px] mt-2">
+        <table className="w-full text-sm min-w-[1100px] mt-2">
           <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider">
             <tr>{heads.map((x, i) => <th key={x} className={cn('px-4 py-2.5 font-black whitespace-nowrap', i === 0 ? 'text-left' : 'text-right')}>{x}</th>)}</tr>
           </thead>

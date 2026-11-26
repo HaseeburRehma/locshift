@@ -240,6 +240,7 @@ export default function ReportsPage() {
     start: e.start_time,
     end: e.end_time,
     net_hours: e.net_hours,
+    gastfahrt: e.is_gastfahrt ? 'Yes' : 'No',
     verified: e.is_verified ? 'Yes' : 'No',
     notes: e.notes || '',
   }))

@@ -234,7 +234,9 @@ export function exportWorkingTimePdf(
     return row
   })
 
-  const totalHours = entries.reduce((s, e) => s + (e.net_hours ?? 0), 0)
+  // Gastfahrt is not working time (billing spec §5): its hours are summed separately.
+  const totalHours = entries.reduce((s, e) => s + (e.is_gastfahrt ? 0 : (e.net_hours ?? 0)), 0)
+  const gastHours = entries.reduce((s, e) => s + (e.is_gastfahrt ? (e.net_hours ?? 0) : 0), 0)
   const totalBreak = entries.reduce((s, e) => s + (e.break_minutes ?? 0), 0)
   const totalSpesen = entries.reduce((s, e) => s + (e.meal_allowance ?? 0), 0)
   const sumLabel = locale === 'de' ? 'Summe' : 'Total'
@@ -242,7 +244,9 @@ export function exportWorkingTimePdf(
   // Build totals row dynamically so column count always matches headers.
   const totalsRow: RowInput = [sumLabel]
   if (showEmployee) totalsRow.push('')
-  totalsRow.push('', '', String(totalBreak), formatHours(totalHours, locale), '')
+  totalsRow.push('', '', String(totalBreak), gastHours > 0
+    ? `${formatHours(totalHours, locale)} (+ ${formatHours(gastHours, locale)} ${locale === 'de' ? 'Gastfahrt' : 'guest ride'})`
+    : formatHours(totalHours, locale), '')
   if (includeBetriebsstellen) {
     totalsRow.push('', '', '')
   }

@@ -45,6 +45,9 @@ export function useOrganizationTimeAccounts() {
           .from('time_entries')
           .select('id, employee_id, net_hours')
           .eq('organization_id', orgId)
+          // Ist = worked time: no planned placeholders, no Gastfahrten (spec §5).
+          .eq('is_planned', false)
+          .eq('is_gastfahrt', false)
           .gte('date', `${year}-01-01`)
           .lte('date', `${year}-12-31`)
           .order('date', { ascending: true })

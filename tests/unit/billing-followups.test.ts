@@ -160,3 +160,17 @@ describe('CSV import with a shared code (own RMR + RIL100 RMR)', () => {
     expect(hit.existing?.id).toBe('own')
   })
 })
+
+describe('time account Ist = worked time only (spec §5)', () => {
+  it('Gastfahrt and planned entries are not counted as Ist', async () => {
+    const { groupByMonth } = await import('@/lib/times/calculations')
+    const base = { employee_id: 'u1', start_time: '2026-11-24T07:00:00Z', end_time: '2026-11-24T15:00:00Z', break_minutes: 0 }
+    const m = groupByMonth([
+      { ...base, id: 'a', date: '2026-11-24', net_hours: 8 },
+      { ...base, id: 'b', date: '2026-11-25', net_hours: 3, is_gastfahrt: true },
+      { ...base, id: 'c', date: '2026-11-26', net_hours: 8, is_planned: true },
+    ] as never, [])
+    expect(m[0].actualHours).toBe(8)
+    expect(m[0].entries.length).toBe(3)
+  })
+})

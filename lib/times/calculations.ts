@@ -73,7 +73,9 @@ export function groupByMonth(
       }
     }
     
-    months[key].actualHours += Number(entry.net_hours) || 0
+    // Ist = worked time only: planned placeholders and Gastfahrten (billing
+    // spec §5, reported separately) do not count.
+    if (!entry.is_planned && !entry.is_gastfahrt) months[key].actualHours += Number(entry.net_hours) || 0
     months[key].entries.push(entry)
   })
 

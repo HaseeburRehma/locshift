@@ -333,7 +333,7 @@ function MonthlyStatement() {
                           <td className="px-3 py-2 tabular-nums">{r.breakMinutes} Min.</td>
                           <td className="px-3 py-2 font-black tabular-nums">{r.workHours ? formatHours(r.workHours, locale) : ''}</td>
                           <td className="px-3 py-2 tabular-nums text-violet-700">{r.gastfahrtHours ? formatHours(r.gastfahrtHours, locale) : ''}</td>
-                          <td className="px-3 py-2 tabular-nums">{idx === 0 && d.daySpesen ? formatEuro(d.daySpesen, locale) : ''}</td>
+                          <td className="px-3 py-2 tabular-nums">{r.spesen ? formatEuro(r.spesen, locale) : ''}</td>
                           <td className="px-3 py-2">{r.overnight ? <span className="font-black text-emerald-700">{L('ja', 'yes')}</span> : L('nein', 'no')}</td>
                           <td className="px-3 py-2 tabular-nums">{r.night25 ? formatHours(r.night25, locale) : ''}</td>
                           <td className="px-3 py-2 tabular-nums">{r.night40 ? formatHours(r.night40, locale) : ''}</td>

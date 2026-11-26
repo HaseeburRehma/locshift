@@ -151,7 +151,7 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
         String(r.breakMinutes),
         h(r.workHours),
         h(r.gastfahrtHours),
-        idx === 0 && d.daySpesen ? formatHours(d.daySpesen, 'de') : '',
+        r.spesen ? formatHours(r.spesen, 'de') : '',
         r.overnight ? { content: 'ja', styles: { fontStyle: 'bold', textColor: [21, 128, 61] } } : 'nein',
         h(r.night25),
         h(r.night40),
@@ -276,7 +276,7 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
   const legend = [
     `Dezimalstunden: 7,50 Std. = ${formatHoursLong(7.5, 'de')}`,
     `${surchargeLegend(rules)} Feiertage: ${stateName(rules.holidayState) || rules.holidayState}.`,
-    'Spesen je Schicht: unter 8 Std. 0 €, ab 8 Std. Teilsatz, ab 8 Std. mit Übernachtung Vollsatz – nie zusammengerechnet, je Kalendertag einmal. Gastfahrt zählt nicht zur Arbeitszeit und wird separat ausgewiesen. Urlaub und Krankheit nur in ganzen Tagen.',
+    'Spesen je Schicht: unter 8 Std. 0 €, ab 8 Std. Teilsatz, ab 8 Std. mit Übernachtung Vollsatz – je Schicht genau ein Wert, nie zusammengerechnet. Gastfahrt zählt nicht zur Arbeitszeit und wird separat ausgewiesen. Urlaub und Krankheit nur in ganzen Tagen.',
     t.openEntries ? `${t.openEntries} Eintrag/Einträge noch nicht freigegeben (in der Spalte Status markiert).` : 'Alle Einträge sind freigegeben.',
     ...(t.missingShifts ? [`${t.missingShifts} geplante Schicht(en) ohne erfasste Zeit (orange markiert).`] : []),
     ...report.warnings,

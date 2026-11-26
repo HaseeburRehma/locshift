@@ -55,14 +55,17 @@ describe('buildMonthlyReport', () => {
     expect(r.totals.holiday).toBe(6)
   })
 
-  it('counts Spesen once per day and warns', () => {
+  it('Spesen: exactly one value per shift (spec §4), also with two shifts on one day', () => {
     const r = buildMonthlyReport({
       employee: EMP,
       month: '2026-10',
-      entries: [entry('2026-10-20', '04:00', '09:00', { meal_allowance: 14 }), entry('2026-10-20', '10:00', '16:00', { meal_allowance: 14 })],
+      entries: [entry('2026-10-20', '00:00', '08:00', { meal_allowance: 14 }), entry('2026-10-20', '14:00', '22:00', { meal_allowance: 28, overnight_stay: true })],
     })
-    expect(r.totals.spesenFromEntries).toBe(14)
-    expect(r.warnings.length).toBe(1)
+    const day = r.days.find((d) => d.date === '2026-10-20')!
+    expect(day.rows.map((x) => x.spesen)).toEqual([14, 28])
+    expect(r.totals.spesenFromEntries).toBe(42)
+    expect(r.totals.spesen.map((l) => [l.kind, l.count])).toEqual([['partial', 1], ['full', 1]])
+    expect(r.warnings.some((w) => /Spesen/.test(w))).toBe(false)
   })
 
   it("ignores other employees' and planned entries (no data mixing)", () => {

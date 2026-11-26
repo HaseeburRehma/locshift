@@ -154,7 +154,7 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
         r.breakMinutes,
         r.workHours || null,
         r.gastfahrtHours || null,
-        idx === 0 && d.daySpesen ? d.daySpesen : null,
+        r.spesen || null,
         r.overnight ? 'ja' : 'nein',
         r.night25 || null,
         r.night40 || null,
@@ -248,7 +248,7 @@ function overviewSheet(ws: Worksheet, title: string, subtitle: string, rows: Ove
     firstCol, 'Soll (Std.)', 'Arbeitszeit (Std.)', 'Gastfahrt (Std.)', 'Ist (Std.)', 'Differenz (Std.)',
     'Urlaub (Tage)', 'Krank (Tage)', 'Arbeitstage', 'Offene Einträge', 'Fehlerhafte Einträge', 'Fehlende Schichten',
     'Nacht 25 % (Std.)', 'Nacht 40 % (Std.)', 'Sonntag 50 % (Std.)', 'Feiertag 50 % (Std.)', '25./26.12. 150 % (Std.)', '31.12. 125 % (Std.)',
-    'Zuschläge (€)', 'Gastfahrt (€)',
+    'Zuschläge (€)', 'Gastfahrt (€)', 'Spesen (€)', 'Sonderzahlungen (€)',
   ]
   styleHeader(ws, headerRowNumber)
   const put = (r: OverviewRow, bold = false) => {
@@ -257,9 +257,10 @@ function overviewSheet(ws: Worksheet, title: string, subtitle: string, rows: Ove
       r.vacationDays, r.sickDays, r.workingDays, r.openEntries, r.issueCount, r.missingShifts,
       r.night25, r.night40, r.sunday, r.holiday, r.christmas, r.newYearsEve,
       r.surchargeTotal ?? 'kein Lohn', r.gastfahrtAmount ?? (r.gastfahrtHours > 0 ? 'kein Lohn' : null),
+      r.spesenTotal, r.specialPaymentsTotal,
     ])
     for (const c of [2, 3, 4, 5, 6, 13, 14, 15, 16, 17, 18]) row.getCell(c).numFmt = HOURS
-    for (const c of [19, 20]) row.getCell(c).numFmt = EURO
+    for (const c of [19, 20, 21, 22]) row.getCell(c).numFmt = EURO
     if (bold) {
       row.font = { bold: true }
       row.eachCell({ includeEmpty: true }, (c) => {
