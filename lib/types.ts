@@ -146,6 +146,12 @@ export interface OperationalLocation {
   notes: string | null
   // CR #1 follow-up — optional contact number per Betriebsstelle
   phone_number?: string | null
+  /** RIL100 import (billing spec section 9). */
+  ril100_type?: string | null
+  ril100_status?: string | null
+  plc_code?: string | null
+  /** "RIL100 30.10.2026" for imported rows, null when created in the app. */
+  source?: string | null
   created_at: string
   updated_at: string
 }

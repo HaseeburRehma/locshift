@@ -32,7 +32,6 @@ import { addDays, localDateKey, localTimeKey, toInstantIso } from '@/lib/time/sh
 import LocationPickerModal from './LocationPickerModal'
 import { ShiftTemplatePicker, type TemplatePayload } from './ShiftTemplatePicker'
 import { BetriebsstelleSelector } from './BetriebsstelleSelector'
-import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 import { DateField } from '@/components/shared/DateField'
 
 interface PlanFormProps {
@@ -90,7 +89,6 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
   // selectors share a single source of truth (was the bug where the
   // destination dropdown sometimes appeared empty due to two parallel
   // hook instances racing on first render).
-  const { locations: opLocations, loading: opLocationsLoading } = useOperationalLocations()
   // Phase 3 #10 — Gastfahrt (employee travels as passenger)
   const [isGastfahrt, setIsGastfahrt] = useState<boolean>(initialPlan?.is_gastfahrt ?? false)
 
@@ -457,8 +455,6 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
                     onChange={setStartLocationId}
                     kind="start"
                     locale={locale}
-                    locations={opLocations}
-                    loading={opLocationsLoading}
                     excludeId={destinationLocationId}
                   />
                   <div className="flex items-center justify-center text-slate-300">
@@ -469,8 +465,6 @@ export function PlanForm({ onSuccess, initialPlan, defaults }: PlanFormProps) {
                     onChange={setDestinationLocationId}
                     kind="destination"
                     locale={locale}
-                    locations={opLocations}
-                    loading={opLocationsLoading}
                     excludeId={startLocationId}
                   />
                 </div>

@@ -48,7 +48,8 @@ describe('buildMonthlyReport', () => {
     })
     expect(r.totals.workHours).toBe(8)
     expect(r.totals.gastfahrtHours).toBe(4)
-    expect(r.totals.actualHours).toBe(12)
+    // Billing spec section 5: Gastfahrt is not working time.
+    expect(r.totals.actualHours).toBe(8)
     // 01.11. (Allerheiligen) belongs to November, so only the Oct-31 shift's
     // post-midnight hours touch the holiday.
     expect(r.totals.holiday).toBe(6)

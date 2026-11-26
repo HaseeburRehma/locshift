@@ -22,7 +22,7 @@ import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import { loadReportSources, type ReportSources } from '@/lib/reports/load-sources'
 import { buildMonthOverview, buildMultiMonthReport, type OverviewRow, type OverviewTotals } from '@/lib/reports/overview-report'
-import { formatHours, formatSignedHours, monthShort } from '@/lib/time/format'
+import { formatEuro, formatHours, formatSignedHours, monthShort } from '@/lib/time/format'
 import { buildMonthOverviewPdf, buildMultiMonthPdf } from '@/lib/pdf/overview-reports'
 import { downloadMonthOverviewXlsx, downloadMultiMonthXlsx } from '@/lib/excel/monatsnachweis'
 import { DateField } from '@/components/shared/DateField'
@@ -126,7 +126,7 @@ function OverviewReports() {
     if (!sources || tab !== 'month') return null
     return buildMonthOverview({
       month,
-      employees: employees.map((e) => ({ id: e.id, name: e.name, weeklyTargetHours: e.weeklyTargetHours })),
+      employees: employees.map((e) => ({ id: e.id, name: e.name, weeklyTargetHours: e.weeklyTargetHours, federalState: e.federalState, pay: e.pay })),
       entries: sources.entries,
       absences: sources.absences,
       specialPayments: sources.specialPayments,
@@ -143,7 +143,7 @@ function OverviewReports() {
     const emp = sources.employees.find((e) => e.id === employeeId)
     if (!emp) return null
     return buildMultiMonthReport({
-      employee: { id: emp.id, name: emp.name, weeklyTargetHours: emp.weeklyTargetHours },
+      employee: { id: emp.id, name: emp.name, weeklyTargetHours: emp.weeklyTargetHours, federalState: emp.federalState, pay: emp.pay },
       from: from <= to ? from : to,
       to: from <= to ? to : from,
       entries: sources.entries,
@@ -251,6 +251,13 @@ function OverviewReports() {
             onRowClick={(r) => router.push(`/dashboard/times/monthly?month=${r.month}&employee=${r.employeeId}`)}
           />
 
+          <SurchargeTable
+            rows={rows}
+            totals={totals}
+            firstCol={tab === 'month' ? L('Mitarbeiter', 'Employee') : L('Monat', 'Month')}
+            totalsLabel={tab === 'month' ? L('Summe', 'Total') : L('Summe Zeitraum', 'Period total')}
+          />
+
           {tab === 'multi' && multi && (
             <div className="grid lg:grid-cols-3 gap-4">
               <ChartCard title={L('Arbeitszeit und Gastfahrt je Monat (Std.)', 'Working time and Gastfahrt per month (h)')} className="lg:col-span-2">
@@ -285,10 +292,11 @@ function OverviewReports() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-500 space-y-1">
             <p className="flex items-center gap-2 font-bold text-slate-700"><Info className="w-4 h-4" /> {L('So wird gerechnet', 'How values are calculated')}</p>
             <p>
-              {(tab === 'month' ? monthOverview?.gastfahrtCountsAsWork : multi?.gastfahrtCountsAsWork) ?? true
+              {(tab === 'month' ? monthOverview?.gastfahrtCountsAsWork : multi?.gastfahrtCountsAsWork) ?? false
                 ? L('Alle Werte stammen aus den Monatsnachweisen. Gastfahrt wird separat ausgewiesen; Ist = Arbeitszeit + Gastfahrt (keine Doppelzählung).', 'All values come from the monthly statements. Gastfahrt is shown separately; actual = working time + Gastfahrt (never counted twice).')
                 : L('Alle Werte stammen aus den Monatsnachweisen. Gastfahrt wird separat ausgewiesen und zählt nicht zu den Iststunden; Ist = Arbeitszeit.', 'All values come from the monthly statements. Gastfahrt is shown separately and not counted as actual hours; actual = working time.')}
             </p>
+            <p>{L('Zuschläge wie im Monatsnachweis: minutengenau nach Datum und Uhrzeit, Sonntag/Feiertag/Weihnachten/Silvester nur der höchste Satz, Nachtzuschlag kommt hinzu. Euro nur bei hinterlegtem Stundenlohn.', 'Premiums as in the monthly statement: to the minute, Sunday/holiday/Christmas/New Year’s Eve only the highest rate, night premium on top. Euros only with an hourly wage on file.')}</p>
             <p>{L('„Fehler“ zählt Einträge, die geprüft werden müssen (z. B. 0 Stunden oder fehlendes Ende).', '“Issues” counts entries that need checking (e.g. 0 hours or a missing end).')}</p>
             <p>{L('Abwesenheitstage zählen als Arbeitstage (Mo–Fr ohne Feiertag) mit genehmigtem Urlaub bzw. Krankmeldung. Ganze Tage – Teiltage werden nicht anteilig gezählt.', 'Absence days count weekdays (Mon–Fri, no holiday) with approved vacation/sick leave. Whole days only.')}</p>
             <p>{L('Offene Einträge sind noch nicht freigegeben und können sich ändern. Die Übersicht ist alphabetisch sortiert und keine Leistungsbewertung.', 'Open entries are not approved yet and may change. Sorted alphabetically; this is not a performance ranking.')}</p>
@@ -365,6 +373,54 @@ function OverviewTable({
               <td className="px-4 py-3 text-right tabular-nums">{totals.openEntries}</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.issueCount}</td>
               <td className="px-4 py-3 text-right tabular-nums">{totals.missingShifts}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function SurchargeTable({
+  rows, totals, firstCol, totalsLabel,
+}: {
+  rows: OverviewRow[]
+  totals: OverviewTotals
+  firstCol: string
+  totalsLabel: string
+}) {
+  const { locale } = useTranslation()
+  const L = (de: string, en: string) => (locale === 'de' ? de : en)
+  const h = (n: number) => (n ? formatHours(n, locale) : '–')
+  const eur = (n: number | null, hasHours = true) => (n == null ? (hasHours ? L('kein Lohn', 'no wage') : '–') : formatEuro(n, locale))
+  const heads = [
+    firstCol, L('Nacht 25 %', 'Night 25 %'), L('Nacht 40 %', 'Night 40 %'), L('Sonntag 50 %', 'Sunday 50 %'), L('Feiertag 50 %', 'Holiday 50 %'),
+    L('25./26.12. 150 %', '25/26 Dec 150 %'), L('31.12. 125 %', '31 Dec 125 %'), L('Zuschläge (€)', 'Premiums (€)'), L('Gastfahrt (€)', 'Gastfahrt (€)'),
+  ]
+  const cells = (r: OverviewRow | OverviewTotals) => [
+    h(r.night25), h(r.night40), h(r.sunday), h(r.holiday), h(r.christmas), h(r.newYearsEve),
+    eur(r.surchargeTotal), eur(r.gastfahrtAmount, r.gastfahrtHours > 0),
+  ]
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <p className="px-4 pt-3 text-[11px] font-black uppercase tracking-widest text-[#0064E0]">{L('Zuschläge (Std.) und Beträge', 'Premiums (h) and amounts')}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[900px] mt-2">
+          <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider">
+            <tr>{heads.map((x, i) => <th key={x} className={cn('px-4 py-2.5 font-black whitespace-nowrap', i === 0 ? 'text-left' : 'text-right')}>{x}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} className="border-t border-slate-100">
+                <td className="px-4 py-2.5 font-bold text-slate-900">{r.label}</td>
+                {cells(r).map((c, i) => <td key={i} className="px-4 py-2.5 text-right tabular-nums">{c}</td>)}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-slate-100 font-black text-slate-900">
+            <tr>
+              <td className="px-4 py-3">{totalsLabel}</td>
+              {cells(totals).map((c, i) => <td key={i} className="px-4 py-3 text-right tabular-nums">{c}</td>)}
             </tr>
           </tfoot>
         </table>

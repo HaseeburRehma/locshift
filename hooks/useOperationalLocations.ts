@@ -35,9 +35,16 @@ type NewLocationInput = {
 
 type UpdateLocationInput = Partial<NewLocationInput>
 
-export function useOperationalLocations() {
+/**
+ * @param opts.autoLoad  false = do not download the whole list (it holds
+ *   ~24 000 RIL100 points); call `loadAll()` only where the full list is
+ *   really needed (import duplicate check). CRUD works either way.
+ */
+export function useOperationalLocations(opts: { autoLoad?: boolean } = {}) {
+  const autoLoad = opts.autoLoad ?? true
   const [locations, setLocations] = useState<OperationalLocation[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(autoLoad)
+  const [fullLoaded, setFullLoaded] = useState(false)
   const { profile } = useUser()
   const supabase = createClient()
 
@@ -63,6 +70,7 @@ export function useOperationalLocations() {
       console.error('[useOperationalLocations] fetch error:', error)
     } else {
       setLocations(data)
+      setFullLoaded(true)
     }
     setLoading(false)
   }, [profile?.organization_id, supabase])
@@ -72,9 +80,9 @@ export function useOperationalLocations() {
   const scheduleRefresh = useCoalescedRefetch(() => fetchLocations(true))
 
   useEffect(() => {
-    fetchLocations()
+    if (autoLoad) fetchLocations()
 
-    if (!profile?.organization_id) return
+    if (!profile?.organization_id || (!autoLoad && !fullLoaded)) return
     const channel = supabase
       .channel(`operational-locations-${profile.organization_id}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
@@ -90,7 +98,7 @@ export function useOperationalLocations() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [profile?.organization_id, fetchLocations, scheduleRefresh, supabase])
+  }, [profile?.organization_id, fetchLocations, scheduleRefresh, supabase, autoLoad, fullLoaded])
 
   const createLocation = useCallback(async (input: NewLocationInput) => {
     if (!profile?.organization_id) return null
@@ -107,9 +115,12 @@ export function useOperationalLocations() {
 
     if (error) {
       console.error('[useOperationalLocations] create error:', error)
-      // Friendly message for the UNIQUE (organization_id, name) violation.
+      // Friendly message for a UNIQUE violation: own name (uq_operational_locations_org_name_own)
+      // or code (uq_operational_locations_org_code).
       if ((error as any).code === '23505') {
-        toast.error('Eine Betriebsstelle mit diesem Namen existiert bereits')
+        toast.error(/org_code/.test((error as any).message ?? '')
+          ? 'Eine Betriebsstelle mit diesem Kürzel existiert bereits'
+          : 'Eine Betriebsstelle mit diesem Namen existiert bereits')
       } else {
         toast.error('Betriebsstelle konnte nicht angelegt werden')
       }
@@ -143,7 +154,11 @@ export function useOperationalLocations() {
 
     if (error) {
       console.error('[useOperationalLocations] update error:', error)
-      toast.error('Betriebsstelle konnte nicht aktualisiert werden')
+      toast.error((error as any).code === '23505'
+        ? (/org_code/.test((error as any).message ?? '')
+            ? 'Eine Betriebsstelle mit diesem Kürzel existiert bereits'
+            : 'Eine Betriebsstelle mit diesem Namen existiert bereits')
+        : 'Betriebsstelle konnte nicht aktualisiert werden')
       setLocations(previous)
       return null
     }
@@ -230,5 +245,8 @@ export function useOperationalLocations() {
     toggleActive,
     deleteLocation,
     refresh: fetchLocations,
+    /** Downloads the whole list (only for the import duplicate check). */
+    loadAll: () => fetchLocations(false),
+    fullLoaded,
   }
 }

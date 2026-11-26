@@ -21,7 +21,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import { BetriebsstelleSelector } from '@/components/shared/BetriebsstelleSelector'
 import { DateField } from '@/components/shared/DateField'
-import { useOperationalLocations } from '@/hooks/useOperationalLocations'
 import { useTranslation } from '@/lib/i18n'
 
 interface TimeEntryFormProps {
@@ -181,7 +180,6 @@ export function TimeEntryForm({
   }
 
   // Single source of truth for both Betriebsstellen selectors.
-  const { locations: opLocations, loading: opLocationsLoading } = useOperationalLocations()
 
   // Live Spesen preview — computed from current form values.
   // Overnight-shift fix (May 2026): use calculateShiftTimes so a shift
@@ -558,8 +556,6 @@ export function TimeEntryForm({
                   onChange={(v) => setFormData({ ...formData, startLocationId: v })}
                   kind="start"
                   locale={locale}
-                  locations={opLocations}
-                  loading={opLocationsLoading}
                   excludeId={formData.destinationLocationId ?? null}
                 />
                 <div className="flex items-center justify-center text-slate-300">
@@ -570,8 +566,6 @@ export function TimeEntryForm({
                   onChange={(v) => setFormData({ ...formData, destinationLocationId: v })}
                   kind="destination"
                   locale={locale}
-                  locations={opLocations}
-                  loading={opLocationsLoading}
                   excludeId={formData.startLocationId ?? null}
                 />
               </div>

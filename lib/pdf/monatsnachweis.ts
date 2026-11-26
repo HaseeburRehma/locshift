@@ -11,10 +11,11 @@
 
 import { jsPDF } from 'jspdf'
 import autoTable, { type CellInput, type RowInput } from 'jspdf-autotable'
-import type { MonthlyReport, MonthlyReportRow } from '@/lib/reports/monthly-report'
+import { wageSummary, type MonthlyReport, type MonthlyReportRow } from '@/lib/reports/monthly-report'
 import { formatDateDE, formatEuro, formatHours, formatHoursLong, formatSignedHours } from '@/lib/time/format'
 import { shiftIssueLabel } from '@/lib/time/shift-hours'
-import { DEFAULT_STATE } from '@/lib/time/holidays'
+import { stateName } from '@/lib/time/holidays'
+import { surchargeLegend } from '@/lib/time/zuschlag'
 import { formatInstantDate, formatTimeOfDay } from '@/lib/time/format'
 
 const BLUE: [number, number, number] = [0, 100, 224]
@@ -95,7 +96,7 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
   // ── Daily table ──────────────────────────────────────────────────────
   const head: RowInput[] = [[
     'Datum', 'Tag', 'Beginn', 'Ende', 'Pause\n(Min.)', 'Arbeitszeit\n(Std.)', 'Gastfahrt\n(Std.)',
-    'Spesen\n(€)', 'Über-\nnachtung', '25 %\n(Std.)', '40 %\n(Std.)', 'Sonntag\n(Std.)', 'Feiertag\n(Std.)', 'Status / Bemerkung',
+    'Spesen\n(€)', 'Über-\nnachtung', 'Nacht\n25 %', 'Nacht\n40 %', 'Sonntag\n50 %', 'Feiertag\n50 %', '25./26.12.\n150 %', '31.12.\n125 %', 'Status / Bemerkung',
   ]]
 
   const body: RowInput[] = []
@@ -111,7 +112,7 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
         { content: d.weekdayShort, styles: style },
         { content: m.start, styles: style },
         { content: `${m.end}${m.endDayOffset > 0 ? ` (+${m.endDayOffset})` : ''}`, styles: style },
-        { content: '', colSpan: 9, styles: style },
+        { content: '', colSpan: 11, styles: style },
         { content: pdfText(`Geplant – keine Zeit erfasst${info ? ` · ${info}` : ''}`), styles: { ...style, fontStyle: 'bold' } },
       ])
     }
@@ -129,7 +130,7 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
       body.push([
         { content: dateCell, styles: style },
         { content: d.weekdayShort, styles: style },
-        { content: '', colSpan: 11, styles: style },
+        { content: '', colSpan: 13, styles: style },
         { content: pdfText(remark ? remark : 'kein Einsatz'), styles: { ...style, fontStyle: 'italic' } },
       ])
       continue
@@ -156,6 +157,8 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
         h(r.night40),
         h(r.sunday),
         h(r.holiday),
+        h(r.christmas),
+        h(r.newYearsEve),
         { content: pdfText(remarkPrefix) + statusText(r), styles: statusStyle },
       ]
       body.push(cells)
@@ -172,6 +175,8 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
     formatHours(t.night40, 'de'),
     formatHours(t.sunday, 'de'),
     formatHours(t.holiday, 'de'),
+    formatHours(t.christmas, 'de'),
+    formatHours(t.newYearsEve, 'de'),
     '',
   ]]
 
@@ -196,13 +201,15 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
       4: { cellWidth: 12 },
       5: { cellWidth: 17 },
       6: { cellWidth: 15 },
-      7: { cellWidth: 13 },
-      8: { cellWidth: 15 },
-      9: { cellWidth: 12 },
-      10: { cellWidth: 12 },
-      11: { cellWidth: 14 },
-      12: { cellWidth: 14 },
-      13: { halign: 'left' },
+      7: { cellWidth: 11 },
+      8: { cellWidth: 12 },
+      9: { cellWidth: 11 },
+      10: { cellWidth: 11 },
+      11: { cellWidth: 12 },
+      12: { cellWidth: 12 },
+      13: { cellWidth: 15 },
+      14: { cellWidth: 12 },
+      15: { halign: 'left' },
     },
   })
 
@@ -219,16 +226,30 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
     ['Sollstunden', t.targetHours == null ? 'nicht hinterlegt' : `${formatHours(t.targetHours, 'de')} Std.`],
     ['Arbeitszeit (ohne Gastfahrt)', `${formatHours(t.workHours, 'de')} Std.`],
     ['Gastfahrt (separat ausgewiesen)', `${formatHours(t.gastfahrtHours, 'de')} Std.`],
-    [report.rules.gastfahrtCountsAsWork ? 'Iststunden (Arbeitszeit + Gastfahrt)' : 'Iststunden (nur Arbeitszeit)', `${formatHours(t.actualHours, 'de')} Std.`],
+    ['Iststunden (nur Arbeitszeit)', `${formatHours(t.actualHours, 'de')} Std.`],
     ['Differenz Ist - Soll', t.differenceHours == null ? '–' : `${pdfText(formatSignedHours(t.differenceHours, 'de'))} Std.`],
-    ['Nachtzuschlag 25 %', `${formatHours(t.night25, 'de')} Std.`],
-    ['Nachtzuschlag 40 %', `${formatHours(t.night40, 'de')} Std.`],
-    ['Sonntagszuschlag', `${formatHours(t.sunday, 'de')} Std.`],
-    ['Feiertagszuschlag', `${formatHours(t.holiday, 'de')} Std.`],
-    ['Urlaubstage / Krankheitstage', `${t.vacationDays} / ${t.sickDays}`],
+    ...t.surchargeLines.map((l) => [pdfText(`Zuschlag ${l.label}`), `${formatHours(l.hours, 'de')} Std.`] as RowInput),
+    ['Urlaubstage / Krankheitstage (ganze Tage)', `${t.vacationDays} / ${t.sickDays}`],
   ]
 
+  const payRows: RowInput[] = t.surchargeTotal == null
+    ? [['Zuschläge in Euro', t.wagesUsed.some((w) => w.hourlyWage != null) ? 'Stundenlohn nicht für alle Schichten hinterlegt' : 'kein Stundenlohn hinterlegt']]
+    : [
+        ['Stundenlohn (brutto)', pdfText(wageSummary(t, 'de') ?? '–')],
+        [`Grundlohn Arbeitszeit (${formatHours(t.workHours, 'de')} Std.)`, formatEuro(t.baseAmount ?? 0, 'de')],
+        ...t.surchargeLines.filter((l) => l.minutes > 0).map((l) => [pdfText(`Zuschlag ${l.label} (${formatHours(l.hours, 'de')} Std.)`), formatEuro(l.amount ?? 0, 'de')] as RowInput),
+        [{ content: 'Zuschläge gesamt', styles: { fontStyle: 'bold' } }, { content: formatEuro(t.surchargeTotal ?? 0, 'de'), styles: { fontStyle: 'bold' } }],
+      ]
+  if (t.gastfahrtHours > 0) {
+    const gw = wageSummary(t, 'de', 'guest')
+    payRows.push([
+      pdfText(`Gastfahrt (${formatHours(t.gastfahrtHours, 'de')} Std.${gw ? ` x ${gw}` : ''})`),
+      t.gastfahrtAmount == null ? 'Gastfahrt-Stundenlohn fehlt' : formatEuro(t.gastfahrtAmount, 'de'),
+    ])
+  }
+
   const euroRows: RowInput[] = [
+    ...payRows,
     ...t.spesen.map((l) => [pdfText(`Spesen: ${l.count} x ${l.label}`), formatEuro(l.amount, 'de')] as RowInput),
     ...(t.perDiemClaims.count ? [[`Spesenanträge (${t.perDiemClaims.count})`, formatEuro(t.perDiemClaims.amount, 'de')] as RowInput] : []),
     [{ content: 'Spesen gesamt', styles: { fontStyle: 'bold' } }, { content: formatEuro(t.spesenTotal, 'de'), styles: { fontStyle: 'bold' } }],
@@ -252,11 +273,10 @@ export function buildMonatsnachweisPdf(report: MonthlyReport): jsPDF {
 
   // ── Legend + warnings ────────────────────────────────────────────────
   const rules = report.rules
-  const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
   const legend = [
     `Dezimalstunden: 7,50 Std. = ${formatHoursLong(7.5, 'de')}`,
-    `Nachtzuschlag 25 %: ${hhmm(rules.night25From)}–${hhmm(rules.night25To)} Uhr, 40 %: ${hhmm(rules.night40From)}–${hhmm(rules.night40To)} Uhr. Sonn-/Feiertag: nur die Stunden, die auf den Tag fallen (Feiertage ${rules.holidayState ?? DEFAULT_STATE}; ${rules.excludedHolidayNames.join(', ')} separat vergütet).`,
-    'Eine Schicht zählt zum Tag ihres Beginns. Spesen werden je Kalendertag einmal berücksichtigt. Gastfahrt wird separat ausgewiesen und nicht doppelt gezählt.',
+    `${surchargeLegend(rules)} Feiertage: ${stateName(rules.holidayState) || rules.holidayState}.`,
+    'Spesen je Schicht: unter 8 Std. 0 €, ab 8 Std. Teilsatz, ab 8 Std. mit Übernachtung Vollsatz – nie zusammengerechnet, je Kalendertag einmal. Gastfahrt zählt nicht zur Arbeitszeit und wird separat ausgewiesen. Urlaub und Krankheit nur in ganzen Tagen.',
     t.openEntries ? `${t.openEntries} Eintrag/Einträge noch nicht freigegeben (in der Spalte Status markiert).` : 'Alle Einträge sind freigegeben.',
     ...(t.missingShifts ? [`${t.missingShifts} geplante Schicht(en) ohne erfasste Zeit (orange markiert).`] : []),
     ...report.warnings,

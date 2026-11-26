@@ -9,9 +9,11 @@ import { toInstantIso } from '@/lib/time/shift-hours'
 
 describe('Spesen', () => {
   it('tiers', () => {
-    expect(calculateSpesen(8, false)).toBe(0)
-    expect(calculateSpesen(8.01, false)).toBe(14)
-    expect(calculateSpesen(2, true)).toBe(28)
+    // Billing spec section 4: < 8 h 0 €, ≥ 8 h 14 €, ≥ 8 h + overnight 28 €.
+    expect(calculateSpesen(7.99, false)).toBe(0)
+    expect(calculateSpesen(8, false)).toBe(14)
+    expect(calculateSpesen(2, true)).toBe(0)
+    expect(calculateSpesen(8, true)).toBe(28)
   })
   it('rejects non-positive / non-numeric org rates', () => {
     expect(resolveSpesenRates({ spesen_rate_partial: '-5', spesen_rate_full: 'abc' })).toEqual({ partial: 14, full: 28 })

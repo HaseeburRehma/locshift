@@ -47,8 +47,10 @@ describe('surcharges', () => {
     const z = calculateZuschlag('2026-05-01', '06:00', '14:00')
     expect(z.holiday).toBe(8)
   })
-  it('Christmas is excluded from the holiday premium', () => {
-    expect(calculateZuschlag('2026-12-25', '06:00', '14:00').holiday).toBe(0)
+  it('Christmas goes to its own 150 % bucket, not the holiday bucket', () => {
+    const z = calculateZuschlag('2026-12-25', '06:00', '14:00')
+    expect(z.holiday).toBe(0)
+    expect(z.christmas).toBe(8)
   })
   it('premium hours never exceed net hours (long break)', () => {
     const z = calculateZuschlag('2026-10-18', '08:00', '12:00', 180)
@@ -70,14 +72,17 @@ describe('surcharges', () => {
   it('Gastfahrt gets the full net hours', () => {
     expect(calculateZuschlag('2026-10-20', '08:00', '12:00', 0, true).gastfahrt).toBe(4)
   })
-  it('sumZuschlag rounds once at the end', () => {
-    const one = { night25: 0.33, night40: 0, sunday: 0, holiday: 0, gastfahrt: 0 }
-    expect(sumZuschlag([one, one, one]).night25).toBe(0.99)
+  it('sumZuschlag adds exact minutes and rounds once at the end', () => {
+    // 20:00–20:07 = 7 min → 0,12 h each; 3 × 7 min = 21 min = 0,35 h (not 0,36).
+    const one = calculateZuschlag('2026-10-20', '20:00', '20:07')
+    expect(one.night25).toBe(0.12)
+    expect(sumZuschlag([one, one, one]).night25).toBe(0.35)
   })
   it('organisation settings override defaults; garbage falls back', () => {
-    const r = resolveSurchargeRules({ surcharges: { night25_from: '21:00', night40_to: 'bad', gastfahrt_counts_as_work: false } })
+    const r = resolveSurchargeRules({ surcharges: { night25_from: '21:00', night40_to: 'bad', gastfahrt_counts_as_work: true } })
     expect(r.night25From).toBe(21 * 60)
     expect(r.night40To).toBe(4 * 60)
+    // Spec section 5: Gastfahrt never counts as working time.
     expect(r.gastfahrtCountsAsWork).toBe(false)
     expect(resolveSurchargeRules(null).night25From).toBe(20 * 60)
   })

@@ -48,3 +48,8 @@ e2e/videos/
 
 # pnpm
 pnpm-debug.log*
+
+# Supabase CLI cache
+supabase/.temp/
+# SQL-editor chunks of the RIL100 import (regenerate: node scripts/ril100-import.mjs <xlsx> <stand> <dir> --parts)
+supabase/ril100-import-teile/

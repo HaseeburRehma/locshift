@@ -61,8 +61,8 @@ export function SpesenExplainer({ manager }: { manager: boolean }) {
         <p>
           <span className="font-bold">{L('1. Automatisch aus den Schichten:', '1. Automatically from shifts:')}</span>{' '}
           {L(
-            `Für jeden Arbeitstag mit mehr als 8 Std. Arbeitszeit (ohne Pause) gibt es ${formatEuro(spesenRates.partial, 'de')}, mit Übernachtung ${formatEuro(spesenRates.full, 'de')} – je Kalendertag einmal. Diese Beträge entstehen beim Absenden der Schicht und stehen im Monatsnachweis.`,
-            `Each working day with more than 8 h working time (excluding breaks) earns ${formatEuro(spesenRates.partial, 'en')}, with overnight stay ${formatEuro(spesenRates.full, 'en')} – once per calendar day. They are created when the shift is submitted and appear in the monthly statement.`,
+            `Für jede Schicht ab 8 Std. Arbeitszeit (ohne Pause) gibt es ${formatEuro(spesenRates.partial, 'de')}, ab 8 Std. mit Übernachtung ${formatEuro(spesenRates.full, 'de')} statt ${formatEuro(spesenRates.partial, 'de')}; unter 8 Std. 0 €. Nie zusammengerechnet – je Kalendertag einmal. Diese Beträge entstehen beim Absenden der Schicht und stehen im Monatsnachweis.`,
+            `Each shift of 8 h or more (excluding breaks) earns ${formatEuro(spesenRates.partial, 'en')}; 8 h or more with an overnight stay earns ${formatEuro(spesenRates.full, 'en')} instead; under 8 h 0 €. Never added up – once per calendar day. They are created when the shift is submitted and appear in the monthly statement.`,
           )}
         </p>
         <p>

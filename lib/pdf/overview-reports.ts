@@ -10,7 +10,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable, { type RowInput } from 'jspdf-autotable'
 import type { MonthOverview, MultiMonthReport, OverviewRow, OverviewTotals } from '@/lib/reports/overview-report'
-import { formatHours, monthShort } from '@/lib/time/format'
+import { formatEuro, formatHours, monthShort } from '@/lib/time/format'
 import { localDateKey } from '@/lib/time/shift-hours'
 import { pdfText } from './monatsnachweis'
 import { formatInstantDateTime } from '@/lib/time/format'
@@ -69,6 +69,33 @@ function table(doc: jsPDF, startY: number, firstCol: string, rows: OverviewRow[]
   })
 }
 
+/** Second table: surcharge hours per bucket and euros (same values as the monthly statements). */
+function surchargeTable(doc: jsPDF, startY: number, firstCol: string, rows: OverviewRow[], totals: OverviewTotals, totalsLabel: string) {
+  const h = (n: number) => (n ? formatHours(n, 'de') : '–')
+  const eur = (n: number | null, hasHours = true) => (n == null ? (hasHours ? 'kein Lohn' : '–') : formatEuro(n, 'de'))
+  const cells = (r: OverviewRow | OverviewTotals) => [
+    h(r.night25), h(r.night40), h(r.sunday), h(r.holiday), h(r.christmas), h(r.newYearsEve),
+    eur(r.surchargeTotal), eur(r.gastfahrtAmount, r.gastfahrtHours > 0),
+  ]
+  autoTable(doc, {
+    startY,
+    head: [[firstCol, 'Nacht 25 %', 'Nacht 40 %', 'Sonntag 50 %', 'Feiertag 50 %', '25./26.12. 150 %', '31.12. 125 %', 'Zuschläge (€)', 'Gastfahrt (€)']],
+    body: rows.map((r) => [pdfText(r.label), ...cells(r)]),
+    foot: [[pdfText(totalsLabel), ...cells(totals)]],
+    theme: 'grid',
+    showHead: 'everyPage',
+    margin: { left: 12, right: 12, bottom: 14 },
+    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.8, textColor: SLATE, lineColor: [226, 232, 240], lineWidth: 0.1 },
+    headStyles: { fillColor: BLUE, textColor: 255, fontStyle: 'bold', halign: 'center' },
+    footStyles: { fillColor: [241, 245, 249], textColor: SLATE, fontStyle: 'bold', halign: 'center' },
+    bodyStyles: { halign: 'center' },
+    columnStyles: { 0: { halign: 'left', cellWidth: 52 } },
+  })
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const lastY = (doc: jsPDF, fallback: number) => ((doc as any).lastAutoTable?.finalY ?? fallback) as number
+
 function legend(doc: jsPDF, y: number, totals: OverviewTotals, gastfahrtCountsAsWork: boolean) {
   doc.setFontSize(7.5)
   doc.setTextColor(...MUTED)
@@ -76,6 +103,7 @@ function legend(doc: jsPDF, y: number, totals: OverviewTotals, gastfahrtCountsAs
     gastfahrtCountsAsWork
       ? 'Werte entsprechen den Monatsnachweisen. Gastfahrt wird separat ausgewiesen und nicht doppelt gezählt; Ist = Arbeitszeit + Gastfahrt.'
       : 'Werte entsprechen den Monatsnachweisen. Gastfahrt wird separat ausgewiesen und zählt nicht zu den Iststunden; Ist = Arbeitszeit.',
+    'Zuschläge (Std. und €) wie im Monatsnachweis: minutengenau, Sonntag/Feiertag/Weihnachten/Silvester nur höchster Satz plus Nacht; Euro nur bei hinterlegtem Stundenlohn.',
     'Abwesenheitstage: Arbeitstage (Mo–Fr ohne Feiertag) mit genehmigtem Urlaub bzw. Krankmeldung. Die Übersicht ist keine Leistungsbewertung.',
     totals.openEntries ? `${totals.openEntries} Eintrag/Einträge sind noch nicht freigegeben – Werte können sich noch ändern.` : 'Alle Einträge sind freigegeben.',
     ...(totals.issueCount ? [`${totals.issueCount} Eintrag/Einträge mit Fehlern (z. B. 0 Stunden oder fehlendes Ende) – bitte im Monatsnachweis prüfen.`] : []),
@@ -99,8 +127,12 @@ export function buildMonthOverviewPdf(o: MonthOverview): jsPDF {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   header(doc, 'Gesamtauswertung', `${o.monthLabel} · alle Lokführer`, o.createdAt)
   table(doc, 30, 'Mitarbeiter', o.rows, o.totals, 'Summe')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const y = ((doc as any).lastAutoTable?.finalY ?? 100) + 6
+  surchargeTable(doc, lastY(doc, 100) + 6, 'Mitarbeiter', o.rows, o.totals, 'Summe')
+  let y = lastY(doc, 150) + 6
+  if (y > 180) {
+    doc.addPage()
+    y = 18
+  }
   legend(doc, y > 190 ? 190 : y, o.totals, o.gastfahrtCountsAsWork)
   footer(doc, `Gesamtauswertung ${o.monthLabel}`)
   return doc
@@ -182,8 +214,8 @@ export function buildMultiMonthPdf(r: MultiMonthReport): jsPDF {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   header(doc, `Mehrmonatsreport · ${r.employee.name}`, r.periodLabel, r.createdAt)
   table(doc, 30, 'Monat', r.rows, r.totals, 'Summe Zeitraum')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let y = ((doc as any).lastAutoTable?.finalY ?? 100) + 8
+  surchargeTable(doc, lastY(doc, 100) + 6, 'Monat', r.rows, r.totals, 'Summe Zeitraum')
+  let y = lastY(doc, 150) + 8
   if (y > 120) {
     doc.addPage()
     y = 18

@@ -17,11 +17,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/lib/user-context'
 import { useTranslation } from '@/lib/i18n'
 import { loadReportSources, type ReportSources } from '@/lib/reports/load-sources'
-import { buildMonthlyReport, type MonthlyReport } from '@/lib/reports/monthly-report'
+import { buildMonthlyReport, wageSummary, type MonthlyReport } from '@/lib/reports/monthly-report'
 import { formatDateDE, formatEuro, formatHours, formatHoursLong, formatSignedHours, monthLabel } from '@/lib/time/format'
 import { localDateKey, shiftIssueLabel } from '@/lib/time/shift-hours'
 import { downloadMonatsnachweisPdf, monatsnachweisFilename } from '@/lib/pdf/monatsnachweis'
 import { downloadMonatsnachweisXlsx } from '@/lib/excel/monatsnachweis'
+import { surchargeLegend } from '@/lib/time/zuschlag'
+import { stateName } from '@/lib/time/holidays'
 import { DateField } from '@/components/shared/DateField'
 import { hideInternal } from '@/lib/profiles/internal'
 
@@ -115,6 +117,8 @@ function MonthlyStatement() {
       perDiemClaims: sources.perDiemClaims,
       plans: sources.plans,
       weeklyTargetHours: emp?.weeklyTargetHours ?? null,
+      federalState: emp?.federalState ?? null,
+      pay: emp?.pay ?? null,
       rules: surchargeRules,
       spesenRates,
       locale,
@@ -262,13 +266,14 @@ function MonthlyStatement() {
           {/* Daily table */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[1100px]">
+              <table className="w-full text-sm min-w-[1280px]">
                 <thead className="bg-[#0064E0] text-white text-[10px] uppercase tracking-wider">
                   <tr>
                     {[
                       L('Datum', 'Date'), L('Tag', 'Day'), L('Beginn', 'Start'), L('Ende', 'End'), L('Pause (Min.)', 'Break (min)'),
                       L('Arbeitszeit (Std.)', 'Hours (h)'), L('Gastfahrt (Std.)', 'Gastfahrt (h)'), L('Spesen (€)', 'Per diem (€)'), L('Übernachtung', 'Overnight'),
-                      L('25 % (Std.)', '25 % (h)'), L('40 % (Std.)', '40 % (h)'), L('Sonntag (Std.)', 'Sunday (h)'), L('Feiertag (Std.)', 'Holiday (h)'), L('Status / Bemerkung', 'Status / note'),
+                      L('Nacht 25 %', 'Night 25 %'), L('Nacht 40 %', 'Night 40 %'), L('Sonntag 50 %', 'Sunday 50 %'), L('Feiertag 50 %', 'Holiday 50 %'),
+                      L('25./26.12. 150 %', '25/26 Dec 150 %'), L('31.12. 125 %', '31 Dec 125 %'), L('Status / Bemerkung', 'Status / note'),
                     ].map((h) => (
                       <th key={h} className="px-3 py-3 font-black text-left whitespace-nowrap sticky top-0">{h}</th>
                     ))}
@@ -286,7 +291,7 @@ function MonthlyStatement() {
                           {m.end}
                           {m.endDayOffset > 0 && <span className="ml-1 px-1 rounded bg-indigo-50 text-indigo-700 text-[10px] font-black">+{m.endDayOffset}</span>}
                         </td>
-                        <td colSpan={9} />
+                        <td colSpan={11} />
                         <td className="px-3 py-2 text-xs">
                           <span className="mr-1 font-black text-orange-700">{L('Geplant – keine Zeit erfasst', 'Planned – no time recorded')}</span>
                           {m.label && <span className="mr-1">{m.label}</span>}
@@ -307,7 +312,7 @@ function MonthlyStatement() {
                       >
                         <td className="px-3 py-1.5 tabular-nums">{formatDateDE(d.date)}</td>
                         <td className="px-3 py-1.5">{d.weekdayShort}</td>
-                        <td colSpan={11} />
+                        <td colSpan={13} />
                         <td className="px-3 py-1.5 italic">{d.absence?.label ?? d.holidayName ?? L('kein Einsatz', 'no shift')}</td>
                       </tr>
                       )
@@ -334,6 +339,8 @@ function MonthlyStatement() {
                           <td className="px-3 py-2 tabular-nums">{r.night40 ? formatHours(r.night40, locale) : ''}</td>
                           <td className="px-3 py-2 tabular-nums">{r.sunday ? formatHours(r.sunday, locale) : ''}</td>
                           <td className="px-3 py-2 tabular-nums">{r.holiday ? formatHours(r.holiday, locale) : ''}</td>
+                          <td className="px-3 py-2 tabular-nums">{r.christmas ? formatHours(r.christmas, locale) : ''}</td>
+                          <td className="px-3 py-2 tabular-nums">{r.newYearsEve ? formatHours(r.newYearsEve, locale) : ''}</td>
                           <td className="px-3 py-2 text-xs">
                             {idx === 0 && (d.holidayName || d.absence) && <span className="mr-1 font-bold text-slate-500">{d.holidayName ?? d.absence?.label} ·</span>}
                             {r.status !== 'approved' && (
@@ -364,6 +371,8 @@ function MonthlyStatement() {
                     <td className="px-3 py-3 tabular-nums">{formatHours(t.night40, locale)}</td>
                     <td className="px-3 py-3 tabular-nums">{formatHours(t.sunday, locale)}</td>
                     <td className="px-3 py-3 tabular-nums">{formatHours(t.holiday, locale)}</td>
+                    <td className="px-3 py-3 tabular-nums">{formatHours(t.christmas, locale)}</td>
+                    <td className="px-3 py-3 tabular-nums">{formatHours(t.newYearsEve, locale)}</td>
                     <td />
                   </tr>
                 </tfoot>
@@ -380,17 +389,35 @@ function MonthlyStatement() {
               <Line label={L('Gastfahrt (separat ausgewiesen)', 'Gastfahrt (shown separately)')} value={`${formatHours(t.gastfahrtHours, locale)} ${L('Std.', 'h')}`} />
               <Line
                 strong
-                label={report.rules.gastfahrtCountsAsWork ? L('Iststunden (Arbeitszeit + Gastfahrt)', 'Actual (work + Gastfahrt)') : L('Iststunden (nur Arbeitszeit)', 'Actual (work only)')}
+                label={L('Iststunden (nur Arbeitszeit)', 'Actual (work only)')}
                 value={`${formatHours(t.actualHours, locale)} ${L('Std.', 'h')}`}
               />
               <Line label={L('Differenz Ist – Soll', 'Actual – target')} value={t.differenceHours == null ? '–' : `${formatSignedHours(t.differenceHours, locale)} ${L('Std.', 'h')}`} />
-              <Line label={L('Nachtzuschlag 25 %', 'Night premium 25 %')} value={`${formatHours(t.night25, locale)} ${L('Std.', 'h')}`} />
-              <Line label={L('Nachtzuschlag 40 %', 'Night premium 40 %')} value={`${formatHours(t.night40, locale)} ${L('Std.', 'h')}`} />
-              <Line label={L('Sonntagszuschlag', 'Sunday premium')} value={`${formatHours(t.sunday, locale)} ${L('Std.', 'h')}`} />
-              <Line label={L('Feiertagszuschlag', 'Holiday premium')} value={`${formatHours(t.holiday, locale)} ${L('Std.', 'h')}`} />
-              <Line label={L('Urlaubstage / Krankheitstage', 'Vacation / sick days')} value={`${t.vacationDays} / ${t.sickDays}`} />
+              {t.surchargeLines.map((l) => (
+                <Line key={l.bucket} label={`${L('Zuschlag', 'Premium')} ${l.label}`} value={`${formatHours(l.hours, locale)} ${L('Std.', 'h')}`} />
+              ))}
+              <Line label={L('Urlaubstage / Krankheitstage (ganze Tage)', 'Vacation / sick days (full days)')} value={`${t.vacationDays} / ${t.sickDays}`} />
             </SummaryCard>
             <SummaryCard title={L('Beträge in Euro', 'Amounts in euro')}>
+              {t.surchargeTotal == null ? (
+                <Line label={L('Zuschläge in Euro', 'Premiums in euro')} value={t.wagesUsed.some((w) => w.hourlyWage != null) ? L('Stundenlohn nicht für alle Schichten hinterlegt', 'hourly wage missing for some shifts') : L('kein Stundenlohn hinterlegt', 'no hourly wage on file')} />
+              ) : (
+                <>
+                  <Line label={L('Stundenlohn (brutto)', 'Hourly wage (gross)')} value={wageSummary(t, locale) ?? '–'} />
+                  <Line label={`${L('Grundlohn Arbeitszeit', 'Base pay')} (${formatHours(t.workHours, locale)} ${L('Std.', 'h')})`} value={formatEuro(t.baseAmount ?? 0, locale)} />
+                  {t.surchargeLines.filter((l) => l.minutes > 0).map((l) => (
+                    <Line key={l.bucket} label={`${L('Zuschlag', 'Premium')} ${l.label} (${formatHours(l.hours, locale)} ${L('Std.', 'h')})`} value={formatEuro(l.amount ?? 0, locale)} />
+                  ))}
+                  <Line strong label={L('Zuschläge gesamt', 'Premiums total')} value={formatEuro(t.surchargeTotal ?? 0, locale)} />
+                </>
+              )}
+              {t.gastfahrtHours > 0 && (
+                <Line
+                  label={`Gastfahrt (${formatHours(t.gastfahrtHours, locale)} ${L('Std.', 'h')}${wageSummary(t, locale, 'guest') ? ` × ${wageSummary(t, locale, 'guest')}` : ''})`}
+                  value={t.gastfahrtAmount == null ? L('Gastfahrt-Stundenlohn fehlt', 'Gastfahrt wage missing') : formatEuro(t.gastfahrtAmount, locale)}
+                />
+              )}
+              <div className="h-px bg-slate-100 my-2" />
               {t.spesen.length === 0 && <Line label={L('Spesen aus Schichten', 'Per diem from shifts')} value={formatEuro(0, locale)} />}
               {t.spesen.map((l) => (
                 <Line key={l.label} label={`${l.count} × ${l.label}`} value={formatEuro(l.amount, locale)} />
@@ -410,8 +437,8 @@ function MonthlyStatement() {
 
           <p className="text-xs text-slate-500 leading-relaxed">
             {L(
-              `Dezimalstunden: 7,50 Std. = ${formatHoursLong(7.5, 'de')} Eine Schicht zählt zum Tag ihres Beginns. Spesen werden je Kalendertag einmal berücksichtigt. Gastfahrt wird separat ausgewiesen und nicht doppelt gezählt. Sonn- und Feiertagsstunden zählen nur, soweit sie auf den Tag fallen.`,
-              'Decimal hours: 7.50 h = 7 h 30 min. A shift belongs to the day it starts. Per diem counts once per calendar day. Gastfahrt is shown separately and never counted twice. Sunday/holiday hours only count for the part of the shift on that day.',
+              `Dezimalstunden: 7,50 Std. = ${formatHoursLong(7.5, 'de')} ${surchargeLegend(report.rules)} Feiertage: ${stateName(report.rules.holidayState)}. Spesen je Schicht: unter 8 Std. 0 €, ab 8 Std. Teilsatz, ab 8 Std. mit Übernachtung Vollsatz – nie zusammengerechnet. Gastfahrt zählt nicht zur Arbeitszeit und wird separat ausgewiesen.`,
+              `Decimal hours: 7.50 h = 7 h 30 min. Premiums on the regular gross hourly wage, to the minute by real date and time: Sunday/holiday/Christmas/New Year's Eve only the highest rate, night premium on top. Holidays: ${stateName(report.rules.holidayState)}. A shift belongs to the month it starts in. Per diem per shift: under 8 h 0 €, 8 h or more partial rate, 8 h or more with overnight full rate – never added up. Gastfahrt is not working time and shown separately.`,
             )}
           </p>
         </>

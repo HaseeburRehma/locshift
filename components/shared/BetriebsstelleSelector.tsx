@@ -1,20 +1,22 @@
 'use client'
 
 /**
- * Betriebsstelle picker with search (Kundenfeedback Punkt 12): finds a
- * location by full name, part of the name or code/abbreviation — usable
- * with several hundred imported Betriebsstellen.
+ * Betriebsstelle picker with type-ahead search (billing spec section 9):
+ * typing a name ("Aachen") lists every matching operating point with name
+ * and code, typing a code ("KAW") finds its full name. Searches the
+ * ~24 000 RIL100 points on the server; nothing is loaded up front.
  */
 
-import React, { useMemo, useState } from 'react'
-import { Check, ChevronsUpDown, MapPin, MapPinOff, X } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { Check, ChevronsUpDown, Loader2, MapPin, MapPinOff, X } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
-import { useOperationalLocations } from '@/hooks/useOperationalLocations'
+import { createClient } from '@/lib/supabase/client'
+import { useUser } from '@/lib/user-context'
 import type { OperationalLocation } from '@/lib/types'
-import { searchLocations } from '@/lib/operational-locations/parse'
+import { cachedLocation, fetchLocationsByIds, searchLocationsRemote } from '@/lib/operational-locations/remote'
 
 const TYPE_LABELS: Record<OperationalLocation['type'], [string, string]> = {
   depot: ['Depot', 'Depot'],
@@ -36,8 +38,9 @@ interface Props {
   className?: string
   /** Hides this id (the other side's selection). */
   excludeId?: string | null
-  /** Pre-fetched list shared by several pickers. */
+  /** @deprecated Ignored — the picker searches on the server. */
   locations?: OperationalLocation[]
+  /** @deprecated Ignored. */
   loading?: boolean
 }
 
@@ -54,19 +57,50 @@ export function BetriebsstelleSelector({
   locations: locationsProp,
   loading: loadingProp,
 }: Props) {
-  const fallback = useOperationalLocations()
-  const locations = locationsProp ?? fallback.locations
-  const loading = loadingProp ?? fallback.loading
+  const { profile } = useUser()
+  const supabaseRef = useRef(createClient())
+  const orgId = profile?.organization_id ?? null
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [results, setResults] = useState<OperationalLocation[]>([])
+  const [searching, setSearching] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [selected, setSelected] = useState<OperationalLocation | null>(() => cachedLocation(value))
   const t = (de: string, en: string) => (locale === 'de' ? de : en)
+  const LIMIT = 40
 
-  const selectable = useMemo(
-    () => locations.filter((l) => l.id === value || (l.is_active && l.id !== excludeId)),
-    [locations, value, excludeId],
-  )
-  const results = useMemo(() => searchLocations(selectable, query, 60), [selectable, query])
-  const selected = locations.find((l) => l.id === value) ?? null
+  // The selected location (also when it is inactive or not in the results).
+  useEffect(() => {
+    if (!value) { setSelected(null); return }
+    const hit = cachedLocation(value)
+    if (hit) { setSelected(hit); return }
+    let alive = true
+    fetchLocationsByIds(supabaseRef.current, [value])
+      .then((rows) => { if (alive) setSelected(rows[0] ?? null) })
+      .catch(() => { /* keeps the placeholder */ })
+    return () => { alive = false }
+  }, [value])
+
+  // Type-ahead: debounced, only the latest answer counts.
+  const seq = useRef(0)
+  useEffect(() => {
+    if (!open || !orgId) return
+    const id = ++seq.current
+    setSearching(true)
+    const timer = setTimeout(() => {
+      searchLocationsRemote(supabaseRef.current, orgId, query, { limit: LIMIT })
+        .then((rows) => {
+          if (id !== seq.current) return
+          setResults(rows.filter((l) => l.id !== excludeId))
+          setFailed(false)
+        })
+        .catch(() => { if (id === seq.current) { setResults([]); setFailed(true) } })
+        .finally(() => { if (id === seq.current) setSearching(false) })
+    }, query.trim() ? 180 : 0)
+    return () => clearTimeout(timer)
+  }, [open, orgId, query, excludeId])
+
+  const loading = !orgId
   const Icon = kind === 'start' ? MapPin : MapPinOff
 
   const computedLabel =
@@ -116,12 +150,26 @@ export function BetriebsstelleSelector({
           <Command shouldFilter={false}>
             <CommandInput value={query} onValueChange={setQuery} placeholder={t('Name, Namensteil oder Kürzel …', 'Name, part of name or code …')} />
             <CommandList className="max-h-72">
-              <CommandEmpty>{t('Keine Betriebsstelle gefunden.', 'No location found.')}</CommandEmpty>
+              {searching && results.length === 0 ? (
+                <div className="flex items-center gap-2 px-3 py-4 text-sm text-slate-400"><Loader2 className="w-4 h-4 animate-spin" />{t('Suche…', 'Searching…')}</div>
+              ) : (
+                <CommandEmpty>
+                  {failed
+                    ? t('Suche fehlgeschlagen – bitte erneut versuchen.', 'Search failed – please try again.')
+                    : query.trim()
+                      ? t('Keine Betriebsstelle gefunden.', 'No location found.')
+                      : t('Name oder Kürzel eingeben, z. B. „Aachen“ oder „KAW“.', 'Type a name or code, e.g. “Aachen” or “KAW”.')}
+                </CommandEmpty>
+              )}
+              {!query.trim() && results.length > 0 && (
+                <p className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{t('Eigene Betriebsstellen', 'Your locations')}</p>
+              )}
               {results.map((loc) => (
                 <CommandItem
                   key={loc.id}
                   value={loc.id}
                   onSelect={() => {
+                    setSelected(loc)
                     onChange(loc.id)
                     setOpen(false)
                     setQuery('')
@@ -137,7 +185,7 @@ export function BetriebsstelleSelector({
                   </span>
                 </CommandItem>
               ))}
-              {results.length === 60 && (
+              {results.length >= LIMIT && (
                 <p className="px-3 py-2 text-[11px] text-slate-400">{t('Weitere Treffer – Suche verfeinern.', 'More results – refine your search.')}</p>
               )}
             </CommandList>

@@ -93,6 +93,10 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
 
   if (!isOpen) return null
 
+  // Billing spec section 8: vacation and sick leave only as full days
+  // (the database stores them from 00:00 of the first to 24:00 of the last day).
+  const fullDayOnly = eventType === 'holiday' || eventType === 'sick_leave'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title) return
@@ -106,7 +110,7 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
       description,
       location,
       event_type: eventType,
-      is_all_day: isAllDay,
+      is_all_day: fullDayOnly || isAllDay,
       start_time: startIso,
       end_time: endIso,
       color: EVENT_COLORS[eventType],
@@ -243,9 +247,16 @@ export function NewEventSheet({ isOpen, onClose, initialDate, eventToEdit }: New
                     <span className="text-xs font-bold text-gray-500">
                       {locale === 'de' ? 'Ganztägig' : 'All day'}
                     </span>
-                    <Switch checked={isAllDay} onCheckedChange={setIsAllDay} />
+                    <Switch checked={fullDayOnly || isAllDay} onCheckedChange={setIsAllDay} disabled={fullDayOnly} />
                   </div>
                 </div>
+                {fullDayOnly && (
+                  <p className="px-1 text-xs font-semibold text-gray-500">
+                    {locale === 'de'
+                      ? 'Urlaub und Krankheit gibt es nur als ganze Tage – es zählen die Kalendertage von Beginn bis Ende.'
+                      : 'Vacation and sick leave are full days only – the calendar days from start to end count.'}
+                  </p>
+                )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    <div className="relative group">

@@ -13,6 +13,8 @@ import { usePersonnelDocuments } from '@/hooks/personnel/usePersonnelDocuments'
 import { DocumentForm } from '@/components/personnel/DocumentForm'
 import { DocumentTable } from '@/components/personnel/DocumentTable'
 import type { PersonnelDocument } from '@/lib/personnel/documents'
+import { PayAndStateCard } from '@/components/personnel/PayAndStateCard'
+import { useUser } from '@/lib/user-context'
 
 interface EmployeeInfo {
   id: string
@@ -25,6 +27,7 @@ interface EmployeeInfo {
 export default function PersonnelFilePage() {
   const { employeeId } = useParams<{ employeeId: string }>()
   const router = useRouter()
+  const { profile } = useUser()
   const { locale } = useTranslation()
   const L = (de: string, en: string) => (locale === 'de' ? de : en)
   const [employee, setEmployee] = useState<EmployeeInfo | null>(null)
@@ -64,6 +67,8 @@ export default function PersonnelFilePage() {
           <Plus className="w-4 h-4 mr-1" /> {L('Nachweis', 'Document')}
         </Button>
       </div>
+
+      {employeeId && <PayAndStateCard employeeId={employeeId} organizationId={profile?.organization_id ?? null} />}
 
       <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
         <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />

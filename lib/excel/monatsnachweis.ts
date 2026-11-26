@@ -8,10 +8,12 @@
  */
 
 import type { Workbook, Worksheet } from 'exceljs'
-import type { MonthlyReport } from '@/lib/reports/monthly-report'
+import { wageSummary, type MonthlyReport } from '@/lib/reports/monthly-report'
 import type { MonthOverview, MultiMonthReport, OverviewRow } from '@/lib/reports/overview-report'
 import { formatDateDE, formatHoursLong } from '@/lib/time/format'
 import { localDateKey, shiftIssueLabel } from '@/lib/time/shift-hours'
+import { surchargeLegend } from '@/lib/time/zuschlag'
+import { stateName } from '@/lib/time/holidays'
 
 const BLUE = 'FF0064E0'
 const HOURS = '0.00'
@@ -82,6 +84,8 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
     { key: 'n40', width: 8 },
     { key: 'sun', width: 9 },
     { key: 'hol', width: 9 },
+    { key: 'xmas', width: 10 },
+    { key: 'nye', width: 9 },
     { key: 'status', width: 48 },
   ]
 
@@ -103,7 +107,7 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
   const headerRowNumber = 7
   ws.getRow(headerRowNumber).values = [
     'Datum', 'Tag', 'Beginn', 'Ende', 'Pause (Min.)', 'Arbeitszeit (Std.)', 'Gastfahrt (Std.)', 'Spesen (€)',
-    'Übernachtung', '25 % (Std.)', '40 % (Std.)', 'Sonntag (Std.)', 'Feiertag (Std.)', 'Status / Bemerkung',
+    'Übernachtung', 'Nacht 25 % (Std.)', 'Nacht 40 % (Std.)', 'Sonntag 50 % (Std.)', 'Feiertag 50 % (Std.)', '25./26.12. 150 % (Std.)', '31.12. ab 12 Uhr 125 % (Std.)', 'Status / Bemerkung',
   ]
   styleHeader(ws, headerRowNumber)
 
@@ -113,7 +117,7 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
       const info = [m.label, m.isGastfahrt ? 'Gastfahrt' : null, m.customer, m.route].filter(Boolean).join(' · ')
       const row = ws.addRow([
         formatDateDE(d.date), d.weekdayShort, m.start, `${m.end}${m.endDayOffset > 0 ? ` (+${m.endDayOffset})` : ''}`,
-        '', '', '', '', '', '', '', '', '', `Geplant – keine Zeit erfasst${info ? ` · ${info}` : ''}`,
+        '', '', '', '', '', '', '', '', '', '', '', `Geplant – keine Zeit erfasst${info ? ` · ${info}` : ''}`,
       ])
       row.font = { bold: true, color: { argb: 'FF9A3412' } }
       row.eachCell({ includeEmpty: true }, (c) => {
@@ -122,7 +126,7 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
     }
     if (d.rows.length === 0 && d.missing.length > 0) continue
     if (d.rows.length === 0) {
-      const row = ws.addRow([formatDateDE(d.date), d.weekdayShort, '', '', '', '', '', '', '', '', '', '', '', d.absence?.label ?? d.holidayName ?? 'kein Einsatz'])
+      const row = ws.addRow([formatDateDE(d.date), d.weekdayShort, '', '', '', '', '', '', '', '', '', '', '', '', '', d.absence?.label ?? d.holidayName ?? 'kein Einsatz'])
       row.font = { color: { argb: 'FF94A3B8' }, italic: true }
       if (d.absence || d.holidayName || d.isWeekend) {
         row.eachCell({ includeEmpty: true }, (c) => {
@@ -156,21 +160,23 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
         r.night40 || null,
         r.sunday || null,
         r.holiday || null,
+        r.christmas || null,
+        r.newYearsEve || null,
         remarks.join(' · '),
       ])
-      for (const col of [6, 7, 10, 11, 12, 13]) row.getCell(col).numFmt = HOURS
+      for (const col of [6, 7, 10, 11, 12, 13, 14, 15]) row.getCell(col).numFmt = HOURS
       row.getCell(8).numFmt = EURO
-      if (r.issues.length) row.getCell(14).font = { bold: true, color: { argb: 'FFB91C1C' } }
-      else if (r.status !== 'approved') row.getCell(14).font = { color: { argb: 'FFB45309' } }
+      if (r.issues.length) row.getCell(16).font = { bold: true, color: { argb: 'FFB91C1C' } }
+      else if (r.status !== 'approved') row.getCell(16).font = { color: { argb: 'FFB45309' } }
     })
   }
 
   const sumRow = ws.addRow([
     'Summe', '', '', '', '', t.workHours, t.gastfahrtHours, t.spesenFromEntries, `${t.overnightCount}× ja`,
-    t.night25, t.night40, t.sunday, t.holiday, '',
+    t.night25, t.night40, t.sunday, t.holiday, t.christmas, t.newYearsEve, '',
   ])
   sumRow.font = { bold: true }
-  for (const col of [6, 7, 10, 11, 12, 13]) sumRow.getCell(col).numFmt = HOURS
+  for (const col of [6, 7, 10, 11, 12, 13, 14, 15]) sumRow.getCell(col).numFmt = HOURS
   sumRow.getCell(8).numFmt = EURO
   sumRow.eachCell({ includeEmpty: true }, (c) => {
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
@@ -193,16 +199,26 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
   line('Sollstunden', t.targetHours, HOURS)
   line('Arbeitszeit (ohne Gastfahrt)', t.workHours, HOURS)
   line('Gastfahrt (separat ausgewiesen)', t.gastfahrtHours, HOURS)
-  line(report.rules.gastfahrtCountsAsWork ? 'Iststunden (Arbeitszeit + Gastfahrt)' : 'Iststunden (nur Arbeitszeit)', t.actualHours, HOURS)
+  line('Iststunden (nur Arbeitszeit)', t.actualHours, HOURS)
   line('Differenz Ist – Soll', t.differenceHours, HOURS)
-  line('Nachtzuschlag 25 %', t.night25, HOURS)
-  line('Nachtzuschlag 40 %', t.night40, HOURS)
-  line('Sonntagszuschlag', t.sunday, HOURS)
-  line('Feiertagszuschlag', t.holiday, HOURS)
-  line('Urlaubstage', t.vacationDays)
-  line('Krankheitstage', t.sickDays)
+  for (const l of t.surchargeLines) line(`Zuschlag ${l.label}`, l.hours, HOURS)
+  line('Urlaubstage (ganze Tage)', t.vacationDays)
+  line('Krankheitstage (ganze Tage)', t.sickDays)
   ws.addRow([])
   block('Beträge in Euro')
+  if (t.surchargeTotal == null) {
+    line('Zuschläge in Euro', t.wagesUsed.some((w) => w.hourlyWage != null) ? 'Stundenlohn nicht für alle Schichten hinterlegt' : 'kein Stundenlohn hinterlegt')
+  } else {
+    if (t.hourlyWage != null) line('Stundenlohn (brutto)', t.hourlyWage, EURO)
+    else line('Stundenlohn (brutto)', wageSummary(t, 'de') ?? '–')
+    line(`Grundlohn Arbeitszeit (${t.workHours.toFixed(2).replace('.', ',')} Std.)`, t.baseAmount, EURO)
+    for (const l of t.surchargeLines) if (l.minutes > 0) line(`Zuschlag ${l.label} (${l.hours.toFixed(2).replace('.', ',')} Std.)`, l.amount, EURO)
+    line('Zuschläge gesamt', t.surchargeTotal, EURO)
+  }
+  if (t.gastfahrtHours > 0) {
+    const gw = wageSummary(t, 'de', 'guest')
+    line(`Gastfahrt (${t.gastfahrtHours.toFixed(2).replace('.', ',')} Std.${gw ? ` × ${gw}` : ''})`, t.gastfahrtAmount ?? 'Gastfahrt-Stundenlohn fehlt', EURO)
+  }
   for (const l of t.spesen) line(`Spesen: ${l.count} × ${l.label}`, l.amount, EURO)
   if (t.perDiemClaims.count) line(`Spesenanträge (${t.perDiemClaims.count})`, t.perDiemClaims.amount, EURO)
   line('Spesen gesamt', t.spesenTotal, EURO)
@@ -210,6 +226,8 @@ export async function downloadMonatsnachweisXlsx(report: MonthlyReport, filename
   line('Sonderzahlungen gesamt', t.specialPaymentsTotal, EURO)
   ws.addRow([])
   ws.addRow([`Hinweis: Dezimalstunden – 7,50 Std. = ${formatHoursLong(7.5, 'de')}`]).font = { italic: true, color: { argb: 'FF64748B' } }
+  ws.addRow([`${surchargeLegend(report.rules)} Feiertage: ${stateName(report.rules.holidayState) || report.rules.holidayState}.`]).font = { italic: true, color: { argb: 'FF64748B' } }
+  ws.addRow(['Spesen je Schicht: unter 8 Std. 0 €, ab 8 Std. Teilsatz, ab 8 Std. mit Übernachtung Vollsatz – nie zusammengerechnet. Gastfahrt zählt nicht zur Arbeitszeit. Urlaub/Krankheit nur ganze Tage.']).font = { italic: true, color: { argb: 'FF64748B' } }
   for (const w of report.warnings) ws.addRow([w]).font = { italic: true, color: { argb: 'FFB45309' } }
 
   landscape(ws, headerRowNumber)
@@ -220,6 +238,7 @@ function overviewSheet(ws: Worksheet, title: string, subtitle: string, rows: Ove
   ws.columns = [
     { width: 28 }, { width: 12 }, { width: 13 }, { width: 13 }, { width: 13 }, { width: 13 },
     { width: 11 }, { width: 12 }, { width: 12 }, { width: 14 }, { width: 16 }, { width: 16 },
+    { width: 11 }, { width: 11 }, { width: 12 }, { width: 12 }, { width: 13 }, { width: 13 }, { width: 14 }, { width: 14 },
   ]
   ws.addRow([title]).font = { bold: true, size: 14 }
   ws.addRow([subtitle]).font = { color: { argb: 'FF64748B' } }
@@ -228,14 +247,19 @@ function overviewSheet(ws: Worksheet, title: string, subtitle: string, rows: Ove
   ws.getRow(headerRowNumber).values = [
     firstCol, 'Soll (Std.)', 'Arbeitszeit (Std.)', 'Gastfahrt (Std.)', 'Ist (Std.)', 'Differenz (Std.)',
     'Urlaub (Tage)', 'Krank (Tage)', 'Arbeitstage', 'Offene Einträge', 'Fehlerhafte Einträge', 'Fehlende Schichten',
+    'Nacht 25 % (Std.)', 'Nacht 40 % (Std.)', 'Sonntag 50 % (Std.)', 'Feiertag 50 % (Std.)', '25./26.12. 150 % (Std.)', '31.12. 125 % (Std.)',
+    'Zuschläge (€)', 'Gastfahrt (€)',
   ]
   styleHeader(ws, headerRowNumber)
   const put = (r: OverviewRow, bold = false) => {
     const row = ws.addRow([
       r.label, r.targetHours, r.workHours, r.gastfahrtHours, r.actualHours, r.differenceHours,
       r.vacationDays, r.sickDays, r.workingDays, r.openEntries, r.issueCount, r.missingShifts,
+      r.night25, r.night40, r.sunday, r.holiday, r.christmas, r.newYearsEve,
+      r.surchargeTotal ?? 'kein Lohn', r.gastfahrtAmount ?? (r.gastfahrtHours > 0 ? 'kein Lohn' : null),
     ])
-    for (const c of [2, 3, 4, 5, 6]) row.getCell(c).numFmt = HOURS
+    for (const c of [2, 3, 4, 5, 6, 13, 14, 15, 16, 17, 18]) row.getCell(c).numFmt = HOURS
+    for (const c of [19, 20]) row.getCell(c).numFmt = EURO
     if (bold) {
       row.font = { bold: true }
       row.eachCell({ includeEmpty: true }, (c) => {
@@ -252,7 +276,7 @@ function overviewSheet(ws: Worksheet, title: string, subtitle: string, rows: Ove
   put({ ...totals, label: totalsLabel }, true)
   ws.addRow([])
   ws.addRow([
-    `Werte entsprechen den Monatsnachweisen. Gastfahrt separat ausgewiesen, ${gastfahrtCountsAsWork ? 'nicht doppelt gezählt; Ist = Arbeitszeit + Gastfahrt' : 'zählt nicht zu den Iststunden; Ist = Arbeitszeit'}. Abwesenheitstage = Arbeitstage (Mo–Fr ohne Feiertag) mit genehmigtem Urlaub/Krankmeldung.`,
+    `Werte entsprechen den Monatsnachweisen. Gastfahrt separat ausgewiesen, ${gastfahrtCountsAsWork ? 'nicht doppelt gezählt; Ist = Arbeitszeit + Gastfahrt' : 'zählt nicht zu den Iststunden; Ist = Arbeitszeit'}. Zuschläge in Euro nur bei hinterlegtem Stundenlohn (Summe nur dieser Mitarbeiter). Abwesenheitstage = Arbeitstage (Mo–Fr ohne Feiertag) mit genehmigtem Urlaub/Krankmeldung.`,
   ]).font = { italic: true, color: { argb: 'FF64748B' } }
   landscape(ws, headerRowNumber)
 }
